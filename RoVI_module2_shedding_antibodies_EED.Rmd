@@ -1,0 +1,1395 @@
+---
+title: "Analysis module 2: Maternal antibodies, study arm, and inflammatory markers by country and ORV response"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+Sidebar {.sidebar} 
+===================================== 
+[Methods]    
+
+[Shedding by country/arm]    
+
+[Immunogenicity by country/arm]    
+
+[Any response by country/arm]    
+
+[RV-IgA vs cumulative shedding]    
+
+[Maternal Abs by country/arm/exposure]    
+
+[Maternal Abs vs ORV outcome]    
+
+[EED biomarkers by country/arm/exposure]    
+
+[EED biomarkers vs ORV outcome]    
+
+[Neonatal exposure vs ORV outcome]    
+
+
+
+
+Methods {.hidden}
+=====================================
+
+#### Comparisons by country/arm    
+* For binary covariates (seroconversion, shedding, etc), comparisons are pairwise Fisher's exact tests with FDR adjustment.         
+* For continuous covariates (titre, inflammatory markers, etc), comparisons are ANOVAs of log-transformed values with post-hoc Tukey tests.    
+* \* p <0.05; \*\* p <0.005; \*\*\* p <0.0005.
+
+#### Comparisons by ORV outcome     
+* For binary endpoints (seroconversion/shedding), comparisons are logistic regressions.   
+* For continuous endpoint (post-vaccination RV-IgA), comparisons are linear regressions of log-transformed RV-IgA concentration.    
+* See *Module 5* for full univariate and multivariate analyses of ORV outcome.    
+* \* p <0.05; \*\* p <0.005; \*\*\* p <0.0005.
+
+
+
+
+
+Shedding by country/arm {.hidden}
+===================================== 
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+```{r, message=FALSE}
+# load RoVI packages and functions
+source("input/packages_and_functions.R")
+
+# import metadata, and create India-specific subset for analyses of study arm
+s = read.csv("input/RoVI_metadata_by_family_03112020.csv", header=TRUE, stringsAsFactors=FALSE)
+sI = subset(s, country=="India")
+```
+
+### Country
+
+#### Summary of sample sizes
+```{r}
+s$n = 1
+t = data.frame(
+  n = table(!is.na(s$n), s$country)[1,],
+  neonatal_shedding = table(!is.na(s$BS1_VP6_ct), s$country)[2,],
+  dose1_shedding = table(!is.na(s$dose1_shedding), s$country)[2,],
+  dose2_shedding = table(!is.na(s$dose2_shedding), s$country)[2,],
+  either_shedding = table(!is.na(s$either_shedding), s$country)[2,],
+  seroconv = table(!is.na(s$seroconv), s$country)[2,],
+  any_response = table(!is.na(s$any_response), s$country)[2,])
+t
+rm(t)
+```
+
+#### ORV shedding
+
+##### Neonatal and vaccine shedding
+```{r, fig.width=12, fig.height = 3.5}
+p1 = fig_cat(s, "BS1_VP6_cat", title="neonatal shedding (VP6)") + 
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="ns", y_position = 1.0625, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="***", y_position = 1, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) 
+
+p2 = fig_cat(s, "dose1_shedding", title="shedding, dose 1 (NSP2)")  + 
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 1.0625, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="***", y_position = 1, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) 
+
+p3 = fig_cat(s, "dose2_shedding", title="shedding, dose 2 (NSP2)")  + 
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="*", y_position = 1.0625, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="ns", y_position = 1, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") 
+
+p4 = fig_cat(s, "either_shedding", title="shedding, either (NSP2)")  + 
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 1.0625, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="**", y_position = 1, tip_length=0, vjust=0, size = 0.3, textsize=4, color=Malawi_col)
+
+p5 = fig_cat(s, "both_shedding", title="shedding, both (NSP2)")  + 
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 1.0625, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="**", y_position = 1, tip_length=0, vjust=0, size = 0.3, textsize=4, color=Malawi_col)
+
+grid.arrange(p1,p2,p3,p4,p5, ncol=5)
+rm(p1,p2,p3,p4,p5)
+```
+
+#### Raw data and p values
+
+##### Neonatal shedding
+```{r}
+outcome_summary(s, "BS1_VP6_cat")
+p_summary(s, "BS1_VP6_cat")
+```
+
+##### Dose 1 shedding
+```{r}
+outcome_summary(s, "dose1_shedding")
+p_summary(s, "dose1_shedding")
+```
+
+##### Dose 2 shedding
+```{r}
+outcome_summary(s, "dose2_shedding")
+p_summary(s, "dose2_shedding")
+```
+
+##### Shedding after either dose
+```{r}
+outcome_summary(s, "either_shedding")
+p_summary(s, "either_shedding")
+```
+
+##### Shedding after both doses
+```{r}
+outcome_summary(s, "both_shedding")
+p_summary(s, "both_shedding")
+```
+
+##### Rota shedding (VP6) by time-point
+```{r, fig.width=12, fig.height = 3.5}
+p1 = fig_cat(s, "MS1_VP6_cat", title="mothers") + 
+  geom_signif(comparisons = list(c("India", "UK")), annotations="ns", y_position = 1.125, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="ns", y_position = 1.0625, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="ns", y_position = 1, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+
+p2 = fig_cat(s, "BS1_VP6_cat", title="week 1") + ylab(" ") +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="ns", y_position = 1.0625, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="***", y_position = 1, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) 
+
+p3 = fig_cat(s, "BS2_VP6_cat", title="week 4") + ylab(" ") +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="**", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="ns", y_position = 1.0625, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="*", y_position = 1, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) 
+
+p4 = fig_cat(s, "BS3_VP6_cat", title="week 6/8") + ylab(" ") +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="*", y_position = 1.0625, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="*", y_position = 1, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) 
+
+p5 = fig_cat(s, "BS4_VP6_cat", title="week 7/9") + ylab(" ") +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 1.0625, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="***", y_position = 1, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) 
+
+p6 = fig_cat(s, "BS5_VP6_cat", title="week 10/12") + ylab(" ") +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 1.0625, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="**", y_position = 1, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) 
+
+p7 = fig_cat(s, "BS6_VP6_cat", title="week 11/13") + ylab(" ") +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 1.0625, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="*", y_position = 1, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) 
+
+grid.arrange(p1,p2,p3,p4,p5,p6,p7, ncol=7)
+rm(p1,p2,p3,p4,p5,p6,p7)
+```
+
+#### Raw data and p values
+
+##### Maternal (MS1)
+```{r}
+outcome_summary(s, "MS1_VP6_cat")
+p_summary(s, "MS1_VP6_cat")
+```
+
+##### Week 1 (BS1)
+```{r}
+outcome_summary(s, "BS1_VP6_cat")
+p_summary(s, "BS1_VP6_cat")
+```
+
+##### Week 4 (BS2)
+```{r}
+outcome_summary(s, "BS2_VP6_cat")
+p_summary(s, "BS2_VP6_cat")
+```
+
+##### Week 6/8 (BS3)
+```{r}
+outcome_summary(s, "BS3_VP6_cat")
+p_summary(s, "BS3_VP6_cat")
+```
+
+##### Week 7/9 (BS4)
+```{r}
+outcome_summary(s, "BS4_VP6_cat")
+p_summary(s, "BS4_VP6_cat")
+```
+
+##### Week 10/12 (BS5)
+```{r}
+outcome_summary(s, "BS5_VP6_cat")
+p_summary(s, "BS5_VP6_cat")
+```
+
+##### Week 11/13 (BS6)
+```{r}
+outcome_summary(s, "BS6_VP6_cat")
+p_summary(s, "BS6_VP6_cat")
+```
+
+##### Number of infants with birth shedding, dose 1 shedding, dose 2 shedding and post-vaccination IgA
+```{r}
+s1 = subset(s, !is.na(BS1_VP6_cat) & !is.na(dose1_shedding) & !is.na(dose2_shedding) & !is.na(BB2_IgA))
+table(s1$country)
+```
+
+#### Minimum NSP2 Ct among ORV shedders
+```{r, fig.width=4, fig.height=3}
+s2 = subset(s1, either_shedding==1)
+ggplot(s2, aes(factor(country), y=min_RV1_Ct, colour=factor(country))) + geom_jitter(size = 1, alpha = 0.5, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("minimum Ct") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + 
+  scale_colour_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) +
+  scale_y_continuous(limits=c(15,42.5), breaks=c(20,25,30,35,40)) + scale_y_reverse() +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = -10, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="ns", y_position = -12.5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="*", y_position = -15, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col)
+```
+
+#### P values (pairwise Wilcoxon tests with FDR correction)
+```{r}
+t = data.frame(comp = c("India-Malawi", "UK-Malawi", "India-UK"),
+               p = c(wilcox.test(s2$min_RV1_Ct[s2$country!="UK"] ~ s2$country[s2$country!="UK"])$p.value,
+                     wilcox.test(s2$min_RV1_Ct[s2$country!="India"] ~ s2$country[s2$country!="India"])$p.value,
+                     wilcox.test(s2$min_RV1_Ct[s2$country!="Malawi"] ~ s2$country[s2$country!="Malawi"])$p.value))
+t$fdr = p.adjust(t$p, method="fdr")
+t
+rm(t)
+```
+
+### Arm
+
+#### Summary of sample sizes
+```{r}
+sI$n = 1
+t = data.frame(
+  n = table(!is.na(sI$n), sI$country_arm)[1,],
+  neonatal_shedding = table(!is.na(sI$BS1_VP6_ct), sI$country_arm)[2,],
+  dose1_shedding = table(!is.na(sI$dose1_shedding), sI$country_arm)[2,],
+  dose2_shedding = table(!is.na(sI$dose2_shedding), sI$country_arm)[2,],
+  either_shedding = table(!is.na(sI$either_shedding), sI$country_arm)[2,],
+  seroconv = table(!is.na(sI$seroconv), sI$country_arm)[2,],
+  any_response = table(!is.na(sI$any_response), sI$country_arm)[2,])
+t
+rm(t)
+```
+
+##### Neonatal and vaccine shedding
+```{r, fig.width=12, fig.height = 3.5}
+p1 = fig_cat(sI, "BS1_VP6_cat", title="neonatal shedding (VP6)") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 0.75, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") 
+p2 = fig_cat(sI, "dose1_shedding", title="shedding, dose 1 (NSP2)") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="***", y_position = 0.75, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_IPV_col)
+p3 = fig_cat(sI, "dose2_shedding", title="shedding, dose 2 (NSP2)") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 0.75, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+p4 = fig_cat(sI, "either_shedding", title="shedding, either (NSP2)") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 0.75, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+p5 = fig_cat(sI, "both_shedding", title="shedding, both (NSP2)") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 0.75, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+grid.arrange(p1,p2,p3,p4,p5, ncol=5)
+rm(p1,p2,p3,p4)
+```
+
+#### Raw data and p values
+
+##### Neonatal shedding
+```{r}
+outcome_summary(sI, "BS1_VP6_cat")
+p_summary(sI, "BS1_VP6_cat")
+```
+
+##### Dose 1 shedding
+```{r}
+outcome_summary(sI, "dose1_shedding")
+p_summary(sI, "dose1_shedding")
+```
+
+##### Dose 2 shedding
+```{r}
+outcome_summary(sI, "dose2_shedding")
+p_summary(sI, "dose2_shedding")
+```
+
+##### Shedding after either dose
+```{r}
+outcome_summary(sI, "either_shedding")
+p_summary(sI, "either_shedding")
+```
+
+##### Shedding after both doses
+```{r}
+outcome_summary(sI, "both_shedding")
+p_summary(sI, "both_shedding")
+```
+
+##### Rota shedding (VP6) by time-point
+```{r, fig.width=12, fig.height = 3.5}
+p1 = fig_cat(sI, "MS1_VP6_cat", title="maternal") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 0.5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") 
+p2 = fig_cat(sI, "BS1_VP6_cat", title="week 1") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 0.625, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+p3 = fig_cat(sI, "BS2_VP6_cat", title="week 4") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 0.5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") 
+p4 = fig_cat(sI, "BS3_VP6_cat", title="week 6") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 0.5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") 
+p5 = fig_cat(sI, "BS4_VP6_cat", title="week 7") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="**", y_position = 0.5, tip_length=0, vjust=0.5, size = 0.3, textsize=5, color=India_IPV_col) 
+p6 = fig_cat(sI, "BS5_VP6_cat", title="week 10") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="*", y_position = 0.5, tip_length=0, vjust=0.5, size = 0.3, textsize=5, color=India_IPV_col) 
+p7 = fig_cat(sI, "BS6_VP6_cat", title="week 11") + geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="*", y_position = 0.5, tip_length=0, vjust=0.5, size = 0.3, textsize=5, color=India_OPV_col) 
+grid.arrange(p1,p2,p3,p4,p5,p6,p7, ncol=7)
+rm(p1,p2,p3,p4,p5,p6,p7)
+```
+
+#### Raw data and p values
+
+##### Maternal (MS1)
+```{r}
+outcome_summary(sI, "MS1_VP6_cat")
+p_summary(sI, "MS1_VP6_cat")
+```
+
+##### Week 1 (BS1)
+```{r}
+outcome_summary(sI, "BS1_VP6_cat")
+p_summary(sI, "BS1_VP6_cat")
+```
+
+##### Week 4 (BS2)
+
+Not applicable - no shedding observed in IPV arm or OPV arm in week-4 samples.
+
+##### Week 6/8 (BS3)
+```{r}
+outcome_summary(sI, "BS3_VP6_cat")
+p_summary(sI, "BS3_VP6_cat")
+```
+
+##### Week 7/9 (BS4)
+```{r}
+outcome_summary(sI, "BS4_VP6_cat")
+p_summary(sI, "BS4_VP6_cat")
+```
+
+##### Week 10/12 (BS5)
+```{r}
+outcome_summary(sI, "BS5_VP6_cat")
+p_summary(sI, "BS5_VP6_cat")
+```
+
+##### Week 11/13 (BS6)
+```{r}
+outcome_summary(sI, "BS6_VP6_cat")
+p_summary(sI, "BS6_VP6_cat")
+```
+
+##### Number of infants with birth shedding, dose 1 shedding, dose 2 shedding and post-vaccination IgA
+```{r}
+s1I = subset(sI, !is.na(BS1_VP6_cat) & !is.na(dose1_shedding) & !is.na(dose2_shedding) & !is.na(BB2_IgA))
+table(s1I$country_arm)
+```
+
+#### Minimum NSP2 Ct among ORV shedders
+```{r, fig.width=4, fig.height=3}
+s2I = subset(s1I, either_shedding==1)
+ggplot(s2I, aes(factor(country_arm), y=min_RV1_Ct, colour=factor(country_arm))) + geom_jitter(size = 1, alpha = 0.5, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("minimum Ct") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + 
+  scale_colour_manual(values = c("India (OPV)" = India_col, "India (IPV)" = India_IPV_col)) +
+  scale_y_continuous(limits=c(15,42.5), breaks=c(20,25,30,35,40)) + scale_y_reverse() +
+  geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = -20, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+```
+
+#### P values
+Pairwise Wilcoxon test
+```{r}
+data.frame(comp = "OPV-IPV",
+               p = wilcox.test(s2I$min_RV1_Ct ~ s2I$country_arm)$p.value)
+```
+
+
+
+
+
+Immunogenicity by country/arm {.hidden}
+===================================== 
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Country
+
+#### ORV immunogenicity
+```{r, fig.width=12, fig.height = 3.5}
+p1 = fig_cat(s, "seroconv", title="seroconversion") + 
+  geom_signif(comparisons = list(c("India", "UK")), annotations="**", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="**", y_position = 1.0625, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="ns", y_position = 1, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") 
+
+p2 = fig_cat(s, "BB1_IgA_cat", title="seropositive, pre-ORV") + 
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="ns", y_position = 1.0625, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="***", y_position = 1, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) 
+
+p3 = fig_cat(s, "BB2_IgA_cat", title="seropositive, post-ORV") + 
+  geom_signif(comparisons = list(c("India", "UK")), annotations="ns", y_position = 1.125, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 1.0625, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="***", y_position = 1, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) 
+
+p4 = fig_cont_log10(subset(s, !is.na(BB1_IgA)), "BB1_IgA", "RV-IgA (IU/ml)") + geom_hline(yintercept = 20, linetype="dotted") + ggtitle("infant IgA, pre-ORV") +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 4, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) +
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="ns", y_position = 3.75, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("Malawi", "India")), annotations="***", y_position = 3.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col)
+
+p5 = fig_cont_log10(subset(s, !is.na(BB2_IgA)), "BB2_IgA", "RV-IgA (IU/ml)") + geom_hline(yintercept = 20, linetype="dotted") + ggtitle("infant IgA, post-ORV") +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="ns", y_position = 4, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="**", y_position = 3.75, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("Malawi", "India")), annotations="***", y_position = 3.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col)
+
+grid.arrange(p1,p2,p3,p4,p5,ncol=5)
+rm(p1,p2,p3,p4,p5)
+```
+
+#### Raw data and p values
+
+##### Seroconversion
+```{r}
+outcome_summary(s, "seroconv")
+p_summary(s, "seroconv")
+```
+
+##### Seropositivity, pre-ORV
+```{r}
+outcome_summary(s, "BB1_IgA_cat")
+p_summary(s, "BB1_IgA_cat")
+```
+
+##### Seropositivity, post-ORV
+```{r}
+outcome_summary(s, "BB2_IgA_cat")
+p_summary(s, "BB2_IgA_cat")
+```
+
+##### Infant RV-IgA pre-vaccination
+```{r}
+gmt_summary(s, "BB1_IgA")
+p_summary_gmt(s, "BB1_IgA")
+```
+
+##### Infant RV-IgA post-vaccination
+```{r}
+gmt_summary(s, "BB2_IgA")
+p_summary_gmt(s, "BB2_IgA")
+```
+
+##### Seropositivity by neonatal infection status in India
+```{r}
+table(sI$BS1_VP6_cat, sI$BB1_IgA_cat)
+```
+
+#### Pre-vaccination exposure by country (either seropositivity or week-1 shedding)
+```{r}
+table(s$pre_exposed, s$country)
+```
+
+### Arm
+
+#### ORV immunogenicity
+```{r, fig.width=10, fig.height = 3.5}
+p1 = fig_cat(sI, "seroconv", title="seroconversion") + 
+  geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 0.5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+p2 = fig_cat(sI, "BB1_IgA_cat", title="seropositive, pre-ORV") + 
+  geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 0.5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+p3 = fig_cat(sI, "BB2_IgA_cat", title="seropositive, post-ORV") + 
+  geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 0.75, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+p4 = fig_cont_log10(subset(sI, !is.na(BB1_IgA)), "BB1_IgA", "RV-IgA (IU/ml)") + geom_hline(yintercept = 20, linetype="dotted") + ggtitle("infant IgA, pre-ORV") +
+  geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 3.25, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+p5 = fig_cont_log10(subset(sI, !is.na(BB2_IgA)), "BB2_IgA", "RV-IgA (IU/ml)") + geom_hline(yintercept = 20, linetype="dotted") + ggtitle("infant IgA, post-ORV") +
+  geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 3.25, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+grid.arrange(p1,p2,p3,p4,p5,ncol=5)
+rm(p1,p2,p3,p4,p5)
+```
+
+#### Raw data and p values
+
+##### Seroconversion
+```{r}
+outcome_summary(sI, "seroconv")
+p_summary(sI, "seroconv")
+```
+
+##### Seropositivity, pre-ORV
+```{r}
+outcome_summary(sI, "BB1_IgA_cat")
+p_summary(sI, "BB1_IgA_cat")
+```
+
+##### Seropositivity, post-ORV
+```{r}
+outcome_summary(sI, "BB2_IgA_cat")
+p_summary(sI, "BB2_IgA_cat")
+```
+
+##### Infant RV-IgA pre-vaccination
+```{r}
+gmt_summary(sI, "BB1_IgA")
+p_summary_gmt(sI, "BB1_IgA")
+```
+
+##### Infant RV-IgA post-vaccination
+```{r}
+gmt_summary(sI, "BB2_IgA")
+p_summary_gmt(sI, "BB2_IgA")
+```
+
+
+
+
+
+Any response by country/arm {.hidden}
+===================================== 
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Country
+
+#### Any response
+```{r, fig.width=12, fig.height = 3.5}
+p1 = fig_cat(s, "any_response", title="any response") + 
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 1.125, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="**", y_position = 1.0625, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("India", "Malawi")), annotations="ns", y_position = 1, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") 
+grid.arrange(p1,ncol=5)
+rm(p1)
+```
+
+#### Raw data and p values
+```{r}
+outcome_summary(s, "any_response")
+p_summary(s, "any_response")
+```
+
+### Arm
+
+#### Any response
+```{r, fig.width=10, fig.height = 3.5}
+p1 = fig_cat(sI, "any_response", title="any response") + 
+  geom_signif(comparisons = list(c("India (OPV)", "India (IPV)")), annotations="ns", y_position = 1, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") 
+grid.arrange(p1,ncol=5)
+rm(p1)
+```
+
+#### Raw data and p values
+```{r}
+outcome_summary(sI, "any_response")
+p_summary(sI, "any_response")
+```
+
+
+
+
+
+RV-IgA vs cumulative shedding {.hidden}
+===================================== 
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+##### Number of infants with birth shedding, dose 1 shedding, dose 2 shedding, pre-vaccination IgA and post-vaccination IgA
+```{r}
+s1 = subset(s, !is.na(BS1_VP6_cat) & !is.na(dose1_shedding) & !is.na(dose2_shedding) & !is.na(BB1_IgA) & !is.na(BB2_IgA))
+table(s1$country)
+```
+
+#### Cumulative effect of birth exposure and vaccination on IgA titre
+Exposure defined as week-1 shedding or IgA positivity pre-vaccination. Shedding subgroups with <5 infants excluded.
+```{r, fig.width=8, fig.height=3}
+# create new variable for birth/vaccine shedding group
+s1$shedding_group = NA
+s1$shedding_group[(s1$BS1_VP6_cat==0 & s1$BB1_IgA_cat==0) & s1$either_shedding==0] = "--"
+s1$shedding_group[(s1$BS1_VP6_cat==0 & s1$BB1_IgA_cat==0) & s1$either_shedding==1] = "-+"
+s1$shedding_group[(s1$BS1_VP6_cat==1 | s1$BB1_IgA_cat==1)  & s1$either_shedding==0] = "+-"
+s1$shedding_group[(s1$BS1_VP6_cat==1 | s1$BB1_IgA_cat==1)  & s1$either_shedding==1] = "++"
+table(s1$country, s1$shedding_group)
+```
+
+```{r, fig.width=8, fig.height=3}
+# create plot for India, including all shedding subgroups with ≥5 infants
+s1I = subset(s1, country=="India" & !is.na(shedding_group) & !is.na(BB2_IgA))
+p1 = ggplot(s1I, aes(factor(shedding_group), y=BB2_IgA, colour=factor(shedding_group))) + geom_jitter(size = 1, alpha = 0.9, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("RV-IgA (IU/ml)") + xlab("") + 
+  theme(legend.position = "none", strip.background = element_blank()) + geom_hline(yintercept = 20, linetype="dotted") + 
+  scale_colour_manual(values = c("#41ae76","#238b45", "#006d2c", "#00441b")) +
+  scale_y_continuous(trans="log10", breaks = c(1,10,100,1000), limits = c(1,35000)) +  
+  geom_signif(comparisons = list(c("++", "--")), annotations="***", y_position = 4.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color="#00441b") +
+  geom_signif(comparisons = list(c("++", "-+")), annotations="***", y_position = 4.25, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color="#00441b") + 
+  geom_signif(comparisons = list(c("++", "+-")), annotations="**", y_position = 4, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color="#00441b") +  
+  geom_signif(comparisons = list(c("+-", "--")), annotations="***", y_position = 3.75, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color="#006d2c") +
+  geom_signif(comparisons = list(c("+-", "-+")), annotations="***", y_position = 3.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color="#006d2c") +
+  geom_signif(comparisons = list(c("-+", "--")), annotations="ns", y_position = 3.25, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") + 
+  ggtitle("India") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+# create plot for Malawi, including all shedding subgroups with ≥5 infants
+s1M = subset(s1, country=="Malawi" & (shedding_group=="--" | shedding_group=="-+") & !is.na(BB2_IgA))
+p2 = ggplot(s1M, aes(factor(shedding_group), y=BB2_IgA, colour=factor(shedding_group))) + geom_jitter(size = 1, alpha = 0.9, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + geom_hline(yintercept = 20, linetype="dotted") + 
+  scale_colour_manual(values = c("#ec7014","#993404")) + scale_y_continuous(trans="log10", breaks = c(1,10,100,1000), limits = c(1,35000)) +
+  geom_signif(comparisons = list(c("-+", "--")), annotations="*", y_position = 3.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color="#993404") + 
+  ggtitle("Malawi") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+# create plot for UK, including all shedding subgroups with ≥5 infants
+s1U = subset(s1, country=="UK" & shedding_group=="-+" & !is.na(BB2_IgA))
+p3 = ggplot(s1U, aes(factor(shedding_group), y=BB2_IgA, colour=factor(shedding_group))) + geom_jitter(size = 1, alpha = 0.9, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + geom_hline(yintercept = 20, linetype="dotted") + 
+  scale_colour_manual(values = c(UK_col)) + scale_y_continuous(trans="log10", breaks = c(1,10,100,1000), limits = c(1,35000)) +
+  ggtitle("UK") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+grid.arrange(p1,p2,p3, widths=c(4,2.5,1.5), ncol=3)
+rm(p1,p2,p3)
+```
+
+#### P values
+
+##### India
+```{r}
+TukeyHSD(x=aov(log10(s1I$BB2_IgA) ~ s1I$shedding_group), "s1I$shedding_group", conf.level=0.95)[1]
+```
+
+##### Malawi
+```{r}
+TukeyHSD(x=aov(log10(s1M$BB2_IgA) ~ s1M$shedding_group), "s1M$shedding_group", conf.level=0.95)[1]
+rm(s1I, s1M, s1U)
+```
+
+
+
+
+
+Maternal Abs by country/arm/exposure {.hidden}
+===================================== 
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Country
+
+#### Number of Indian infants with MB IgA, MB IgG, CB IgG, BB1 IgG and no pre-vaccination RV exposure
+```{r}
+t = subset(s, country=="India" & !is.na(MB1_IgA) & !is.na(MB1_IgG) & !is.na(CB1_IgG) & !is.na(BB1_IgG) & pre_exposed==0)
+nrow(t)
+```
+
+#### Pearson's correlation coefficient for MB RV-IgA and MB RV-IgG (log transformed)
+```{r}
+cor.test(log(t$MB1_IgA), log(t$MB1_IgG), method="pearson")
+```
+
+#### Maternal IgA antibody levels
+```{r, fig.width=10, fig.height = 3.5}
+p1 = fig_cont_log10(subset(s, !is.na(MB1_IgA)), "MB1_IgA", "RV-IgA (IU/ml)") + geom_hline(yintercept = 20, linetype="dotted") + ggtitle("maternal IgA") +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="ns", y_position = 4, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="*", y_position = 3.75, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) +
+  geom_signif(comparisons = list(c("Malawi", "India")), annotations="***", y_position = 3.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col)
+
+p2 = fig_cont_log10(subset(s, !is.na(BM1_IgA)), "BM1_IgA", "RV-IgA (IU/ml)") + geom_hline(yintercept = 20, linetype="dotted") + ggtitle("breastmilk IgA") +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 4, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=UK_col) +
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="ns", y_position = 3.75, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("Malawi", "India")), annotations="***", y_position = 3.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) 
+
+grid.arrange(p1,p2,ncol=5)
+rm(p1,p2)
+```
+
+#### Raw data and p values
+
+##### Maternal RV-IgA
+```{r}
+gmt_summary(s, "MB1_IgA")
+p_summary_gmt(s, "MB1_IgA")
+```
+
+##### Breastmilk RV-IgA
+```{r}
+gmt_summary(s, "BM1_IgA")
+p_summary_gmt(s, "BM1_IgA")
+```
+
+### Arm
+
+#### Antibody levels
+```{r, fig.width=10, fig.height = 3.5}
+p1 = fig_cont_log10(subset(sI, !is.na(MB1_IgA)), "MB1_IgA", "RV-IgA (IU/ml)") + geom_hline(yintercept = 20, linetype="dotted") + ggtitle("maternal IgA") +
+  geom_signif(comparisons = list(c("India (IPV)", "India (OPV)")), annotations="ns", y_position = 4, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+
+p2 = fig_cont_log10(subset(sI, !is.na(BM1_IgA)), "BM1_IgA", "RV-IgA (IU/ml)") + geom_hline(yintercept = 20, linetype="dotted") + ggtitle("breastmilk IgA") +
+  geom_signif(comparisons = list(c("India (IPV)", "India (OPV)")), annotations="ns", y_position = 4, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+
+p3 = fig_cont_log10(subset(sI, !is.na(MB1_IgG)), "MB1_IgG", "RV-IgG (IU/ml)") + 
+  ggtitle("maternal IgG") +
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000)) +
+  geom_signif(comparisons = list(c("India (IPV)", "India (OPV)")), annotations="ns", y_position = 5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+
+p4 = fig_cont_log10(subset(sI, !is.na(CB1_IgG)), "CB1_IgG", "RV-IgG (IU/ml)") + 
+  ggtitle("cord blood IgG") +
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000)) +
+  geom_signif(comparisons = list(c("India (IPV)", "India (OPV)")), annotations="ns", y_position = 5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+
+grid.arrange(p1,p2,p3,p4,ncol=5)
+rm(p1,p2,p3,p4)
+```
+
+#### Raw data and p values
+
+##### Maternal RV-IgA
+```{r}
+gmt_summary(sI, "MB1_IgA")
+p_summary_gmt(sI, "MB1_IgA")
+```
+
+##### Breastmilk RV-IgA
+```{r}
+gmt_summary(sI, "BM1_IgA")
+p_summary_gmt(sI, "BM1_IgA")
+```
+
+##### Maternal RV-IgG
+```{r}
+gmt_summary(sI, "MB1_IgG")
+p_summary_gmt(sI, "MB1_IgG")
+```
+
+##### Cord-blood RV-IgG
+```{r}
+gmt_summary(sI, "CB1_IgG")
+p_summary_gmt(sI, "CB1_IgG")
+```
+
+### Exposure status
+
+#### Antibody levels
+```{r, fig.width=10, fig.height = 3.5}
+sI = subset(sI, pre_exposed==1 | pre_exposed==0)
+
+p1 = fig_cont_log10(subset(sI, !is.na(MB1_IgA)), "MB1_IgA", "RV-IgA (IU/ml)", exposure=TRUE) + geom_hline(yintercept = 20, linetype="dotted") + ggtitle("maternal IgA") +
+  geom_signif(comparisons = list(c("India (exposed)", "India (unexposed)")), annotations="ns", y_position = 4, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+
+p2 = fig_cont_log10(subset(sI, !is.na(BM1_IgA)), "BM1_IgA", "RV-IgA (IU/ml)", exposure=TRUE) + geom_hline(yintercept = 20, linetype="dotted") + ggtitle("breastmilk IgA") +
+  geom_signif(comparisons = list(c("India (exposed)", "India (unexposed)")), annotations="ns", y_position = 4, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+
+p3 = fig_cont_log10(subset(sI, !is.na(MB1_IgG)), "MB1_IgG", "RV-IgG (IU/ml)", exposure=TRUE) + 
+  ggtitle("maternal IgG") +
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000)) +
+  geom_signif(comparisons = list(c("India (exposed)", "India (unexposed)")), annotations="ns", y_position = 5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+
+p4 = fig_cont_log10(subset(sI, !is.na(CB1_IgG)), "CB1_IgG", "RV-IgG (IU/ml)", exposure=TRUE) +
+  ggtitle("cord blood IgG") +
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000)) +
+  geom_signif(comparisons = list(c("India (exposed)", "India (unexposed)")), annotations="ns", y_position = 5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey")
+
+grid.arrange(p1,p2,p3,p4,ncol=5)
+rm(p1,p2,p3,p4)
+```
+
+#### Raw data and p values
+
+##### Maternal RV-IgA
+```{r}
+gmt_summary(sI, "MB1_IgA", exposure=TRUE)
+p_summary_gmt(sI, "MB1_IgA", exposure=TRUE)
+```
+
+##### Breastmilk RV-IgA
+```{r}
+gmt_summary(sI, "BM1_IgA", exposure=TRUE)
+p_summary_gmt(sI, "BM1_IgA", exposure=TRUE)
+```
+
+##### Maternal RV-IgG
+```{r}
+gmt_summary(sI, "MB1_IgG", exposure=TRUE)
+p_summary_gmt(sI, "MB1_IgG", exposure=TRUE)
+```
+
+##### Cord-blood RV-IgG
+```{r}
+gmt_summary(sI, "CB1_IgG", exposure=TRUE)
+p_summary_gmt(sI, "CB1_IgG", exposure=TRUE)
+```
+
+
+
+
+
+Maternal Abs vs ORV outcome {.hidden}
+===================================== 
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Summary
+See *Module 5* for full univariate and multivariate analyses.
+
+### Correlation networks
+
+#### India
+#### Correlation between of MB1 IgA and CB IgG
+```{r}
+s_sub = subset(s, country=="India")
+cor.test(log(s_sub$MB1_IgA), log(s_sub$CB1_IgG), method="pearson")
+```
+
+#### Full correlation network
+```{r, fig.width=8, fig.height=8, warning=FALSE}
+s_Ig = s_sub[,c("MB1_IgG", "CB1_IgG", "BB1_IgG","BB2_IgG", "MB1_IgA", "BM1_IgA", "BB1_IgA", "BB2_IgA",  "BS1_VP6_quant", "BS4_nsp2_quant", "BS6_nsp2_quant")]
+s_Ig = s_Ig[complete.cases(s_Ig),]
+col = colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+p.mat = cor.mtest(s_Ig, method="spearman")
+m = cor(s_Ig, method="spearman")
+colnames(m) = rownames(m) = c("maternal IgG","cord blood IgG","IgG pre-ORV","IgG post-ORV","maternal IgA","breastmilk IgA","IgA pre-ORV", "IgA post-ORV","neonatal RV shedding","dose 1 ORV shedding","dose 2 ORV shedding")
+corrplot(m, method="circle", type = "upper", order = "original", tl.col="black", col=col(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 1,
+         sig.level = c(.0005, .005, .05), pch.cex = .9, pch.col = "black")
+rm(s_sub, p.mat, m)
+```
+
+Number with complete antibody data = `r nrow(s_Ig)`
+
+#### India (exposed subset)
+```{r, fig.width=8, fig.height=8, warning=FALSE}
+s_sub = subset(s, country=="India" & pre_exposed==1)
+s_Ig = s_sub[,c("MB1_IgG", "CB1_IgG", "BB1_IgG","BB2_IgG", "MB1_IgA", "BM1_IgA", "BB1_IgA", "BB2_IgA",  "BS1_VP6_quant", "BS4_nsp2_quant", "BS6_nsp2_quant")]
+s_Ig = s_Ig[complete.cases(s_Ig),]
+p.mat = cor.mtest(s_Ig, method="spearman")
+m = cor(s_Ig, method="spearman")
+colnames(m) = rownames(m) = c("maternal IgG","cord blood IgG","IgG pre-ORV","IgG post-ORV","maternal IgA","breastmilk IgA","IgA pre-ORV", "IgA post-ORV","neonatal RV shedding","dose 1 ORV shedding","dose 2 ORV shedding")
+corrplot(m, method="circle", type = "upper", order = "original", tl.col="black", col=col(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 1,
+         sig.level = c(.0005, .005, .05), pch.cex = .9, pch.col = "black")
+rm(s_sub, p.mat, m)
+```
+
+Number with complete antibody data = `r nrow(s_Ig)`
+
+#### India (unexposed subset)
+```{r, fig.width=8, fig.height=8, warning=FALSE}
+s_sub = subset(s, country=="India" & pre_exposed==0)
+s_Ig = s_sub[,c("MB1_IgG", "CB1_IgG", "BB1_IgG","BB2_IgG", "MB1_IgA", "BM1_IgA", "BB1_IgA", "BB2_IgA", "BS4_nsp2_quant", "BS6_nsp2_quant")]
+s_Ig = s_Ig[complete.cases(s_Ig),]
+p.mat = cor.mtest(s_Ig, method="spearman")
+m = cor(s_Ig, method="spearman")
+colnames(m) = rownames(m) = c("maternal IgG","cord blood IgG","IgG pre-ORV","IgG post-ORV","maternal IgA","breastmilk IgA","IgA pre-ORV", "IgA post-ORV","dose 1 ORV shedding","dose 2 ORV shedding")
+corrplot(m, method="circle", type = "upper", order = "original", tl.col="black", col=col(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 1,
+         sig.level = c(.0005, .005, .05), pch.cex = .9, pch.col = "black")
+rm(s_sub, p.mat, m)
+```
+
+Number with complete antibody data = `r nrow(s_Ig)`
+
+#### Malawi
+
+#### Full correlation network
+```{r, fig.width=5, fig.height=5, warning=FALSE}
+s_sub = subset(s, country=="Malawi")
+s_Ig = s_sub[,c("MB1_IgA","BM1_IgA", "BB1_IgA","BB2_IgA","BS4_nsp2_quant", "BS6_nsp2_quant")]
+s_Ig = s_Ig[complete.cases(s_Ig),]
+p.mat = cor.mtest(s_Ig, method="spearman")
+m = cor(s_Ig, method="spearman")
+colnames(m) = rownames(m) = c("maternal IgA","breastmilk IgA","IgA pre-ORV","IgA post-ORV","dose 1 ORV shedding", "dose 2 ORV shedding")
+corrplot(m, method="circle", type = "upper", order = "original", tl.col="black", col=col(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 1,
+         sig.level = c(.0005, .005, .05), pch.cex = .9, pch.col = "black")
+rm(s_sub, p.mat, m)
+```
+
+Number with complete antibody data = `r nrow(s_Ig)`
+
+#### UK
+
+#### Full correlation network
+```{r, fig.width=5, fig.height=5, warning=FALSE}
+s_sub = subset(s, country=="UK")
+s_Ig = s_sub[,c("MB1_IgA", "BB1_IgA","BB2_IgA","BS4_nsp2_quant", "BS6_nsp2_quant")]
+s_Ig = s_Ig[complete.cases(s_Ig),]
+p.mat = cor.mtest(s_Ig, method="spearman")
+m = cor(s_Ig, method="spearman")
+colnames(m) = rownames(m) = c("maternal IgA","IgA pre-ORV","IgA post-ORV","dose 1 ORV shedding", "dose 2 ORV shedding")
+corrplot(m, method="circle", type = "upper", order = "original", tl.col="black", col=col(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 1,
+         sig.level = c(.0005, .005, .05), pch.cex = .9, pch.col = "black")
+rm(s_sub, p.mat, m)
+```
+
+Number with complete antibody data = `r nrow(s_Ig)` (breastmilk IgA data excluded as this reduced the number of complete cases from 40 to 22).
+
+### Continuous outcomes
+
+#### Pearson correlation coefficients: maternal antibodies vs pre-vaccination RV-IgA
+```{r, fig.width=2.5, fig.height=4}
+results = data.frame(India_exposed = corr_by_country("BB1_IgA", "India (exposed)", "corr"))
+results = mutate_all(results, function(x) as.numeric(as.character(x)))
+
+pvals = data.frame(India_exposed = corr_by_country("BB1_IgA", "India (exposed)", "p"))
+pvals = mutate_all(pvals, function(x) as.numeric(as.character(x)))
+
+rownames(results) = rownames(pvals) = c("MB1 RV-IgA", "BM1 RV-IgA", "MB1 RV-IgG", "CB1 RV-IgG", "BB1 RV-IgG")
+pheatmap(results, cluster_rows = F, cluster_cols = F,  color = colorRampPalette(brewer.pal(n = 6, name = "RdBu"))(100), breaks = seq(-0.5, 0.5, by = 0.01))
+```
+
+##### Pearson correlation coefficients
+```{r}
+data.frame(results)
+```
+
+##### P values
+```{r}
+data.frame(pvals)
+```
+
+#### Pearson correlation coefficients: maternal antibodies vs post-vaccination RV-IgA
+```{r, fig.width=5, fig.height=5}
+results = data.frame(India = corr_by_country("BB2_IgA", "India", "corr"),
+                     India_exposed = corr_by_country("BB2_IgA", "India (exposed)", "corr"),
+                     India_unexposed = corr_by_country("BB2_IgA", "India (unexposed)", "corr"),
+                     Malawi = corr_by_country("BB2_IgA", "Malawi", "corr"),
+                     UK = corr_by_country("BB2_IgA", "UK", "corr"))
+results = mutate_all(results, function(x) as.numeric(as.character(x)))
+
+pvals = data.frame(India = corr_by_country("BB2_IgA", "India", "p"),
+                   India_exposed = corr_by_country("BB2_IgA", "India (exposed)", "p"),
+                   India_unexposed = corr_by_country("BB2_IgA", "India (unexposed)", "p"),
+                   Malawi = corr_by_country("BB2_IgA", "Malawi", "p"),
+                   UK = corr_by_country("BB2_IgA", "UK", "p"))
+pvals = mutate_all(pvals, function(x) as.numeric(as.character(x)))
+rownames(results) = rownames(pvals) = c("MB1 RV-IgA", "BM1 RV-IgA", "MB1 RV-IgG", "CB1 RV-IgG", "BB1 RV-IgG")
+pheatmap(results, cluster_rows = F, cluster_cols = F,  color = colorRampPalette(brewer.pal(n = 6, name = "RdBu"))(100), breaks = seq(-0.5, 0.5, by = 0.01))
+```
+
+##### Pearson correlation coefficients
+```{r}
+data.frame(results)
+```
+
+##### P values
+```{r}
+data.frame(pvals)
+```
+
+### Effect modification
+
+#### Model for final RV-IgA vs MB RV-IgA + country
+```{r}
+m1 = lm(log(BB2_IgA) ~ log(MB1_IgA) + country, data=s)
+summary(m1)
+```
+
+#### Model with interaction terms
+```{r}
+m2 = lm(log(BB2_IgA) ~ log(MB1_IgA)*factor(country), data=s)
+summary(m2)
+```
+
+#### Comparison of fit
+```{r}
+anova(m1,m2)
+```
+
+#### India vs Malawi
+```{r}
+m1 = lm(log(BB2_IgA) ~ log(MB1_IgA) + factor(country), data=subset(s, country!="UK"))
+m2 = lm(log(BB2_IgA) ~ log(MB1_IgA)*factor(country), data=subset(s, country!="UK"))
+anova(m1,m2)
+```
+
+#### UK vs India/Malawi
+```{r}
+m1 = lm(log(BB2_IgA) ~ log(MB1_IgA) + factor(country=="UK"), data=s)
+m2 = lm(log(BB2_IgA) ~ log(MB1_IgA)*factor(country=="UK"), data=s)
+anova(m1,m2)
+```
+
+#### Exposure status (within in India)
+```{r}
+m1 = lm(log(BB2_IgA) ~ log(MB1_IgA) + factor(pre_exposed), data=subset(s, country=="India"))
+m2 = lm(log(BB2_IgA) ~ log(MB1_IgA)*factor(pre_exposed), data=subset(s, country=="India"))
+anova(m1,m2)
+```
+
+No significant evidence that the association between maternal RV-IgA and infant post-vaccination RV-IgA differs by country or between high-income settings (UK) vs LMICs (India/Malawi).
+
+
+
+
+
+EED biomarkers by country/arm/exposure {.hidden}
+===================================== 
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Country
+
+#### EED biomarker levels
+```{r, fig.width=10, fig.height = 3.5, message=FALSE}
+p1 = fig_cont_log10(subset(s, !is.na(A1AT_BS3_Concugml)), "A1AT_BS3_Concugml", "μg/ml") + 
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 5.75, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 5.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) +
+  geom_signif(comparisons = list(c("Malawi", "India")), annotations="***", y_position = 5.25, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) +
+  ggtitle("α1AT (week 6/8)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p2 = fig_cont_log10(subset(s, !is.na(MPO_BS3_Concngml)), "MPO_BS3_Concngml", "ng/ml") + 
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="*", y_position = 6.25, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="ns", y_position = 6, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("Malawi", "India")), annotations="***", y_position = 5.75, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) +
+  ggtitle("MPO (week 6/8)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p3 = fig_cont_log10(subset(s, !is.na(AG_Concugml) & country!="UK"), "AG_Concugml", "μg/ml") + 
+  scale_y_continuous(trans="log10", limits = c(100,2500), breaks = c(100,500,1000)) +
+  geom_signif(comparisons = list(c("Malawi", "India")), annotations="***", y_position = 3.35, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) +
+  ggtitle("α1AG (week 6)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p4 = fig_cont_log10(subset(s, !is.na(A1AT_BS5_Concugml)), "A1AT_BS5_Concugml", "ng/ml") + 
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="*", y_position = 5.75, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 5.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) +
+  geom_signif(comparisons = list(c("Malawi", "India")), annotations="***", y_position = 5.25, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) +
+  ggtitle("α1AT (week 10/12)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p5 = fig_cont_log10(subset(s, !is.na(MPO_BS5_Concngml)), "MPO_BS5_Concngml", "ng/ml") + 
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 6.25, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) + 
+  geom_signif(comparisons = list(c("Malawi", "UK")), annotations="ns", y_position = 6, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  geom_signif(comparisons = list(c("Malawi", "India")), annotations="*", y_position = 5.75, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) +
+  ggtitle("MPO (week 10/12)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+grid.arrange(p1,p2,p3,p4,p5,ncol=5, widths = c(1,1,0.8,1,1))
+rm(p1,p2,p3,p4,p5)
+```
+
+#### Raw data and p values
+
+##### α1AT (week 6/8)
+```{r}
+gmt_summary(s, "A1AT_BS3_Concugml")
+p_summary_gmt(s, "A1AT_BS3_Concugml")
+```
+
+##### MPO (week 6/8)
+```{r}
+gmt_summary(s, "MPO_BS3_Concngml")
+p_summary_gmt(s, "MPO_BS3_Concngml")
+```
+
+##### α1AG (week 6)
+```{r}
+t = subset(s, !is.na(AG_Concugml) & country!="UK")
+gmts = round(rbind(
+  Gmean(t$AG_Concugml[t$country=="India"], conf.level =0.95),
+  Gmean(t$AG_Concugml[t$country=="Malawi"], conf.level =0.95)),1)
+data.frame(cbind(gmts = levels(factor(t$country)), n = as.vector(table(t$country)), gmts))
+TukeyHSD(x=aov(log(t$AG_Concugml) ~ t$country), "t$country", conf.level=0.95)[1]
+rm(t)
+```
+
+##### α1AT (week 10/12)
+```{r}
+gmt_summary(s, "A1AT_BS5_Concugml")
+p_summary_gmt(s, "A1AT_BS5_Concugml")
+```
+
+##### MPO (week 10/12)
+```{r}
+gmt_summary(s, "MPO_BS5_Concngml")
+p_summary_gmt(s, "MPO_BS5_Concngml")
+```
+
+### Arm
+
+#### EED biomarker levels
+```{r, fig.width=10, fig.height = 3.5, message=FALSE}
+p1 = fig_cont_log10(subset(sI, !is.na(A1AT_BS3_Concugml)), "A1AT_BS3_Concugml", "μg/ml") + 
+  scale_y_continuous(trans="log10", limits=c(10,100000), breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India (IPV)", "India (OPV)")), annotations="ns", y_position = 5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  ggtitle("α1AT (week 6)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p2 = fig_cont_log10(subset(sI, !is.na(MPO_BS3_Concngml)), "MPO_BS3_Concngml", "ng/ml") + 
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India (IPV)", "India (OPV)")), annotations="ns", y_position = 5.5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  ggtitle("MPO (week 6)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p3 = fig_cont_log10(subset(sI, !is.na(AG_Concugml) & country!="UK"), "AG_Concugml", "μg/ml") + 
+  scale_y_continuous(trans="log10", limits = c(100,2500), breaks = c(100,500,1000)) +
+  geom_signif(comparisons = list(c("India (IPV)", "India (OPV)")), annotations="ns", y_position = 3.35, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  ggtitle("α1AG (week 6)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p4 = fig_cont_log10(subset(sI, !is.na(A1AT_BS5_Concugml)), "A1AT_BS5_Concugml", "ng/ml") + 
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India (IPV)", "India (OPV)")), annotations="ns", y_position = 5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  ggtitle("α1AT (week 10)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p5 = fig_cont_log10(subset(sI, !is.na(MPO_BS5_Concngml)), "MPO_BS5_Concngml", "ng/ml") + 
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India (IPV)", "India (OPV)")), annotations="ns", y_position = 5.5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  ggtitle("MPO (week 10)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+grid.arrange(p1,p2,p3,p4,p5,ncol=5, widths = c(1,1,1,1,1))
+rm(p1,p2,p3,p4,p5)
+```
+
+#### Raw data and p values
+
+##### α1AT (week 6)
+```{r}
+gmt_summary(sI, "A1AT_BS3_Concugml")
+p_summary_gmt(sI, "A1AT_BS3_Concugml")
+```
+
+##### MPO (week 6)
+```{r}
+gmt_summary(sI, "MPO_BS3_Concngml")
+p_summary_gmt(sI, "MPO_BS3_Concngml")
+```
+
+##### α1AG (week 6)
+```{r}
+gmt_summary(sI, "AG_Concugml")
+p_summary_gmt(sI, "AG_Concugml")
+```
+
+##### α1AT (week 10)
+```{r}
+gmt_summary(sI, "A1AT_BS5_Concugml")
+p_summary_gmt(sI, "A1AT_BS5_Concugml")
+```
+
+##### MPO (week 10)
+```{r}
+gmt_summary(sI, "MPO_BS5_Concngml")
+p_summary_gmt(sI, "MPO_BS5_Concngml")
+```
+
+### Exposure status
+
+#### EED biomarker levels
+```{r, fig.width=10, fig.height = 3.5, message=FALSE}
+p1 = fig_cont_log10(subset(sI, !is.na(A1AT_BS3_Concugml)), "A1AT_BS3_Concugml", "μg/ml", exposure=TRUE) + 
+  scale_y_continuous(trans="log10", limits=c(10,100000), breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India (exposed)", "India (unexposed)")), 
+              annotations="ns", y_position = 5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  ggtitle("α1AT (week 6)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p2 = fig_cont_log10(subset(sI, !is.na(MPO_BS3_Concngml)), "MPO_BS3_Concngml", "ng/ml", exposure=TRUE) + 
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India (exposed)", "India (unexposed)")), 
+              annotations="ns", y_position = 5.5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  ggtitle("MPO (week 6)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p3 = fig_cont_log10(subset(sI, !is.na(AG_Concugml) & country!="UK"), "AG_Concugml", "μg/ml", exposure=TRUE) + 
+  scale_y_continuous(trans="log10", limits = c(100,2500), breaks = c(100,500,1000)) +
+  geom_signif(comparisons = list(c("India (exposed)", "India (unexposed)")), 
+              annotations="ns", y_position = 3.35, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  ggtitle("α1AG (week 6)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p4 = fig_cont_log10(subset(sI, !is.na(A1AT_BS5_Concugml)), "A1AT_BS5_Concugml", "ng/ml", exposure=TRUE) + 
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India (exposed)", "India (unexposed)")), 
+              annotations="ns", y_position = 5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  ggtitle("α1AT (week 10)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+p5 = fig_cont_log10(subset(sI, !is.na(MPO_BS5_Concngml)), "MPO_BS5_Concngml", "ng/ml", exposure=TRUE) + 
+  scale_y_continuous(trans="log10", breaks = c(0,1,10,100,1000,10000,100000)) +
+  geom_signif(comparisons = list(c("India (exposed)", "India (unexposed)")), 
+              annotations="ns", y_position = 5.5, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+  ggtitle("MPO (week 10)") + theme(plot.title = element_text(size=10, hjust = 0.5))
+
+
+grid.arrange(p1,p2,p3,p4,p5,ncol=5, widths = c(1,1,1,1,1))
+rm(p1,p2,p3,p4,p5)
+```
+
+#### Raw data and p values
+
+##### α1AT (week 6)
+```{r}
+gmt_summary(sI, "A1AT_BS3_Concugml", exposure=TRUE)
+p_summary_gmt(sI, "A1AT_BS3_Concugml", exposure=TRUE)
+```
+
+##### MPO (week 6)
+```{r}
+gmt_summary(sI, "MPO_BS3_Concngml", exposure=TRUE)
+p_summary_gmt(sI, "MPO_BS3_Concngml", exposure=TRUE)
+```
+
+##### α1AG (week 6)
+```{r}
+gmt_summary(sI, "AG_Concugml", exposure=TRUE)
+p_summary_gmt(sI, "AG_Concugml", exposure=TRUE)
+```
+
+##### α1AT (week 10)
+```{r}
+gmt_summary(sI, "A1AT_BS5_Concugml", exposure=TRUE)
+p_summary_gmt(sI, "A1AT_BS5_Concugml", exposure=TRUE)
+```
+
+##### MPO (week 10/12)
+```{r}
+gmt_summary(sI, "MPO_BS5_Concngml", exposure=TRUE)
+p_summary_gmt(sI, "MPO_BS5_Concngml", exposure=TRUE)
+```
+
+
+
+
+
+
+
+EED biomarkers vs ORV outcome {.hidden}
+===================================== 
+
+#### Summary
+See *Module 5* for full univariate and multivariate analyses.
+
+#### Continuous outcomes
+
+#### Pearson correlation coefficients: EED markers vs pre-vaccination RV-IgA
+```{r, fig.width=2.5, fig.height=4}
+results = data.frame(India_exposed = corr_by_country("BB1_IgA", "India (exposed)", "corr", antibody = FALSE))
+results = mutate_all(results, function(x) as.numeric(as.character(x)))
+
+pvals = data.frame(India_exposed = corr_by_country("BB2_IgA", "India (exposed)", "p"))
+pvals = mutate_all(pvals, function(x) as.numeric(as.character(x)))
+
+rownames(results) = rownames(pvals) = c("α1AT (week 6)", "α1AT (week 10)", "MPO (week 6)", "MPO (week 10)", "α1AG (week 6)")
+pheatmap(results, cluster_rows = F, cluster_cols = F,  color = colorRampPalette(brewer.pal(n = 6, name = "RdBu"))(100), breaks = seq(-0.5, 0.5, by = 0.01))
+```
+
+##### Pearson correlation coefficients
+```{r}
+data.frame(results)
+```
+
+##### P values
+```{r}
+data.frame(pvals)
+```
+
+#### Pearson correlation coefficients: EED vs post-vaccination RV-IgA
+```{r, fig.width=5, fig.height=5}
+results = data.frame(India = corr_by_country("BB2_IgA", "India", "corr", antibody = FALSE),
+                     India_exposed = corr_by_country("BB2_IgA", "India (exposed)", "corr", antibody = FALSE),
+                     India_unexposed = corr_by_country("BB2_IgA", "India (unexposed)", "corr", antibody = FALSE),
+                     Malawi = corr_by_country("BB2_IgA", "Malawi", "corr", antibody = FALSE),
+                     UK = corr_by_country("BB2_IgA", "UK", "corr", antibody = FALSE))
+results = mutate_all(results, function(x) as.numeric(as.character(x)))
+
+pvals = data.frame(India = corr_by_country("BB2_IgA", "India", "p", antibody = FALSE),
+                   India_exposed = corr_by_country("BB2_IgA", "India (exposed)", "p", antibody = FALSE),
+                   India_unexposed = corr_by_country("BB2_IgA", "India (unexposed)", "p", antibody = FALSE),
+                   Malawi = corr_by_country("BB2_IgA", "Malawi", "p", antibody = FALSE),
+                   UK = corr_by_country("BB2_IgA", "UK", "p", antibody = FALSE))
+pvals = mutate_all(pvals, function(x) as.numeric(as.character(x)))
+rownames(results) = rownames(pvals) = c("α1AT (week 6/8)", "α1AT (week 10/12)", "MPO (week 6/8)", "MPO (week 10/12)", "α1AG (week 6)")
+pheatmap(results, cluster_rows = F, cluster_cols = F,  color = colorRampPalette(brewer.pal(n = 6, name = "RdBu"))(100), breaks = seq(-0.5, 0.5, by = 0.01))
+```
+
+##### Pearson correlation coefficients
+```{r}
+data.frame(results)
+```
+
+##### P values
+```{r}
+data.frame(pvals)
+```
+
+
+
+
+Neonatal exposure vs ORV outcome {.hidden}
+===================================== 
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+#### Pre-exposure by cohort
+```{r}
+t = subset(s, !is.na(pre_exposed))
+table(t$pre_exposed, t$country)
+```
+
+Pre-exposure defined as detection of week-1 shedding (VP6 Ct <35) or seropositivity pre-vaccination (RV-IgA ≥20 IU/ml)
+
+#### ORV response by exposure status (with Malawi and UK as comparison groups)
+```{r, fig.width = 13, fig.height=3.5}
+# shedding status by pre-exposure
+p1 = fig_cat_cofactor(t, "dose1_shedding", title="shedding, dose 1 (NSP2)", cofactor="country_exposure") + 
+  geom_signif(comparisons = list(c("India (unexposed)", "India (exposed)")), 
+              annotations="***", y_position = 0.75, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col)
+p2 = fig_cat_cofactor(t, "either_shedding", title="shedding, either (NSP2)", cofactor="country_exposure") + 
+  geom_signif(comparisons = list(c("India (unexposed)", "India (exposed)")), 
+              annotations="***", y_position = 0.75, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col_2)
+
+# seroconversion status by pre-exposure
+p3 = fig_cat_cofactor(t, "seroconv", title="seroconversion", cofactor="country_exposure") + 
+  geom_signif(comparisons = list(c("India (unexposed)", "India (exposed)")), 
+              annotations="ns", y_position = 0.50, tip_length=0, vjust=0, size = 0.5, textsize=3, color="grey")
+
+# IgA by pre-exposure
+p4 = ggplot(t, aes(factor(country_exposure), y=BB1_IgA, colour=factor(country_exposure))) + geom_jitter(size = 1, alpha = 0.9, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("RV-IgA (IU/ml)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + 
+  scale_colour_manual(values = c(India_col, India_col_2, Malawi_col, UK_col)) + 
+  scale_y_continuous(trans="log10", breaks = c(1,10,100,1000)) + geom_hline(yintercept = 20, linetype="dotted") + 
+  geom_signif(comparisons = list(c("India (unexposed)", "India (exposed)")), 
+              annotations="***", y_position = 3.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col)  + 
+  ggtitle("IgA, pre-ORV") + theme(plot.title = element_text(size=10, hjust = 0.5), axis.text.x = element_text(angle = 45, hjust = 1))
+
+p5 = ggplot(t, aes(factor(country_exposure), y=BB2_IgA, colour=factor(country_exposure))) + geom_jitter(size = 1, alpha = 0.9, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("RV-IgA (IU/ml)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + 
+  scale_colour_manual(values = c(India_col, India_col_2, Malawi_col, UK_col)) +
+  scale_y_continuous(trans="log10", breaks = c(1,10,100,1000)) + geom_hline(yintercept = 20, linetype="dotted") + 
+  geom_signif(comparisons = list(c("India (unexposed)", "India (exposed)")), 
+              annotations="***", y_position = 3.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col)  + 
+  ggtitle("IgA, pre-ORV") + theme(plot.title = element_text(size=10, hjust = 0.5), axis.text.x = element_text(angle = 45, hjust = 1))
+
+# any response by pre-exposure
+p6 = fig_cat_cofactor(t, "any_response", title="any response", cofactor="country_exposure") + 
+  geom_signif(comparisons = list(c("India (unexposed)", "India (exposed)")), 
+              annotations="*", y_position = 0.875, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col_2)
+
+grid.arrange(p1,p2,p3,p4,p5,p6,ncol=6)
+rm(p1,p2,p3,p4,p5,p6)
+```
+
+#### Raw data and p values
+
+##### Dose 1 shedding
+```{r}
+sI_t = subset(t, !is.na(country_exposure) & !is.na(BB1_IgA) & country=="India")
+cofactor_summary(sI_t, "dose1_shedding", cofactor="country_exposure")
+```
+
+##### Shedding of either dose
+```{r}
+cofactor_summary(sI_t, "either_shedding", cofactor="country_exposure")
+```
+
+##### Seroconversion
+```{r}
+cofactor_summary(sI_t, "seroconv", cofactor="country_exposure")
+```
+
+##### Pre-ORV RV-IgA
+```{r}
+t2 = data.frame(rbind(c("India (unexposed)", round(Gmean(sI_t$BB1_IgA[sI_t$country_exposure=="India (unexposed)"], conf.level =0.95),1)),
+      c("India (exposed)", round(Gmean(sI_t$BB1_IgA[sI_t$country_exposure=="India (exposed)"], conf.level =0.95),1))))
+names(t2)[1] = "group"
+t2$p = c(round(tail(unlist(TukeyHSD(x=aov(log(sI_t$BB1_IgA) ~ sI_t$country_exposure), "sI_t$country_exposure", conf.level=0.95)[1]),1),4),NA)
+t2
+rm(t2)
+```
+
+##### Post-ORV RV-IgA
+```{r}
+sI_t = subset(t, !is.na(country_exposure) & !is.na(BB2_IgA) & country=="India")
+t2 = data.frame(rbind(c("India (unexposed)", round(Gmean(sI_t$BB2_IgA[sI_t$country_exposure=="India (unexposed)"], conf.level =0.95),1)),
+      c("India (exposed)", round(Gmean(sI_t$BB2_IgA[sI_t$country_exposure=="India (exposed)"], conf.level =0.95),1))))
+names(t2)[1] = "group"
+t2$p = c(round(tail(unlist(TukeyHSD(x=aov(log(sI_t$BB2_IgA) ~ sI_t$country_exposure), "sI_t$country_exposure", conf.level=0.95)[1]),1),4),NA)
+t2
+rm(t2)
+```
+
+##### Any response
+```{r}
+cofactor_summary(sI_t, "any_response", cofactor="country_exposure")
+```

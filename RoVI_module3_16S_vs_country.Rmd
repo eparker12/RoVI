@@ -1,0 +1,1317 @@
+---
+title: "Analysis module 3: Geographic differences in 16S microbiota composition"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+Sidebar {.sidebar} 
+===================================== 
+[Sample summary]    
+
+[Taxon abundance profile]
+
+[Alpha diversity]    
+
+[Longitudinal abundance plots]    
+
+[Beta diversity]    
+
+[Differential taxa]     
+
+[Longitudinal abundance comparisons]    
+
+
+
+
+
+Sample summary {.hidden}
+=====================================
+
+```{r, message=FALSE}
+# variable to define whether to run analyses in full (TRUE) or not (FALSE)
+run_rf_full = FALSE # set as TRUE to run Random Forests in full
+run_nb_full = FALSE # set as TRUE to run negative binomial models in full
+iter = 20 # number of cross-validation iterations to run
+
+# create output folders
+if ("output_module3" %in% list.files()==FALSE) {
+  system("mkdir output_module3")
+  system("mkdir output_module3/RF_output_stats")
+  system("mkdir output_module3/RF_output_importance")
+}
+
+# load packages and functions
+source("input/packages_and_functions.R")
+source("input/RF_functions.R")
+
+# load genus/rsv-level data - full and rarefied
+load("phyloseq_files/ps7_genus.RData")
+load("phyloseq_files/ps7_l_t_pr_d_dd_25k.RData")
+load("phyloseq_files/ps8_genus.RData")
+load("phyloseq_files/ps8_l_t_pr_d_dd_25k_rarefied.RData")
+
+# select BS1, BS2, BS3, BS5 and MS1 samples within each phyloseq object
+ps7_genus = subset_samples(ps7_genus, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1")) %>% prune_taxa(taxa_sums(.) > 0, .)
+ps7 = subset_samples(ps7_l_t_pr_d_dd_25k, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1")) %>% prune_taxa(taxa_sums(.) > 0, .)
+ps8_genus = subset_samples(ps8_genus, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1")) %>% prune_taxa(taxa_sums(.) > 0, .)
+ps8 = subset_samples(ps8_l_t_pr_d_dd_25k_rarefied, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1")) %>% prune_taxa(taxa_sums(.) > 0, .)
+#all(sample_names(ps7_genus)==sample_names(ps8_genus))
+
+# transform to relative abundances
+rps7_genus = transform_sample_counts(ps7_genus, function(x) {x/sum(x)})
+rps7 = transform_sample_counts(ps7, function(x) {x/sum(x)})
+rps8_genus = transform_sample_counts(ps8_genus, function(x) {x/sum(x)})
+rps8 = transform_sample_counts(ps8, function(x) {x/sum(x)})
+```
+
+#### Input data: infant stools (BS1, BS2, BS3, and BS5) and maternal stool (MS1) 
+* n samples = `r nsamples(ps7_genus)`    
+* n taxa: genera = `r ntaxa(ps7_genus)`; variants = `r sum(taxa_sums(ps7)>0)` 
+* n taxa (rarefied): genera = `r ntaxa(ps8_genus)`; variants = `r sum(taxa_sums(ps8)>0)`  
+* mean read count = `r round(mean(sample_sums(ps7_genus)),0)`, s.d. = `r round(sd(sample_sums(ps7_genus)),0)`
+
+#### Statistical methods for mixed-effects models
+* Linear mixed-effects models fit with family ID as a random effect   
+* Effect of country determined by comparing: (i) model with country/age vs (ii) model with age alone    
+* Pairwise comparisons between countries (M vs I, U vs I, U vs M) corrected by FDR to control family error rate
+* OPV/IPV arms from India combined in primary comparison
+* Diversity in maternal samples compared by country via ANOVA with post-hoc Tukey test   
+
+
+
+
+
+Taxon abundance profile {.hidden}
+=====================================
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Genus-level
+
+#### India - infant
+```{r, fig.width=4, fig.height=4}
+# for each sample subset, create prevalence vs abundance plot using taxon_abundance_function 
+p = taxon_abundance_function(rps8_genus, genus=TRUE, input_country="India", input_colour=India_col)
+ggMarginal(p, type = "density", fill=India_col, alpha=0.5, colour=NA, size=8)
+```
+
+#### Malawi - infant
+```{r, fig.width=4, fig.height=4}
+p = taxon_abundance_function(rps8_genus, genus=TRUE, input_country="Malawi", input_colour=Malawi_col)
+ggMarginal(p, type = "density", fill=Malawi_col, alpha=0.5, colour=NA, size=8)
+```
+
+#### UK - infant
+```{r, fig.width=4, fig.height=4}
+p = taxon_abundance_function(rps8_genus, genus=TRUE, input_country="UK", input_colour=UK_col)
+ggMarginal(p, type = "density", fill=UK_col, alpha=0.5, colour=NA, size=8)
+```
+
+#### India - maternal
+```{r, fig.width=4, fig.height=4}
+p = taxon_abundance_function(rps8_genus, genus=TRUE, input_country="India", input_colour=India_col, MS1=TRUE)
+ggMarginal(p, type = "density", fill=India_col, alpha=0.5, colour=NA, size=8)
+```
+
+#### Malawi - maternal
+```{r, fig.width=4, fig.height=4}
+p = taxon_abundance_function(rps8_genus, genus=TRUE, input_country="Malawi", input_colour=Malawi_col, MS1=TRUE)
+ggMarginal(p, type = "density", fill=Malawi_col, alpha=0.5, colour=NA, size=8)
+```
+
+#### UK - maternal
+```{r, fig.width=4, fig.height=4}
+p = taxon_abundance_function(rps8_genus, genus=TRUE, input_country="UK", input_colour=UK_col, MS1=TRUE)
+ggMarginal(p, type = "density", fill=UK_col, alpha=0.5, colour=NA, size=8)
+```
+
+### RSV-level
+
+#### India - infant
+```{r, fig.width=4, fig.height=4}
+p = taxon_abundance_function(rps8, genus=FALSE, input_country="India", input_colour=India_col)
+ggMarginal(p, type = "density", fill=India_col, alpha=0.5, colour=NA, size=8)
+```
+
+#### Malawi - infant
+```{r, fig.width=4, fig.height=4}
+p = taxon_abundance_function(rps8, genus=FALSE, input_country="Malawi", input_colour=Malawi_col)
+ggMarginal(p, type = "density", fill=Malawi_col, alpha=0.5, colour=NA, size=8)
+```
+
+#### UK - infant
+```{r, fig.width=4, fig.height=4}
+p = taxon_abundance_function(rps8, genus=FALSE, input_country="UK", input_colour=UK_col)
+ggMarginal(p, type = "density", fill=UK_col, alpha=0.5, colour=NA, size=8)
+```
+
+#### India - maternal
+```{r, fig.width=4, fig.height=4}
+p = taxon_abundance_function(rps8, genus=FALSE, input_country="India", input_colour=India_col, MS1=TRUE)
+ggMarginal(p, type = "density", fill=India_col, alpha=0.5, colour=NA, size=8)
+```
+
+#### Malawi - maternal
+```{r, fig.width=4, fig.height=4}
+p = taxon_abundance_function(rps8, genus=FALSE, input_country="Malawi", input_colour=Malawi_col, MS1=TRUE)
+ggMarginal(p, type = "density", fill=Malawi_col, alpha=0.5, colour=NA, size=8)
+```
+
+#### UK - maternal
+```{r, fig.width=4, fig.height=4}
+p = taxon_abundance_function(rps8, genus=FALSE, input_country="UK", input_colour=UK_col, MS1=TRUE)
+ggMarginal(p, type = "density", fill=UK_col, alpha=0.5, colour=NA, size=8)
+```
+
+
+
+
+
+Alpha diversity {.hidden}
+=====================================
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Genus-level
+
+#### India vs Malawi vs UK
+```{r, fig.width=5, fig.height=3}
+# create dataframe of infant samples
+t = data.frame(sample_data(rps8_genus))
+t1 = subset(t, sample_type!="MS1")
+t1$week_fig = factor(t1$week_fig, levels = c("week 1","week 4","week 6/8","week 10/12"))
+
+# code to save alpha diversity metrics
+#t_6w = subset(t, sample_type=="BS3")
+#write.csv(t_6w, "BS5_alpha.csv")
+#t_10w = subset(t, sample_type=="BS5")
+#write.csv(t_10w, "BS5_alpha.csv")
+
+# add-ons for longitudinal plots
+gg_add = function(plot) { plot +
+    geom_line(alpha=0.04) +
+    scale_color_manual("country", values = c(India_col, Malawi_col, UK_col)) +
+    stat_summary(aes(group = country), geom = "line", fun.y = mean, size = 1, alpha = 0.8) +
+    stat_summary(aes(group = country), geom = "point", fun.data = "mean_cl_boot", size = 2, alpha = 0.8) + ggtitle(" ") + 
+    scale_x_discrete(breaks=c("week 1","week 4","week 6/8","week 10/12"), labels=c("1", "4", "6/8", "10/12")) + 
+    xlab("week") + theme(legend.position = "none")
+}
+
+# create longitudinal plots for alpha diversity by country
+p1 = gg_add(ggplot(t1, aes(x = factor(week_fig), y = Shannon, group=family_ID, colour=factor(country))) + ylab("Shannon (genus)")) 
+p2 = gg_add(ggplot(t1, aes(x = factor(week_fig), y = Observed, group=family_ID, colour=factor(country))) + ylab("richness (genus)") + ylim(0,30)) 
+grid.arrange(p1, p2, ncol=2)
+```
+
+#### p values (FDR-adjusted, 4 decimal places)
+```{r}
+# calculate lme models for pairwise comparisons using lme_alpha
+p_shan = c(lme_alpha(subset(t1, country!="UK"), "Shannon"), lme_alpha(subset(t1, country!="Malawi"), "Shannon"), lme_alpha(subset(t1, country!="India"), "Shannon"))
+p_obs = c(lme_alpha(subset(t1, country!="UK"), "log(Observed)"), lme_alpha(subset(t1, country!="Malawi"), "log(Observed)"), lme_alpha(subset(t1, country!="India"), "log(Observed)"))
+
+results = data.frame(round(p.adjust(p_shan, method="fdr"),4), round(p.adjust(p_obs, method="fdr"),4))
+names(results) = c("Shannon", "Richness")
+rownames(results) = c("Malawi-India", "UK-India", "UK-Malawi")
+results
+```
+
+#### p values, India (OPV) vs India (IPV)
+```{r}
+# calculate lme models for pairwise comparisons using lme_alpha
+p_shan = lme_alpha(subset(t1, country=="India"), "Shannon", comparison="country_arm")
+p_obs = lme_alpha(subset(t1, country=="India"), "log(Observed)", comparison="country_arm")
+results = data.frame(round(p_shan,4), round(p_obs,4))
+names(results) = c("Shannon", "Richness")
+rownames(results) = c("India (OPV)-India (IPV)")
+results
+```
+
+#### Maternal samples
+```{r, fig.width=3, fig.height=6}
+t1 = subset(t, sample_type=="MS1")
+
+# create alpha diversity plots for maternal samples
+p1 = ggplot(t1, aes(factor(country), y=Shannon, colour=factor(country))) + geom_jitter(size = 1, alpha = 0.5, width=0.2) +
+    geom_boxplot(alpha = 0.5) + ylab("Shannon (genus)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + 
+    scale_colour_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 4.75, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) + 
+    geom_signif(comparisons = list(c("Malawi", "UK")), annotations="**", y_position = 4.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) +
+    geom_signif(comparisons = list(c("Malawi", "India")), annotations="ns", y_position = 4.25, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+    scale_y_continuous(limits=c(0,5), breaks=c(0,2,4))
+
+p2 = ggplot(t1, aes(factor(country), y=Observed, colour=factor(country))) + geom_jitter(size = 1, alpha = 0.5, width=0.2) +
+    geom_boxplot(alpha = 0.5) + ylab("richness (genus)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + 
+    scale_colour_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    geom_signif(comparisons = list(c("India", "UK")), annotations="***", y_position = 100, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) + 
+    geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 93.3, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) +
+    geom_signif(comparisons = list(c("Malawi", "India")), annotations="ns", y_position = 86.7, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") +
+    scale_y_continuous(limits=c(0,100), breaks=c(0,50,100))
+
+plot_grid(p1, p2, ncol=1, align="v")
+```
+
+#### p values, India vs Malawi vs UK
+```{r}
+# ANOVA with post-hoc Tukey tests for pairwise comparisons
+p_shan = TukeyHSD(x=aov(t1$Shannon ~ t1$country), "t1$country", conf.level=0.95)$`t1$country`[,4]
+p_obs = TukeyHSD(x=aov(t1$Observed ~ t1$country), "t1$country", conf.level=0.95)$`t1$country`[,4]
+results = data.frame(round(p_shan, 4), round(p_obs, 4))
+names(results) = c("Shannon", "Richness")
+results
+```
+
+#### p values, India (OPV) vs India (IPV)
+```{r}
+# ANOVA with post-hoc Tukey tests for pairwise comparisons
+t1 = subset(t, sample_type=="MS1" & country=="India")
+p_shan = TukeyHSD(x=aov(t1$Shannon ~ t1$country_arm), "t1$country_arm", conf.level=0.95)$`t1$country_arm`[,4]
+p_obs = TukeyHSD(x=aov(t1$Observed ~ t1$country_arm), "t1$country_arm", conf.level=0.95)$`t1$country_arm`[,4]
+results = data.frame(round(p_shan, 4), round(p_obs, 4))
+names(results) = c("Shannon", "Richness")
+results
+```
+
+### RSV-level
+
+#### India vs Malawi vs UK
+```{r, fig.width=5, fig.height=3}
+# create dataframe of infant samples
+t = data.frame(sample_data(rps8_genus))
+t1 = subset(t, sample_type!="MS1")
+t1$week_fig = factor(t1$week_fig, levels = c("week 1","week 4","week 6/8","week 10/12"))
+
+# add-ons for longitudinal plots
+gg_add = function(plot) { plot +
+    geom_line(alpha=0.04) +
+    scale_color_manual("country", values = c(India_col, Malawi_col, UK_col)) +
+    stat_summary(aes(group = country), geom = "line", fun.y = mean, size = 1, alpha = 0.8) +
+    stat_summary(aes(group = country), geom = "point", fun.data = "mean_cl_boot", size = 2, alpha = 0.8) + ggtitle(" ") + 
+    scale_x_discrete(breaks=c("week 1","week 4","week 6/8","week 10/12"), labels=c("1", "4", "6/8", "10/12")) + 
+    xlab("week") + theme(legend.position = "none")
+}
+
+# create longitudinal plots for alpha diversity by country
+p1 = gg_add(ggplot(t1, aes(x = factor(week_fig), y = Shannon_rsv, group=family_ID, colour=factor(country))) + ylab("Shannon (variant)") + ylim(0,5)) 
+p2 = gg_add(ggplot(t1, aes(x = factor(week_fig), y = Observed_rsv, group=family_ID, colour=factor(country))) + ylab("richness (variant)") + ylim(0,100)) 
+grid.arrange(p1, p2, ncol=2)
+```
+
+#### p values (FDR-adjusted, 4 decimal places)
+```{r}
+# calculate lme models for pairwise comparisons using lme_alpha
+p_shan = c(lme_alpha(subset(t1, country!="UK"), "Shannon_rsv"), lme_alpha(subset(t1, country!="Malawi"), "Shannon_rsv"), lme_alpha(subset(t1, country!="India"), "Shannon_rsv"))
+p_obs = c(lme_alpha(subset(t1, country!="UK"), "log(Observed_rsv)"), lme_alpha(subset(t1, country!="Malawi"), "log(Observed_rsv)"), lme_alpha(subset(t1, country!="India"), "log(Observed_rsv)"))
+
+results = data.frame(round(p.adjust(p_shan, method="fdr"),4), round(p.adjust(p_obs, method="fdr"),4))
+names(results) = c("Shannon", "Richness")
+rownames(results) = c("Malawi-India", "UK-India", "UK-Malawi")
+results
+```
+
+#### p values, India (OPV) vs India (IPV)
+```{r}
+# calculate lme models for pairwise comparisons using lme_alpha
+p_shan = lme_alpha(subset(t1, country=="India"), "Shannon_rsv", comparison="country_arm")
+p_obs = lme_alpha(subset(t1, country=="India"), "log(Observed_rsv)", comparison="country_arm")
+
+results = data.frame(round(p_shan,4), round(p_obs,4))
+names(results) = c("Shannon", "Richness")
+rownames(results) = c("India (OPV)-India (IPV)")
+results
+```
+
+#### Maternal samples
+```{r, fig.width=3, fig.height=6}
+t1 = subset(t, sample_type=="MS1")
+
+# create alpha diversity plots for maternal samples
+p1 = ggplot(t1, aes(factor(country), y=Shannon_rsv, colour=factor(country))) + geom_jitter(size = 1, alpha = 0.5, width=0.2) +
+    geom_boxplot(alpha = 0.5) + ylab("Shannon (variant)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + 
+    scale_colour_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    geom_signif(comparisons = list(c("India", "UK")), annotations="ns", y_position = 6, tip_length=0, vjust=0, size = 0.3, textsize=3, color="grey") + 
+    geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 5.65, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) +
+    geom_signif(comparisons = list(c("Malawi", "India")), annotations="***", y_position = 5.3, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) +
+    scale_y_continuous(limits=c(0,6.25), breaks=c(0,2,4,6))
+
+p2 = ggplot(t1, aes(factor(country), y=Observed_rsv, colour=factor(country))) + geom_jitter(size = 1, alpha = 0.5, width=0.2) +
+    geom_boxplot(alpha = 0.5) + ylab("richness (variant)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + 
+    scale_colour_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    geom_signif(comparisons = list(c("India", "UK")), annotations="**", y_position = 225, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=India_col) + 
+    geom_signif(comparisons = list(c("Malawi", "UK")), annotations="***", y_position = 212.5, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) +
+    geom_signif(comparisons = list(c("Malawi", "India")), annotations="***", y_position = 200, tip_length=0, vjust=0.5, size = 0.3, textsize=4, color=Malawi_col) +
+    scale_y_continuous(limits=c(0,225), breaks=c(0,50,100,150,200))
+
+plot_grid(p1, p2, ncol=1, align="v")
+```
+
+#### p values, India vs Malawi vs UK
+```{r}
+t1 = subset(t, sample_type=="MS1")
+p_shan = TukeyHSD(x=aov(t1$Shannon_rsv ~ t1$country), "t1$country", conf.level=0.95)$`t1$country`[,4]
+p_obs = TukeyHSD(x=aov(t1$Observed_rsv ~ t1$country), "t1$country", conf.level=0.95)$`t1$country`[,4]
+results = data.frame(round(p_shan, 4), round(p_obs, 4))
+names(results) = c("Shannon", "Richness")
+results
+```
+
+#### p values, India (OPV) vs India (IPV)
+```{r}
+t1 = subset(t, sample_type=="MS1" & country=="India")
+p_shan = TukeyHSD(x=aov(t1$Shannon_rsv ~ t1$country_arm), "t1$country_arm", conf.level=0.95)$`t1$country_arm`[,4]
+p_obs = TukeyHSD(x=aov(t1$Observed_rsv ~ t1$country_arm), "t1$country_arm", conf.level=0.95)$`t1$country_arm`[,4]
+results = data.frame(round(p_shan, 4), round(p_obs, 4))
+names(results) = c("Shannon", "Richness")
+results
+```
+
+
+
+
+
+Longitudinal abundance plots {.hidden}
+===================================== 
+
+#### Infants - India vs UK vs Malawi
+```{r, fig.width=8, fig.height=5}
+g = data.frame(t(otu_table(rps8_genus))) 
+
+# change colnames to genus
+if (all(colnames(g)==rownames(tax_table(rps8_genus)))) { 
+  colnames(g) = as(tax_table(rps8_genus),"matrix")[,"Genus"] 
+} else { print("error: rownames do not match")}
+
+# add metadata for sample type and country
+if (all(rownames(g)==sample_names(rps8_genus))) { 
+  g$sample_type =  as.factor(sample_data(rps8_genus)$sample_type)
+  g$country_arm =  as.factor(sample_data(rps8_genus)$country_arm)
+} else { print("error: rownames do not match")}
+
+# collate data
+g_means_full = data.frame(
+  BS1_I = genus_mean_cal(g, "BS1", "India"),
+  BS2_I = genus_mean_cal(g, "BS2", "India"),
+  BS3_I = genus_mean_cal(g, "BS3", "India"),
+  BS5_I = genus_mean_cal(g, "BS5", "India"),
+  BS1_M = genus_mean_cal(g, "BS1", "Malawi"),
+  BS2_M = genus_mean_cal(g, "BS2", "Malawi"),
+  BS3_M = genus_mean_cal(g, "BS3", "Malawi"),
+  BS5_M = genus_mean_cal(g, "BS5", "Malawi"),
+  BS1_U = genus_mean_cal(g, "BS1", "UK"),
+  BS2_U = genus_mean_cal(g, "BS2", "UK"),
+  BS3_U = genus_mean_cal(g, "BS3", "UK"),
+  BS5_U = genus_mean_cal(g, "BS5", "UK"),
+  BS1_II = genus_mean_cal(g, "BS1", "India (IPV)"),
+  BS2_II = genus_mean_cal(g, "BS2", "India (IPV)"),
+  BS3_II = genus_mean_cal(g, "BS3", "India (IPV)"),
+  BS5_II = genus_mean_cal(g, "BS5", "India (IPV)"),
+  BS1_IO = genus_mean_cal(g, "BS1", "India (OPV)"),
+  BS2_IO = genus_mean_cal(g, "BS2", "India (OPV)"),
+  BS3_IO = genus_mean_cal(g, "BS3", "India (OPV)"),
+  BS5_IO = genus_mean_cal(g, "BS5", "India (OPV)"),
+  MS1_I = genus_mean_cal(g, "MS1", "India"),
+  MS1_M = genus_mean_cal(g, "MS1", "Malawi"),
+  MS1_U = genus_mean_cal(g, "MS1", "UK")
+)
+
+# create subset for Indian, Malawian and UK infant samples (columns 1:12)
+g_means = g_means_full[,1:12]
+
+# calculate means, pick genera present with mean abundance of 5% during at least one timepoint
+g_means$max = apply(g_means, 1, max)
+g_means$include = g_means$max>=0.05
+g_means_reduced = subset(g_means, include==TRUE)[,1:(ncol(g_means)-2)]
+taxa_list = rownames(g_means_reduced)
+g_means_reduced["Other",] = 1-colSums(g_means_reduced)
+g_means_reduced = data.frame(t(g_means_reduced))
+
+# collate data for each taxon in taxa_list
+g_collated = rbind(data.frame(Genus = rep("Other",12), week = rep(c("1", "4", "6/8", "10/12"),3), 
+                              country = c(rep("India",4), rep("Malawi",4), rep("UK",4)), abundance = g_means_reduced[,"Other"]),
+                   data.frame(Genus = rep("Parabacteroides",12), week = rep(c("1", "4", "6/8", "10/12"),3), 
+                              country = c(rep("India",4), rep("Malawi",4), rep("UK",4)), abundance = g_means_reduced[,"Parabacteroides"]),
+                   data.frame(Genus = rep("Prevotella 9",12), week = rep(c("1", "4", "6/8", "10/12"),3), 
+                              country = c(rep("India",4), rep("Malawi",4), rep("UK",4)), abundance = g_means_reduced[,"Prevotella_9"]),
+                   data.frame(Genus = rep("Klebsiella",12), week = rep(c("1", "4", "6/8", "10/12"),3), 
+                              country = c(rep("India",4), rep("Malawi",4), rep("UK",4)), abundance = g_means_reduced[,"Klebsiella"]),
+                   data.frame(Genus = rep("Lactobacillus",12), week = rep(c("1", "4", "6/8", "10/12"),3), 
+                              country = c(rep("India",4), rep("Malawi",4), rep("UK",4)), abundance = g_means_reduced[,"Lactobacillus"]),
+                   data.frame(Genus = rep("Veillonella",12), week = rep(c("1", "4", "6/8", "10/12"),3), 
+                              country = c(rep("India",4), rep("Malawi",4), rep("UK",4)), abundance = g_means_reduced[,"Veillonella"]),
+                   data.frame(Genus = rep("Bacteroides",12), week = rep(c("1", "4", "6/8", "10/12"),3), 
+                              country = c(rep("India",4), rep("Malawi",4), rep("UK",4)), abundance = g_means_reduced[,"Bacteroides"]),
+                   data.frame(Genus = rep("Staphylococcus",12), week = rep(c("1", "4", "6/8", "10/12"),3), 
+                              country = c(rep("India",4), rep("Malawi",4), rep("UK",4)), abundance = g_means_reduced[,"Staphylococcus"]),
+                   data.frame(Genus = rep("Streptococcus",12), week = rep(c("1", "4", "6/8", "10/12"),3), 
+                              country = c(rep("India",4), rep("Malawi",4), rep("UK",4)), abundance = g_means_reduced[,"Streptococcus"]),
+                   data.frame(Genus = rep("Escherichia/Shigella",12), week = rep(c("1", "4", "6/8", "10/12"),3), 
+                              country = c(rep("India",4), rep("Malawi",4), rep("UK",4)), abundance = g_means_reduced[,"Escherichia.Shigella"]),
+                   data.frame(Genus = rep("Bifidobacterium",12), week = rep(c("1", "4", "6/8", "10/12"),3), 
+                              country = c(rep("India",4), rep("Malawi",4), rep("UK",4)), abundance = g_means_reduced[,"Bifidobacterium"]))
+
+# recode week
+g_collated$week_factor <- factor(g_collated$week, levels = c("1", "4", "6/8", "10/12"))
+g_collated$week <- as.numeric(g_collated$week_factor)
+names(g_collated)[1] = "genus"
+
+# create plot
+ggplot(g_collated, aes(x=week, y=abundance, fill=genus)) +
+  geom_area() + facet_grid(.~country) + 
+  scale_x_continuous(breaks = 1:4, labels = c("1", "4", "6/8", "10/12")) +
+  scale_fill_manual(values = c("light grey",as.vector(GetColors(11,"smooth rainbow")))) +
+  ylab("mean relative abundance") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  theme(strip.background = element_blank()) + theme(text = element_text(size=15))
+```
+
+#### Infants - India (OPV) vs India (IPV)
+```{r, fig.width=6, fig.height=5}
+# create subset for Indian OPV and IPV arms (columns 13:20)
+g_means = g_means_full[,13:20]
+g_means_reduced = g_means[taxa_list,]
+g_means_reduced["Other",] = 1-colSums(g_means_reduced)
+g_means_reduced = data.frame(t(g_means_reduced))
+
+# collate data for each taxon in taxa_list
+g_collated = rbind(data.frame(Genus = rep("Other",8), week = rep(c("1", "4", "6/8", "10/12"),2), 
+                              country = c(rep("India (IPV)",4), rep("India (OPV)",4)), abundance = g_means_reduced[,"Other"]),
+                   data.frame(Genus = rep("Parabacteroides",8), week = rep(c("1", "4", "6/8", "10/12"),2), 
+                              country = c(rep("India (IPV)",4), rep("India (OPV)",4)), abundance = g_means_reduced[,"Parabacteroides"]),
+                   data.frame(Genus = rep("Prevotella 9",8), week = rep(c("1", "4", "6/8", "10/12"),2), 
+                              country = c(rep("India (IPV)",4), rep("India (OPV)",4)), abundance = g_means_reduced[,"Prevotella_9"]),
+                   data.frame(Genus = rep("Klebsiella",8), week = rep(c("1", "4", "6/8", "10/12"),2), 
+                              country = c(rep("India (IPV)",4), rep("India (OPV)",4)), abundance = g_means_reduced[,"Klebsiella"]),
+                   data.frame(Genus = rep("Lactobacillus",8), week = rep(c("1", "4", "6/8", "10/12"),2), 
+                              country = c(rep("India (IPV)",4), rep("India (OPV)",4)), abundance = g_means_reduced[,"Lactobacillus"]),
+                   data.frame(Genus = rep("Veillonella",8), week = rep(c("1", "4", "6/8", "10/12"),2), 
+                              country = c(rep("India (IPV)",4), rep("India (OPV)",4)), abundance = g_means_reduced[,"Veillonella"]),
+                   data.frame(Genus = rep("Bacteroides",8), week = rep(c("1", "4", "6/8", "10/12"),2), 
+                              country = c(rep("India (IPV)",4), rep("India (OPV)",4)), abundance = g_means_reduced[,"Bacteroides"]),
+                   data.frame(Genus = rep("Staphylococcus",8), week = rep(c("1", "4", "6/8", "10/12"),2), 
+                              country = c(rep("India (IPV)",4), rep("India (OPV)",4)), abundance = g_means_reduced[,"Staphylococcus"]),
+                   data.frame(Genus = rep("Streptococcus",8), week = rep(c("1", "4", "6/8", "10/12"),2), 
+                              country = c(rep("India (IPV)",4), rep("India (OPV)",4)), abundance = g_means_reduced[,"Streptococcus"]),
+                   data.frame(Genus = rep("Escherichia/Shigella",8), week = rep(c("1", "4", "6/8", "10/12"),2), 
+                              country = c(rep("India (IPV)",4), rep("India (OPV)",4)), abundance = g_means_reduced[,"Escherichia.Shigella"]),
+                   data.frame(Genus = rep("Bifidobacterium",8), week = rep(c("1", "4", "6/8", "10/12"),2), 
+                              country = c(rep("India (IPV)",4), rep("India (OPV)",4)), abundance = g_means_reduced[,"Bifidobacterium"]))
+
+# recode week
+g_collated$week_factor <- factor(g_collated$week, levels = c("1", "4", "6/8", "10/12"))
+g_collated$week <- as.numeric(g_collated$week_factor)
+names(g_collated)[1] = "genus"
+
+# create plot
+ggplot(g_collated, aes(x=week, y=abundance, fill=genus)) +
+  geom_area() + facet_grid(.~country) + 
+  scale_x_continuous(breaks = 1:4, labels = c("1", "4", "6", "10")) +
+  scale_fill_manual(values = c("light grey",as.vector(GetColors(11,"smooth rainbow")))) +
+  ylab("mean relative abundance") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  theme(strip.background = element_blank()) + theme(text = element_text(size=15))
+```
+
+#### Maternal samples (with genera corresponding to infant plots included)
+```{r, fig.width=4, fig.height=5}
+# create subset for maternal samples (columns 21:23)
+g_means = g_means_full[,21:23]
+g_means_reduced = g_means[taxa_list,]
+g_means_reduced["Other",] = 1-colSums(g_means_reduced)
+g_means_reduced = data.frame(t(g_means_reduced))
+
+# collate data for each taxon in taxa_list
+g_collated = rbind(data.frame(Genus = rep("Other",3), week = rep(c("mother"),3), country = c("India", "Malawi", "UK"), abundance = g_means_reduced[,"Other"]),
+                   data.frame(Genus = rep("Parabacteroides",3), week = rep(c("mother"),3), country = c("India", "Malawi", "UK"), abundance = g_means_reduced[,"Parabacteroides"]),
+                   data.frame(Genus = rep("Prevotella 9",3), week = rep(c("mother"),3), country = c("India", "Malawi", "UK"), abundance = g_means_reduced[,"Prevotella_9"]),
+                   data.frame(Genus = rep("Klebsiella",3), week = rep(c("mother"),3), country = c("India", "Malawi", "UK"), abundance = g_means_reduced[,"Klebsiella"]),
+                   data.frame(Genus = rep("Lactobacillus",3), week = rep(c("mother"),3), country = c("India", "Malawi", "UK"), abundance = g_means_reduced[,"Lactobacillus"]),
+                   data.frame(Genus = rep("Veillonella",3), week = rep(c("mother"),3), country = c("India", "Malawi", "UK"), abundance = g_means_reduced[,"Veillonella"]),
+                   data.frame(Genus = rep("Bacteroides",3), week = rep(c("mother"),3), country = c("India", "Malawi", "UK"), abundance = g_means_reduced[,"Bacteroides"]),
+                   data.frame(Genus = rep("Staphylococcus",3), week = rep(c("mother"),3), country = c("India", "Malawi", "UK"), abundance = g_means_reduced[,"Staphylococcus"]),
+                   data.frame(Genus = rep("Streptococcus",3), week = rep(c("mother"),3), country = c("India", "Malawi", "UK"), abundance = g_means_reduced[,"Streptococcus"]),
+                   data.frame(Genus = rep("Escherichia/Shigella",3), week = rep(c("mother"),3), country = c("India", "Malawi", "UK"), abundance = g_means_reduced[,"Escherichia.Shigella"]),
+                   data.frame(Genus = rep("Bifidobacterium",3), week = rep(c("mother"),3), country = c("India", "Malawi", "UK"), abundance = g_means_reduced[,"Bifidobacterium"]))
+names(g_collated)[1] = "genus"
+
+# create plot
+ggplot(g_collated, aes(x=country, y=abundance, fill=genus)) + geom_bar(stat = "identity") + xlab("") +
+  scale_fill_manual(values = c("light grey",as.vector(GetColors(11,"smooth rainbow")))) + 
+  ylab("mean relative abundance") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) #+ 
+  #theme(text = element_text(size=15))
+```
+
+
+
+
+
+Beta diversity {.hidden}
+=====================================
+Column {.tabset .tabset-fade}
+-------------------------------------
+  
+### Genus-level
+
+#### Bray-Curtis distances (weighted)
+```{r, fig.width=15, fig.height=3}
+# use beta_plot function to create PCoA for each subset of samples
+p1 = beta_plot(rps8_genus, "BS1", "week 1", "Bray-Curtis (weighted)")
+p2 = beta_plot(rps8_genus, "BS2", "week 4", "Bray-Curtis (weighted)")
+p3 = beta_plot(rps8_genus, "BS3", "week 6/8", "Bray-Curtis (weighted)")
+p4 = beta_plot(rps8_genus, "BS5", "week 10/12", "Bray-Curtis (weighted)")
+p5 = beta_plot(rps8_genus, "MS1", "mother", "Bray-Curtis (weighted)")
+grid.arrange(p1,p2,p3,p4,p5, ncol=5)
+```
+
+#### Bray-Curtis distances (unweighted)
+```{r, fig.width=15, fig.height=3}
+p1 = beta_plot(rps8_genus, "BS1", "week 1", "Bray-Curtis (unweighted)")
+p2 = beta_plot(rps8_genus, "BS2", "week 4", "Bray-Curtis (unweighted)")
+p3 = beta_plot(rps8_genus, "BS3", "week 6/8", "Bray-Curtis (unweighted)")
+p4 = beta_plot(rps8_genus, "BS5", "week 10/12", "Bray-Curtis (unweighted)")
+p5 = beta_plot(rps8_genus, "MS1", "mother", "Bray-Curtis (unweighted)")
+grid.arrange(p1,p2,p3,p4,p5, ncol=5)
+```
+
+#### Turnover, paired vs random (weighted)
+For week 1, distance from maternal sample plotted. For subsequent samples, distance from prior infant sample plotted.
+```{r, fig.width=8, fig.height=6}
+# create dataframe, and recode week
+t1 = subset(t, sample_type!="MS1")
+within = data.frame(sample_ID_full = t1$sample_ID_full, country = t1$country, week_fig = t1$week_fig, turnover=t1$turnover_w, within = rep("paired", nrow(t1)))
+between = data.frame(sample_ID_full = t1$sample_ID_full, country = t1$country, week_fig = t1$week_fig, turnover=t1$turnover_randompair_w, within = rep("random", nrow(t1)))
+full = rbind(within, between)
+full$week_fig = factor(full$week_fig, levels = c("week 1","week 4","week 6/8","week 10/12"))
+
+# create plot
+ggplot(full, aes(factor(within), turnover, colour=factor(within))) + geom_jitter(size = 1, alpha = 0.3, width=0.2) +
+  geom_boxplot(alpha = 0.5) + facet_grid(country~week_fig) + 
+  ylab("turnover (weighted)") + xlab("") + scale_color_manual(values = c("#01665e", "#d8b365")) + 
+  stat_compare_means(label.x=1.1, size=3) + ylim(0,1.2) +
+  theme_bw() + theme(legend.position = "none", strip.background = element_blank())
+```
+
+#### Turnover, paired vs random (unweighted)
+```{r, fig.width=8, fig.height=6}
+# create dataframe, and recode week
+t1 = subset(t, sample_type!="MS1")
+within = data.frame(sample_ID_full = t1$sample_ID_full, country = t1$country, week_fig = t1$week_fig, turnover=t1$turnover_u, within = rep("paired", nrow(t1)))
+between = data.frame(sample_ID_full = t1$sample_ID_full, country = t1$country, week_fig = t1$week_fig, turnover=t1$turnover_randompair_u, within = rep("random", nrow(t1)))
+full = rbind(within, between)
+full$week_fig = factor(full$week_fig, levels = c("week 1","week 4","week 6/8","week 10/12"))
+
+# create plot
+ggplot(full, aes(factor(within), turnover, colour=factor(within))) + geom_jitter(size = 1, alpha = 0.2, width=0.2) +
+  geom_boxplot(alpha = 0.5) + facet_grid(country~week_fig) + 
+  ylab("turnover (unweighted)") + xlab("") + scale_color_manual(values = c("#01665e", "#d8b365")) + 
+  stat_compare_means(label.x=1.1, size=3) + ylim(0,1.2) +
+  theme_bw() + theme(legend.position = "none", strip.background = element_blank())
+```
+Longitudinal samples from a given infant more closely clustered than expected by chance in each of the three cohorts.
+
+### RSV-level 
+
+#### Bray-Curtis distances (weighted)
+```{r, fig.width=15, fig.height=3}
+# use beta_plot function to create PCoA for each subset of samples
+p1 = beta_plot(rps8, "BS1", "week 1", "Bray-Curtis (weighted)")
+p2 = beta_plot(rps8, "BS2", "week 4", "Bray-Curtis (weighted)")
+p3 = beta_plot(rps8, "BS3", "week 6/8", "Bray-Curtis (weighted)")
+p4 = beta_plot(rps8, "BS5", "week 10/12", "Bray-Curtis (weighted)")
+p5 = beta_plot(rps8, "MS1", "mother", "Bray-Curtis (weighted)")
+grid.arrange(p1,p2,p3,p4,p5, ncol=5)
+```
+
+#### Bray-Curtis distances (unweighted)
+```{r, fig.width=15, fig.height=3}
+p1 = beta_plot(rps8, "BS1", "week 1", "Bray-Curtis (unweighted)")
+p2 = beta_plot(rps8, "BS2", "week 4", "Bray-Curtis (unweighted)")
+p3 = beta_plot(rps8, "BS3", "week 6/8", "Bray-Curtis (unweighted)")
+p4 = beta_plot(rps8, "BS5", "week 10/12", "Bray-Curtis (unweighted)")
+p5 = beta_plot(rps8, "MS1", "mother", "Bray-Curtis (unweighted)")
+grid.arrange(p1,p2,p3,p4,p5, ncol=5)
+```
+
+#### Turnover, paired vs random (weighted)
+For week 1, distance from maternal sample plotted. For subsequent samples, distance from prior infant sample plotted.
+```{r, fig.width=8, fig.height=6}
+# create dataframe, and recode week
+t1 = subset(t, sample_type!="MS1")
+within = data.frame(sample_ID_full = t1$sample_ID_full, country = t1$country, week_fig = t1$week_fig, turnover=t1$turnover_w_rsv, within = rep("paired", nrow(t1)))
+between = data.frame(sample_ID_full = t1$sample_ID_full, country = t1$country, week_fig = t1$week_fig, turnover=t1$turnover_randompair_w_rsv, within = rep("random", nrow(t1)))
+full = rbind(within, between)
+full$week_fig = factor(full$week_fig, levels = c("week 1","week 4","week 6/8","week 10/12"))
+
+# create plot
+ggplot(full, aes(factor(within), turnover, colour=factor(within))) + geom_jitter(size = 1, alpha = 0.2, width=0.2) +
+  geom_boxplot(alpha = 0.5) + facet_grid(country~week_fig) + 
+  ylab("turnover (weighted)") + xlab("") + scale_color_manual(values = c("#01665e", "#d8b365")) + 
+  stat_compare_means(label.x=1.1, size=3) + ylim(0,1.2) +
+  theme_bw() + theme(legend.position = "none", strip.background = element_blank())
+```
+
+#### Turnover, paired vs random (unweighted)
+```{r, fig.width=8, fig.height=6}
+# create dataframe, and recode week
+t1 = subset(t, sample_type!="MS1")
+within = data.frame(sample_ID_full = t1$sample_ID_full, country = t1$country, week_fig = t1$week_fig, turnover=t1$turnover_u_rsv, within = rep("paired", nrow(t1)))
+between = data.frame(sample_ID_full = t1$sample_ID_full, country = t1$country, week_fig = t1$week_fig, turnover=t1$turnover_randompair_u_rsv, within = rep("random", nrow(t1)))
+full = rbind(within, between)
+full$week_fig = factor(full$week_fig, levels = c("week 1","week 4","week 6/8","week 10/12"))
+
+# create plot
+ggplot(full, aes(factor(within), turnover, colour=factor(within))) + geom_jitter(size = 1, alpha = 0.2, width=0.2) +
+  geom_boxplot(alpha = 0.5) + facet_grid(country~week_fig) + 
+  ylab("turnover (unweighted)") + xlab("") + scale_color_manual(values = c("#01665e", "#d8b365")) + 
+  stat_compare_means(label.x=1.1, size=3) + ylim(0,1.2) +
+  theme_bw() + theme(legend.position = "none", strip.background = element_blank())
+```
+Longitudinal samples from a given infant more closely clustered than expected by chance in each of the three cohorts.
+
+
+
+
+
+Differential taxa {.hidden}
+=====================================
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Genus-level
+```{r}
+set.seed(12345)
+
+### select input data and specify output comparisons
+input_m = data.frame(sample_data(rps8_genus))
+comparison_list = data.frame(country1 = c("India", "India", "Malawi", "India (OPV)"),
+                             country2 = c("Malawi", "UK", "UK", "India (IPV)"))
+subset_list = c("BS1", "BS2", "BS3", "BS5", "MS1")
+
+# create dataframe for collated accuracy results
+collated_rf = data.frame(subset = rep(NA,5*4))
+collated_rf$subset = collated_rf$country1 = collated_rf$country2 = collated_rf$comparison = collated_rf$crossval_mean = collated_rf$crossval_sd = NA
+
+if (run_rf_full) {
+  # run RF in loop across 5 sample types and 4 country-country comparisons
+  for (s in 1:5) {
+    for (c in 1:4) {
+      subset = subset_list[s]
+      country1 = comparison_list$country1[c]
+      country2 = comparison_list$country2[c]
+      if (country1=="India (OPV)") {
+        samplelist = subset(input_m, (country_arm==country1 | country_arm==country2) &
+                              sample_type==subset)$sample_ID_full
+      } else {
+        samplelist = subset(input_m, (country==country1 | country==country2) &
+                              sample_type==subset)$sample_ID_full
+      }
+      input_rps = prune_samples(samplelist, rps8_genus)
+      if (country1=="India") { sample_data(input_rps)$country_arm = sample_data(input_rps)$country }
+      rf = run_rf(input_rps)
+      collated_rf$subset[4*(s-1)+c] = subset
+      collated_rf$country1[4*(s-1)+c] = as.character(country1)
+      collated_rf$country2[4*(s-1)+c] = as.character(country2)
+      collated_rf$comparison[4*(s-1)+c] = paste0(country1,"-",country2)
+      collated_rf$crossval_mean[4*(s-1)+c] = rf$gini.cv$crossval_mean[1]
+      collated_rf$crossval_sd[4*(s-1)+c] = rf$gini.cv$crossval_sd[1]
+    }
+  }
+  write.csv(collated_rf,"output_module3/crossval_collated_country_genus.csv")
+}
+collated_rf_full = read.csv("output_module3/crossval_collated_country_genus.csv", row.names=1)
+```
+
+#### Cross-validation accuracy, India vs Malawi vs UK
+```{r, fig.width=3, fig.height=5}
+collated_rf_full$week = revalue(as.factor(collated_rf_full$subset), c("BS1" = "week 1", "BS2" = "week 4", "BS3" = "week 6/8", "BS5" = "week 10/12", "MS1" = "mother"))
+collated_rf = subset(collated_rf_full, country2!="India (IPV)")
+
+ggplot(collated_rf, aes(y = crossval_mean, x = comparison, colour=factor(comparison))) + 
+  geom_point(size=2, alpha=0.8) +
+  geom_errorbar(aes(ymin=crossval_mean-crossval_sd, ymax=crossval_mean+crossval_sd), width=0.3) + 
+  facet_grid(week~.) + geom_hline(yintercept=0.5, linetype="dotted") +  
+  scale_y_continuous(limits=c(0.4, 1), oob=rescale_none, breaks=c(0.5,0.75,1)) + coord_flip() +
+  scale_colour_manual(values = as.vector(GetColors(8,"sunset", reverse=T))) +
+  theme(legend.position = "") + xlab("") + ylab("cross-validation accuracy") + 
+  theme(strip.background = element_blank())
+```
+
+#### Cross-validation accuracy, India (OPV) vs India (IPV)
+```{r, fig.width=3, fig.height=3}
+collated_rf = subset(collated_rf_full, country2=="India (IPV)")
+collated_rf$week = revalue(collated_rf$week, c("week 6/8" = "week 6", "week 10/12" = "week 10"))
+collated_rf$week = factor(collated_rf$week, levels = c("mother", "week 10", "week 6", "week 4", "week 1"))
+
+ggplot(collated_rf, aes(y = crossval_mean, x = week, colour=factor(week))) + 
+  geom_point(size = 3, alpha=0.8) +
+  geom_errorbar(aes(ymin=crossval_mean-crossval_sd, ymax=crossval_mean+crossval_sd), width=0.3) + 
+  geom_hline(yintercept = 0.5, linetype="dotted") + 
+  scale_y_continuous(limits=c(0.3, 1), oob=rescale_none, breaks=c(0.5,0.75,1)) + coord_flip() +
+  scale_colour_manual(values = as.vector(GetColors(12,"sunset", reverse=T))) +
+  theme(legend.position = "") + xlab("") + ylab("cross-validation accuracy")
+```
+
+#### Pre-vaccination comparisons (main manuscript figure)
+```{r, fig.width=6.5, fig.height=13}
+IM_BS3 = read.csv("output_module3/RF_output_importance/crossval_gini_India_Malawi_BS3_genus.csv", row.names=1)
+IU_BS3 = read.csv("output_module3/RF_output_importance/crossval_gini_India_UK_BS3_genus.csv", row.names=1)
+MU_BS3 = read.csv("output_module3/RF_output_importance/crossval_gini_Malawi_UK_BS3_genus.csv", row.names=1)
+
+gini = plot_grid(gini_plot(IM_BS3, India_col, Malawi_col) + ggtitle("week 6/8") + ylab(" "),
+                 gini_plot(IU_BS3, India_col, UK_col) + ggtitle(" ") + ylim(0,1.4) + ylab(" "),
+                 gini_plot(MU_BS3, Malawi_col, UK_col) + ggtitle(" "), ncol=1, align = "v")
+prev = plot_grid(rf_prev_plot(IM_BS3, label1="India", colour1 = India_col, 
+                              label2 = "Malawi", colour2=Malawi_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(IU_BS3, label1="India", colour1 = India_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(MU_BS3, label1="Malawi", colour1 = Malawi_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" "), ncol=1, align = "v")
+grid.arrange(gini, prev, ncol=2, widths=c(1.2,1))
+```
+
+#### Grid of all other comparisons
+```{r, fig.width=7, fig.height=39}
+# India-Malawi
+IM_BS1 = read.csv("output_module3/RF_output_importance/crossval_gini_India_Malawi_BS1_genus.csv", row.names=1)
+IM_BS5 = read.csv("output_module3/RF_output_importance/crossval_gini_India_Malawi_BS5_genus.csv", row.names=1)
+IM_MS1 = read.csv("output_module3/RF_output_importance/crossval_gini_India_Malawi_MS1_genus.csv", row.names=1)
+
+# India-UK
+IU_BS1 = read.csv("output_module3/RF_output_importance/crossval_gini_India_UK_BS1_genus.csv", row.names=1)
+IU_BS5 = read.csv("output_module3/RF_output_importance/crossval_gini_India_UK_BS5_genus.csv", row.names=1)
+IU_MS1 = read.csv("output_module3/RF_output_importance/crossval_gini_India_UK_MS1_genus.csv", row.names=1)
+
+# Malawi-UK
+MU_BS1 = read.csv("output_module3/RF_output_importance/crossval_gini_Malawi_UK_BS1_genus.csv", row.names=1)
+MU_BS5 = read.csv("output_module3/RF_output_importance/crossval_gini_Malawi_UK_BS5_genus.csv", row.names=1)
+MU_MS1 = read.csv("output_module3/RF_output_importance/crossval_gini_Malawi_UK_MS1_genus.csv", row.names=1)
+
+# generate importance plots
+gini = plot_grid(gini_plot(IM_BS1, India_col, Malawi_col) + ggtitle("week 1") + ylab(" "),
+                 gini_plot(IM_BS5, India_col, Malawi_col) + ggtitle("week 10/12") + ylab(" "),
+                 gini_plot(IM_MS1, India_col, Malawi_col) + ggtitle("mothers"),
+                 gini_plot(IU_BS1, India_col, UK_col) + ggtitle("week 1") + ylab(" "),
+                 gini_plot(IU_BS5, India_col, UK_col) + ggtitle("week 10/12") + ylab(" "),
+                 gini_plot(IU_MS1, India_col, UK_col) + ggtitle("mothers"),
+                 gini_plot(MU_BS1, Malawi_col, UK_col) + ggtitle("week 1") + ylab(" "),
+                 gini_plot(MU_BS5, Malawi_col, UK_col) + ggtitle("week 10/12") + ylab(" "),
+                 gini_plot(MU_MS1, Malawi_col, UK_col) + ggtitle("mothers"),
+                 ncol=1, align = "v"
+)
+
+# generate prevalence plots
+prev = plot_grid(rf_prev_plot(IM_BS1, label1="India", colour1 = India_col, 
+                              label2 = "Malawi", colour2=Malawi_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(IM_BS5, label1="India", colour1 = India_col, 
+                              label2 = "Malawi", colour2=Malawi_col, strict=TRUE) + ggtitle(" ") + ylab(" "),       
+                 rf_prev_plot(IM_MS1, label1="India", colour1 = India_col, 
+                              label2 = "Malawi", colour2=Malawi_col, strict=TRUE) + ggtitle(" "),
+                 rf_prev_plot(IU_BS1, label1="India", colour1 = India_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(IU_BS5, label1="India", colour1 = India_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(IU_MS1, label1="India", colour1 = India_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" ") ,
+                 rf_prev_plot(MU_BS1, label1="Malawi", colour1 = Malawi_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(MU_BS1, label1="Malawi", colour1 = Malawi_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(MU_BS1, label1="Malawi", colour1 = Malawi_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" "), 
+                 ncol=1, align = "v"
+)
+                 
+grid.arrange(gini, prev, ncol=2, widths=c(2,1.5))
+```
+
+#### Differential prevalence plots
+```{r, fig.width=9, fig.height=3}
+plot_grid(
+  summary_prev_plot("India", "Malawi", India_col, Malawi_col, "genus", threshold=0.1, ymax=40) + xlab(" "),
+  summary_prev_plot("India", "UK", India_col, UK_col, "genus", threshold=0.1, ymax=40) + ylab(" "),
+  summary_prev_plot("Malawi", "UK", Malawi_col, UK_col, "genus", threshold=0.1, ymax=40) + ylab(" ") + xlab(" "), 
+  ncol=3)
+```
+
+### RSV-level
+```{r}
+set.seed(12345)
+
+### select input data and create specify output comparisons
+input_m = data.frame(sample_data(rps8))
+comparison_list = data.frame(country1 = c("India", "India", "Malawi", "India (OPV)"),
+                             country2 = c("Malawi", "UK", "UK", "India (IPV)"))
+subset_list = c("BS1", "BS2", "BS3", "BS5", "MS1")
+
+# create dataframe for collated accuracy results
+collated_rf = data.frame(subset = rep(NA,5*4))
+collated_rf$subset = collated_rf$country1 = collated_rf$country2 = collated_rf$comparison = collated_rf$crossval_mean = collated_rf$crossval_sd = NA
+
+if (run_rf_full) {
+  # run RF in loop across 5 sample types and 4 country-country comparisons
+  for (s in 1:5) {
+    for (c in 1:4) {
+      subset = subset_list[s]
+      country1 = comparison_list$country1[c]
+      country2 = comparison_list$country2[c]
+      if (country1=="India (OPV)") {
+        samplelist = subset(input_m, (country_arm==country1 | country_arm==country2) & sample_type==subset)$sample_ID_full
+      } else {
+        samplelist = subset(input_m, (country==country1 | country==country2) & sample_type==subset)$sample_ID_full
+      }
+      input_rps = prune_samples(samplelist, rps8)
+      if (country1=="India") { sample_data(input_rps)$country_arm = sample_data(input_rps)$country }
+      rf = run_rf(input_rps)
+      collated_rf$subset[4*(s-1)+c] = subset
+      collated_rf$country1[4*(s-1)+c] = as.character(country1)
+      collated_rf$country2[4*(s-1)+c] = as.character(country2)
+      collated_rf$comparison[4*(s-1)+c] = paste0(country1,"-",country2)
+      collated_rf$crossval_mean[4*(s-1)+c] = rf$gini.cv$crossval_mean[1]
+      collated_rf$crossval_sd[4*(s-1)+c] = rf$gini.cv$crossval_sd[1]
+    }
+  }
+  write.csv(collated_rf,"output_module3/crossval_collated_country_rsv.csv")
+}
+collated_rf_full = read.csv("output_module3/crossval_collated_country_rsv.csv", row.names=1)
+```
+
+#### Cross-validation accuracy, India (OPV) vs Malawi vs UK
+```{r, fig.width=3, fig.height=5}
+collated_rf_full$week = revalue(as.factor(collated_rf_full$subset), c("BS1" = "week 1", "BS2" = "week 4", "BS3" = "week 6/8", "BS5" = "week 10/12", "MS1" = "mother"))
+collated_rf = subset(collated_rf_full, country2!="India (IPV)")
+
+ggplot(collated_rf, aes(y = crossval_mean, x = comparison, colour=factor(comparison))) + 
+  geom_point(size = 2, alpha=0.8) +
+  geom_errorbar(aes(ymin=crossval_mean-crossval_sd, ymax=crossval_mean+crossval_sd), width=0.3) + 
+  facet_grid(week~.) + geom_hline(yintercept = 0.5, linetype="dotted") +
+  scale_y_continuous(limits=c(0.4, 1), oob=rescale_none, breaks=c(0.5,0.75,1)) + coord_flip() +
+  scale_colour_manual(values = as.vector(GetColors(8,"sunset", reverse=T))) +
+  theme(legend.position = "") + xlab("") + ylab("cross-validation accuracy") + 
+  theme(strip.background = element_blank())
+```
+
+#### Cross-validation accuracy, India (OPV) vs India (IPV)
+```{r, fig.width=3, fig.height=3}
+collated_rf = subset(collated_rf_full, country2=="India (IPV)")
+collated_rf$week = revalue(collated_rf$week, c("week 6/8" = "week 6", "week 10/12" = "week 10"))
+collated_rf$week = factor(collated_rf$week, levels = c("mother", "week 10", "week 6", "week 4", "week 1"))
+
+ggplot(collated_rf, aes(y = crossval_mean, x = week, colour=factor(week))) + 
+  geom_point(size = 3, alpha=0.8) +
+  geom_errorbar(aes(ymin=crossval_mean-crossval_sd, ymax=crossval_mean+crossval_sd), width=0.3) + 
+  geom_hline(yintercept = 0.5, linetype="dotted") + 
+  scale_y_continuous(limits=c(0.3, 1), oob=rescale_none, breaks=c(0.5,0.75,1)) +
+  coord_flip() + scale_colour_manual(values = as.vector(GetColors(12,"sunset", reverse=T))) +
+  theme(legend.position = "") + xlab("") + ylab("cross-validation accuracy")
+```
+
+#### Pre-vaccination comparisons
+```{r, fig.width=7, fig.height=12}
+IM_BS3 = read.csv("output_module3/RF_output_importance/crossval_gini_India_Malawi_BS3_rsv.csv", row.names=1)
+IU_BS3 = read.csv("output_module3/RF_output_importance/crossval_gini_India_UK_BS3_rsv.csv", row.names=1)
+MU_BS3 = read.csv("output_module3/RF_output_importance/crossval_gini_Malawi_UK_BS3_rsv.csv", row.names=1)
+
+gini = plot_grid(gini_plot(IM_BS3, India_col, Malawi_col) + ggtitle("week 6/8") + ylab(" "),
+                 gini_plot(IU_BS3, India_col, UK_col) + ggtitle(" ") + ylab(" "),
+                 gini_plot(MU_BS3, Malawi_col, UK_col) + ggtitle(" "), ncol=1, align = "v")
+prev = plot_grid(rf_prev_plot(IM_BS3, label1="India", colour1 = India_col, 
+                              label2 = "Malawi", colour2=Malawi_col) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(IU_BS3, label1="India", colour1 = India_col, 
+                              label2 = "UK", colour2=UK_col) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(MU_BS3, label1="Malawi", colour1 = Malawi_col, 
+                              label2 = "UK", colour2=UK_col) + ggtitle(" "), ncol=1, align = "v")
+grid.arrange(gini, prev, ncol=2, widths=c(2,1.5))
+```
+
+#### Grid of all other comparisons
+```{r, fig.width=7, fig.height=39}
+# India-Malawi
+IM_BS1 = read.csv("output_module3/RF_output_importance/crossval_gini_India_Malawi_BS1_rsv.csv", row.names=1)
+IM_BS5 = read.csv("output_module3/RF_output_importance/crossval_gini_India_Malawi_BS5_rsv.csv", row.names=1)
+IM_MS1 = read.csv("output_module3/RF_output_importance/crossval_gini_India_Malawi_MS1_rsv.csv", row.names=1)
+
+# India-UK
+IU_BS1 = read.csv("output_module3/RF_output_importance/crossval_gini_India_UK_BS1_rsv.csv", row.names=1)
+IU_BS5 = read.csv("output_module3/RF_output_importance/crossval_gini_India_UK_BS5_rsv.csv", row.names=1)
+IU_MS1 = read.csv("output_module3/RF_output_importance/crossval_gini_India_UK_MS1_rsv.csv", row.names=1)
+
+# Malawi-UK
+MU_BS1 = read.csv("output_module3/RF_output_importance/crossval_gini_Malawi_UK_BS1_rsv.csv", row.names=1)
+MU_BS5 = read.csv("output_module3/RF_output_importance/crossval_gini_Malawi_UK_BS5_rsv.csv", row.names=1)
+MU_MS1 = read.csv("output_module3/RF_output_importance/crossval_gini_Malawi_UK_MS1_rsv.csv", row.names=1)
+
+# generate importance plots
+gini = plot_grid(gini_plot(IM_BS1, India_col, Malawi_col) + ggtitle("week 1") + ylab(" "),
+                 gini_plot(IM_BS5, India_col, Malawi_col) + ggtitle("week 10/12") + ylab(" "),
+                 gini_plot(IM_MS1, India_col, Malawi_col) + ggtitle("mothers"),
+                 gini_plot(IU_BS1, India_col, UK_col) + ggtitle("week 1") + ylab(" "),
+                 gini_plot(IU_BS5, India_col, UK_col) + ggtitle("week 10/12") + ylab(" "),
+                 gini_plot(IU_MS1, India_col, UK_col) + ggtitle("mothers"),
+                 gini_plot(MU_BS1, Malawi_col, UK_col) + ggtitle("week 1") + ylab(" "),
+                 gini_plot(MU_BS5, Malawi_col, UK_col) + ggtitle("week 10/12") + ylab(" "),
+                 gini_plot(MU_MS1, Malawi_col, UK_col) + ggtitle("mothers"),
+                 ncol=1, align = "v"
+)
+
+# generate prevalence plots
+prev = plot_grid(rf_prev_plot(IM_BS1, label1="India", colour1 = India_col, 
+                              label2 = "Malawi", colour2=Malawi_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(IM_BS5, label1="India", colour1 = India_col, 
+                              label2 = "Malawi", colour2=Malawi_col, strict=TRUE) + ggtitle(" ") + ylab(" "),       
+                 rf_prev_plot(IM_MS1, label1="India", colour1 = India_col, 
+                              label2 = "Malawi", colour2=Malawi_col, strict=TRUE) + ggtitle(" "),
+                 rf_prev_plot(IU_BS1, label1="India", colour1 = India_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(IU_BS5, label1="India", colour1 = India_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(IU_MS1, label1="India", colour1 = India_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" ") ,
+                 rf_prev_plot(MU_BS1, label1="Malawi", colour1 = Malawi_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(MU_BS1, label1="Malawi", colour1 = Malawi_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" ") + ylab(" "),
+                 rf_prev_plot(MU_BS1, label1="Malawi", colour1 = Malawi_col, 
+                              label2 = "UK", colour2=UK_col, strict=TRUE) + ggtitle(" "), 
+                 ncol=1, align = "v"
+)
+                 
+grid.arrange(gini, prev, ncol=2, widths=c(2.5,1.5))
+```
+
+#### Differential prevalence plots
+```{r, fig.width=9, fig.height=3}
+plot_grid(
+  summary_prev_plot("India", "Malawi", India_col, Malawi_col, "rsv", threshold=0.1, yshift=3, ymax=100) + xlab(" "),
+  summary_prev_plot("India", "UK", India_col, UK_col, "rsv", threshold=0.1, yshift=3, ymax=100) + ylab(" "),
+  summary_prev_plot("Malawi", "UK", Malawi_col, UK_col, "rsv", threshold=0.1, yshift=3, ymax=100) + ylab(" ") + xlab(" "), 
+  ncol=3)
+```
+
+
+
+
+
+Longitudinal abundance comparisons {.hidden}
+=====================================
+
+```{r}
+# select subsets of data
+t = data.frame(as(tax_table(ps7_genus), "matrix"))
+t_rsv = data.frame(as(tax_table(ps7_l_t_pr_d_dd_25k), "matrix"))
+
+# append sequence of most common rsv to each genus
+t$sequence = NA
+for (i in 1:nrow(t)) {
+  genus = as.character(t$Genus[i]) # pick out genus for each row in turn
+  t_rsv_sub = subset(t_rsv, Genus==genus) # find matching RSVs
+  t$sequence[i] = as.character(t_rsv_sub$sequence[1]) # pick out top sequence (previously ordered by overall abundance)
+}
+#all(rownames(t) == taxa_names(ps6_genus))
+t1 = tax_table(t)
+rownames(t1) = rownames(t)
+colnames(t1) = names(t)
+tax_table(ps7_genus) = t1
+
+# pick out subset of taxa present in at least 25% of infant samples in at least one country
+ps7_I = subset_samples(ps7_genus, sample_type!="MS1" & country=="India") %>%
+  prune_taxa(rowSums(otu_table(.)>0)/nsamples(.)>=0.20, .)
+ps7_U = subset_samples(ps7_genus, sample_type!="MS1" & country_arm=="UK") %>%
+  prune_taxa(rowSums(otu_table(.)>0)/nsamples(.)>=0.20, .)
+ps7_M = subset_samples(ps7_genus, sample_type!="MS1" & country_arm=="Malawi") %>%
+  prune_taxa(rowSums(otu_table(.)>0)/nsamples(.)>=0.20, .)
+taxa_list = unique(c(taxa_names(ps7_I), taxa_names(ps7_U), taxa_names(ps7_M)))
+ps7_t = prune_taxa(taxa_list, ps7_genus)
+
+# determine mean abundances
+rps7_t = transform_sample_counts(ps7_t, function(x) {x/sum(x)})
+rps7_t = subset_samples(rps7_t, sample_type!="MS1")
+means = data.frame(genus = tax_table(rps7_t)[,"Genus"], means = rowMeans(otu_table(rps7_t)))
+names(means)[1] = "genus"
+```
+
+#### India vs UK
+```{r}
+if (run_nb_full) {
+  # pick out subset of samples and taxa
+  ps7_t1 = subset_samples(ps7_t, sample_type!="MS1" & (country=="India" | country=="UK"))
+  ps7_t1 = prune_taxa(c(taxa_names(ps7_I), taxa_names(ps7_U)), ps7_t1)
+
+  # create feature table and pick out metadata variables
+  features = data.frame(t(as(otu_table(ps7_t1), "matrix")))
+  if (all(colnames(features) == rownames(tax_table(ps7_t1)))) { 
+    colnames(features) = data.frame(as(tax_table(ps7_t1), "matrix"))$Genus 
+    }
+  meta = data.frame(sample_data(ps7_t1))
+  N = meta$count_ps7     
+  week = meta$week
+  country = meta$country
+  subject = meta$family_ID
+
+  # ZINB models (all taxa)
+  f = mms(y = features, fixed = ~ country + week + offset(log(N)), 
+          random = ~ 1 | subject, min.p = 0, method = "zinb", verbose=TRUE)
+  res = data.frame(get.fixed(f, part="dist", vr.name="countryUK", sort.p=F))
+  res$method = "zinb"
+  
+  # negative binomials without zero inflation (if prevalence >95%)
+  f_nb <- mms(y = features, fixed = ~ country + week + offset(log(N)), 
+              random = ~ 1 | subject, min.p = 0.95, method = "nb", verbose=TRUE)
+  res_nb = data.frame(get.fixed(f_nb, part="dist", vr.name="countryUK", sort.p=F))
+  res_nb$method = "nb"
+  
+  # replace ZINB with negative binomial model outputs for relevant taxa
+  for (i in 1:nrow(res_nb)){
+      if (rownames(res_nb)[i] %in% rownames(res)) { 
+        res[rownames(res_nb)[i],] = res_nb[i,] 
+        } else { res = rbind(res, res_nb[i,]) }
+    }
+  
+  # collate results
+  res$genus = rownames(res)
+  res$padj = p.adjust(res$pvalue, method="BH")
+  res$signif = "ns"
+  res$signif[res$padj<0.1 & res$Estimate<0]  = "India"
+  res$signif[res$padj<0.1 & res$Estimate>0]  = "UK"
+  res$pscale = -log10(res$padj)
+  res$n_tested = ncol(features)
+  res$failed_convergence = ncol(features)-nrow(res)
+  res$comparison = "India-UK"
+  res_I_U = res
+} else {
+  res = read.csv("output_module3/longitudinal_zinb_country.csv", header=TRUE, stringsAsFactors=FALSE)[,-1]
+  res_I_U = subset(res, comparison == "India-UK")
+}
+```
+
+Number of genera tested: `r res_I_U$n_tested[1]`    
+Number of discriminant genera (FDR p < 0.1): `r sum(res_I_U$padj<0.1)` (India = `r sum(res_I_U$signif=="India")`; UK = `r sum(res_I_U$signif=="UK")`)
+Failed to converge: `r res_I_U$failed_convergence[1]`
+
+#### India vs Malawi
+```{r}
+if (run_nb_full) {
+  # pick out subset of samples and taxa
+  ps7_t1 = subset_samples(ps7_t, sample_type!="MS1" & (country=="India" | country=="Malawi"))
+  ps7_t1 = prune_taxa(c(taxa_names(ps7_I), taxa_names(ps7_M)), ps7_t1)
+
+  # create feature table and pick out metadata variables
+  features = data.frame(t(as(otu_table(ps7_t1), "matrix")))
+  if (all(colnames(features) == rownames(tax_table(ps7_t1)))) { 
+    colnames(features) = data.frame(as(tax_table(ps7_t1), "matrix"))$Genus 
+    }
+  meta = data.frame(sample_data(ps7_t1))
+  N = meta$count_ps7     
+  week = meta$week
+  country = meta$country
+  subject = meta$family_ID
+
+  # ZINB models (all taxa)
+  f = mms(y = features, fixed = ~ country + week + offset(log(N)), 
+          random = ~ 1 | subject, min.p = 0, method = "zinb", verbose=TRUE)
+  res = data.frame(get.fixed(f, part="dist", vr.name="countryMalawi", sort.p=F))
+  res$method = "zinb"
+  
+  # negative binomials without zero inflation (if prevalence >95%)
+  f_nb <- mms(y = features, fixed = ~ country + week + offset(log(N)), 
+              random = ~ 1 | subject, min.p = 0.95, method = "nb", verbose=TRUE)
+  res_nb = data.frame(get.fixed(f_nb, part="dist", vr.name="countryMalawi", sort.p=F))
+  res_nb$method = "nb"
+  
+  # replace ZINB with negative binomial model outputs for relevant taxa
+  for (i in 1:nrow(res_nb)){
+      if (rownames(res_nb)[i] %in% rownames(res)) { 
+        res[rownames(res_nb)[i],] = res_nb[i,] 
+        } else { res = rbind(res, res_nb[i,]) }
+    }
+  
+  # collate results
+  res$genus = rownames(res)
+  res$padj = p.adjust(res$pvalue, method="BH")
+  res$signif = "ns"
+  res$signif[res$padj<0.1 & res$Estimate<0]  = "India"
+  res$signif[res$padj<0.1 & res$Estimate>0]  = "Malawi"
+  res$pscale = -log10(res$padj)
+  res$n_tested = ncol(features)
+  res$failed_convergence = ncol(features)-nrow(res)
+  res$comparison = "India-Malawi"
+  res_I_M = res
+} else {
+  res_I_M = subset(res, comparison == "India-Malawi")
+}
+```
+Number of genera tested: `r res_I_M$n_tested[1]`    
+Number of discriminant genera (FDR p < 0.1): `r sum(res_I_M$padj<0.1)` (India = `r sum(res_I_M$signif=="India")`; Malawi = `r sum(res_I_M$signif=="Malawi")`)
+Failed to converge: `r res_I_M$failed_convergence[1]`
+
+#### Malawi vs UK
+```{r}
+if (run_nb_full) {
+  # pick out subset of samples and taxa
+  ps7_t1 = subset_samples(ps7_t, sample_type!="MS1" & (country=="Malawi" | country=="UK"))
+  ps7_t1 = prune_taxa(c(taxa_names(ps7_M), taxa_names(ps7_U)), ps7_t1)
+
+  # create feature table and pick out metadata variables
+  features = data.frame(t(as(otu_table(ps7_t1), "matrix")))
+  if (all(colnames(features) == rownames(tax_table(ps7_t1)))) { 
+    colnames(features) = data.frame(as(tax_table(ps7_t1), "matrix"))$Genus 
+    }
+  meta = data.frame(sample_data(ps7_t1))
+  N = meta$count_ps7     
+  week = meta$week
+  country = meta$country
+  subject = meta$family_ID
+
+  # ZINB models (all taxa)
+  f = mms(y = features, fixed = ~ country + week + offset(log(N)), 
+          random = ~ 1 | subject, min.p = 0, method = "zinb", verbose=TRUE)
+  res = data.frame(get.fixed(f, part="dist", vr.name="countryUK", sort.p=F))
+  res$method = "zinb"
+  
+  # negative binomials without zero inflation (if prevalence >95%)
+  f_nb <- mms(y = features, fixed = ~ country + week + offset(log(N)), 
+              random = ~ 1 | subject, min.p = 0.95, method = "nb", verbose=TRUE)
+  res_nb = data.frame(get.fixed(f_nb, part="dist", vr.name="countryUK", sort.p=F))
+  res_nb$method = "nb"
+  
+  # replace ZINB with negative binomial model outputs for relevant taxa
+  for (i in 1:nrow(res_nb)){
+      if (rownames(res_nb)[i] %in% rownames(res)) { 
+        res[rownames(res_nb)[i],] = res_nb[i,] 
+        } else { res = rbind(res, res_nb[i,]) }
+    }
+  
+  # collate results
+  res$genus = rownames(res)
+  res$padj = p.adjust(res$pvalue, method="BH")
+  res$signif = "ns"
+  res$signif[res$padj<0.1 & res$Estimate<0]  = "Malawi"
+  res$signif[res$padj<0.1 & res$Estimate>0]  = "UK"
+  res$pscale = -log10(res$padj)
+  res$n_tested = ncol(features)
+  res$failed_convergence = ncol(features)-nrow(res)
+  res$comparison = "Malawi-UK"
+  res_M_U = res
+  res = rbind(res_I_U, res_I_M, res_M_U)
+  write.csv(res, "output_module3/longitudinal_zinb_country.csv")
+} else {
+  res_M_U = subset(res, comparison == "Malawi-UK")
+}
+```
+Number of genera tested: `r res_M_U$n_tested[1]`    
+Number of discriminant genera (FDR p < 0.1): `r sum(res_M_U$padj<0.1)` (Malawi = `r sum(res_M_U$signif=="Malawi")`; UK = `r sum(res_M_U$signif=="UK")`)
+Failed to converge: `r res_M_U$failed_convergence[1]`
+
+#### Construct tree
+```{r, fig.height=8, fig.width=10, warnings=FALSE}
+# append mean abundances 
+res = merge(means, res, by = "genus")
+
+# pick out sequences
+seqs = as.character(data.frame(as(tax_table(ps7_t), "matrix"))$sequence)
+names(seqs) = seqs 
+
+# create alignment
+alignment = AlignSeqs(DNAStringSet(seqs), anchor=NA,verbose=FALSE) # align
+phangAlign <- phyDat(as(alignment, "matrix"), type="DNA")
+dm <- dist.ml(phangAlign)
+
+# create neighbour-joining tree
+treeNJ = NJ(dm) # note that tip order != sequence order
+
+# re-assign tip labels by genus name
+if (all(treeNJ$tip.label == as.character(data.frame(as(tax_table(ps7_t), "matrix"))$sequence))) {
+  treeNJ$tip.label =  as.character(data.frame(as(tax_table(ps7_t), "matrix"))$Genus)
+}
+
+# create tree metadata
+tree_m <- data.frame(taxa = treeNJ$tip.label)
+tree_m$phylum = NA
+tax_ref = data.frame(as(tax_table(ps7_t), "matrix"))
+for (i in 1:nrow(tree_m)) { 
+  tree_m$phylum[i] = as.character(tax_ref$Phylum[tax_ref$Genus==tree_m$taxa[i]]) 
+}
+
+#treeNJ$tip.label[treeNJ$tip.label=="Escherichia/Shigella"] = "Escherichia"
+treeNJ$tip.label = gsub("_", " ", treeNJ$tip.label) 
+treeNJ$tip.label = gsub("unassigned ", "", treeNJ$tip.label) 
+tree_m$taxa = gsub("_", " ", tree_m$taxa) 
+tree_m$taxa = gsub("unassigned ", "", tree_m$taxa) 
+res$genus = gsub("_", " ", res$genus) 
+res$genus = gsub("unassigned ", "", res$genus) 
+
+
+# draw tree
+t = ggtree(treeNJ) 
+t1 = t %<+% tree_m + geom_tippoint(aes(color=phylum), shape = 15, alpha=0.9, size=2) + 
+  scale_colour_manual(values = as.vector(GetColors(10,"smooth rainbow", reverse=TRUE))) +
+  geom_tiplab(size=2.5, align=TRUE, linesize=.2, offset = 0.01, aes(color=phylum)) + 
+  theme(legend.position = "left") + xlim(0, 0.7)
+
+# pick out tip order
+d = fortify(treeNJ)
+d = subset(d, isTip)
+order = data.frame(genus = with(d, label[order(y, decreasing=T)]))
+order$branch_order = factor(1:nrow(order))
+res1 = merge(res, order, by = "genus")
+
+# specify upper and lower limits for estimate and p values
+res1$Estimate[res1$Estimate>=10] = 10
+res1$Estimate[res1$Estimate<=(-10)] = -10
+res1$pscale[res1$pscale>=50] = 50
+res1$Estimate[res1$comparison=="Malawi-UK"] = (-1)*res1$Estimate[res1$comparison=="Malawi-UK"]
+res1$abundance = "abundance"
+
+# generate plot of abundance circles
+g0 = ggplot(res1, aes(x = rep(0, nrow(res)), 
+                      y = reorder(branch_order, dplyr::desc(branch_order)), size = asin(sqrt(means)))) +
+  geom_point(alpha=0.6, color = "#d95f0e", shape = 1) + theme_minimal() + 
+  theme(axis.title.y = element_blank(), axis.text.y=element_blank(), 
+        axis.text.x=element_blank(), legend.position = "", plot.title = element_text(size=11, hjust = 0.5)) + 
+  theme(plot.margin = unit(c(0.3,0,0.45,0), "cm"), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  xlab("") + scale_size(limits = c(0, 0.8)) + facet_grid(.~abundance)
+
+# generate plot of enriched/depleted taxa by country
+g1 = ggplot(res1, aes(x = Estimate, y = reorder(branch_order, dplyr::desc(branch_order)), 
+                      colour = signif, size = pscale)) + geom_point(alpha=0.7) + theme_minimal() + 
+  theme(axis.title.y = element_blank(), axis.text.y=element_blank()) + 
+  scale_color_manual(values = c(ns = "grey", India = India_col, Malawi = Malawi_col, UK = UK_col)) +
+  xlim(-12,12) + xlab("effect size") +
+  theme(legend.position = "right", plot.title = element_text(size=11, hjust = 0.5)) + 
+  facet_grid(.~comparison) + theme(plot.margin = unit(c(0.3,0,0.1,0), "cm")) +
+  theme(panel.spacing = unit(1, "lines")) + labs(colour="enriched country", size = "-log10(p)") 
+
+grid.arrange(t1, g0, g1, ncol=3, widths = c(1.5,0.3,1.8))
+```
+
+#### Longitudinal abundance plots for major genera
+```{r, fig.width=9, fig.height=7, message=FALSE, warning=FALSE}
+# select genus abundance data and append genus names
+g = data.frame(t(otu_table(rps7_genus))) 
+if (all(colnames(g)==rownames(tax_table(rps7_genus)))) { 
+  colnames(g) = as(tax_table(rps7_genus),"matrix")[,"Genus"] 
+  } else { print("error: rownames do not match")}
+g$sample_ID_full = rownames(g)
+t = data.frame(sample_data(rps7_genus))
+
+# append metadata
+g = merge(g, t, by = "sample_ID_full")
+g$Other = 1 - (g$Bifidobacterium + g$`Escherichia/Shigella` + g$Streptococcus + g$Staphylococcus + g$Bacteroides + g$Veillonella + g$Lactobacillus + g$Klebsiella + g$Prevotella_9 + g$Parabacteroides)
+
+# create genus plots
+p1 = genus_plot(g, "Bifidobacterium") + ylab("relative abundance")
+p2 = genus_plot(g, "Escherichia/Shigella") + ylab("")
+p3 = genus_plot(g, "Streptococcus") 
+p4 = genus_plot(g, "Staphylococcus") 
+p5 = genus_plot(g, "Bacteroides") + ylab("relative abundance")
+p6 = genus_plot(g, "Veillonella")
+p7 = genus_plot(g, "Lactobacillus")
+p8 = genus_plot(g, "Klebsiella") + xlab("week")
+p9 = genus_plot(g, "Prevotella_9") + ggtitle("Prevotella 9") + xlab("week")  + ylab("relative abundance")
+p10 = genus_plot(g, "Parabacteroides") + xlab("week")
+p11 = genus_plot(g, "Other") + ylab("") + xlab("week")
+plot_grid(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11, ncol=4, align="vh")
+```

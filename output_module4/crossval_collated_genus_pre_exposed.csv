@@ -1,0 +1,6 @@
+"","sample_subset","crossval_sd","crossval_mean","country","nonresponders","responders"
+"1","BS1",0.105,0.5855,"India","nonresponders","responders"
+"2","BS2",0.108171207356718,0.546,"India","nonresponders","responders"
+"3","BS3",0.114464056375878,0.523,"India","nonresponders","responders"
+"4","BS5",0.124595304482111,0.5275,"India","nonresponders","responders"
+"5","MS1",0.0986986025301987,0.484,"India","nonresponders","responders"

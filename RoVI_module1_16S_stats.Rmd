@@ -1,0 +1,1645 @@
+---
+title: "Analysis module 1: Run statistics, filtering, controls and 10% validation"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+Sidebar {.sidebar} 
+===================================== 
+[Run statistics]    
+
+[Filtering]   
+
+[Run-to-run variation]    
+
+[10% validation]        
+
+[Unsupervised clustering]
+
+[Sample availability]     
+
+
+
+
+
+Run statistics {.hidden}
+===================================== 
+
+```{r, message=FALSE}
+# expand available memory
+Sys.setenv("R_MAX_VSIZE" = 8e9) #check assignment using Sys.getenv("R_MAX_VSIZE")
+
+# variable to define whether to run analysis in full (TRUE) or not (FALSE)
+run_full = FALSE 
+
+# load RoVI packages and functions
+source("input/packages_and_functions.R")
+
+# generate metadata
+source("input/generate_metadata.R")
+rownames(metadata) = metadata$sample_ID_full
+```
+
+#### Basic statistics    
+Number of runs: `r length(unique(metadata$run))`     
+Number of samples: `r sum(metadata$control=="sample")`      
+Number of controls: `r sum(metadata$control=="ctrl")`     
+
+#### Sample type by country (includes replicates)    
+```{r, fig.width=12, fig.height=3}
+table(metadata$sample_type[metadata$control!="ctrl"], metadata$country[metadata$control!="ctrl"])
+```
+
+#### Input read count by sequencing run
+```{r, fig.width=12, fig.height=3}
+ggplot(metadata, aes(run, input, colour=run)) + geom_jitter(size = 0.5, alpha = 0.1, width=0.2) +
+  geom_violin(alpha = 0.5) + theme_bw() + ylab("input reads") + xlab("") +
+  theme(legend.position = "none", strip.background = element_blank()) + ylim(0,2e6) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+#### % read retention by sequencing run
+```{r, fig.width=12, fig.height=3}
+quality = retention_plot("filtered", "run", "quality-filtered reads")
+merged = retention_plot("merged", "run", "assembled reads")
+final = retention_plot("nonchimeric", "run", "non-chimeric reads")
+grid.arrange(quality, merged, final, ncol=3)
+rm(quality, merged, final)
+```
+
+#### % read retention by sample type
+```{r, fig.width=12, fig.height=3}
+p1 = retention_plot("filtered", "sample_group_fig", "quality-filtered reads")
+p2 = retention_plot("merged", "sample_group_fig", "assembled reads")
+p3 = retention_plot("nonchimeric", "sample_group_fig", "non-chimeric reads ")
+grid.arrange(p1, p2, p3, ncol=3)
+rm(p1, p2, p3)
+```
+
+#### Minimum, median, and maximum output counts by sequencing run
+```{r, fig.width=4, fig.height=3}
+t = aggregate(final_count ~ run, metadata, function(x) c(n = length(x), min = min(x), med = median(x), max = max(x)))
+names(t) = c("run", "")
+t
+rm(t)
+```
+
+#### Minimum, median, and maximum output counts by sample type
+```{r}
+t = aggregate(final_count ~ sample_group_fig, metadata, function(x) c(n = length(x), min = min(x), med = median(x), max = max(x)))
+names(t) = c("sample group", "")
+t
+rm(t)
+```
+
+
+
+
+
+Filtering {.hidden}
+===================================== 
+
+#### Step 1: load unfiltered feature table - ps1
+```{r}
+if (run_full) {
+  system("mkdir output_module1")
+  system("mkdir phyloseq_files")
+
+  # import phyloseq table and taxonomy, then merge
+  otu_biom = read.table("input/RoVI_input_table_clean.txt", sep = "\t", header=T, row.names = 1)
+  rownames(otu_biom) = paste0("X",rownames(otu_biom)) # add "X" to start of taxa names to avoid errors later
+  otu_biom = otu_biom[order(-rowSums(otu_biom)),] # reorder biom feature abundance (total raw count)
+  taxa = read.csv("input/silva_plus.csv", header=T, row.names = 1) # import silva taxonomic assignments
+  rownames(taxa) = paste0("X",rownames(taxa)) # add "X" to start of taxa names to avoid errors later
+
+  # check matching counts and labels for taxa and samples, then create ps1
+  if (all(rownames(taxa) %in% rownames(otu_biom)) & nrow(taxa)==nrow(otu_biom) & 
+      all(rownames(metadata) %in% colnames(otu_biom)) & nrow(metadata)==ncol(otu_biom)) {
+    ps1 = phyloseq(otu_table(as.matrix(otu_biom), taxa_are_rows=T), tax_table(as.matrix(taxa)), sample_data(metadata)) 
+  }
+
+  # update taxonomy table to include clean RSV labels (genus or phylum followed by RSV number)
+  t = data.frame(as(tax_table(ps1), "matrix"))
+  t$tax_id = paste0("RSV", 1:nrow(t))
+  t$taxonomy = NA
+  t$taxonomy[!is.na(t$Genus)] = paste0(t$Genus," (", t$tax_id, ")")[!is.na(t$Genus)]
+  t$taxonomy[!is.na(t$Phylum) & is.na(t$Genus)] = paste0("unassigned ", t$Phylum," (", t$tax_id, ")")[!is.na(t$Phylum) & is.na(t$Genus)]
+  t$taxonomy[is.na(t$Phylum) & is.na(t$Genus)] = paste0("unassigned (", t$tax_id, ")")[is.na(t$Phylum) & is.na(t$Genus)]
+  
+  # add alternative label including species followed by RSV number
+  t$taxonomy_species = t$taxonomy
+  t$taxonomy_species[!is.na(t$Species)] = paste0(t$Genus," ", t$Species, " (", t$tax_id, ")")[!is.na(t$Species)]
+  
+  # add highest assigned taxonomic level to unassigned genera
+  t$Genus = as.character(t$Genus)
+  t$Genus[is.na(t$Genus) & !is.na(t$Family)] = paste0("unassigned_", t$Family)[is.na(t$Genus) & !is.na(t$Family)]
+  t$Genus[is.na(t$Genus) & is.na(t$Family) & !is.na(t$Order)] = paste0("unassigned_", t$Order)[is.na(t$Genus) & is.na(t$Family) & !is.na(t$Order)] 
+  t$Genus[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & !is.na(t$Class)] = 
+    paste0("unassigned_", t$Class)[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & !is.na(t$Class)]
+  t$Genus[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & is.na(t$Class) & !is.na(t$Phylum)] = 
+    paste0("unassigned_", t$Phylum)[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & is.na(t$Class) & !is.na(t$Phylum)]
+  t$Genus[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & is.na(t$Class) & is.na(t$Phylum) & !is.na(t$Kingdom)] = 
+    paste0("unassigned_", t$Kingdom)[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & is.na(t$Class) & is.na(t$Phylum) & !is.na(t$Kingdom)]
+  t$Genus[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & is.na(t$Class) & is.na(t$Phylum) & is.na(t$Kingdom)] = "unassigned"
+
+  # add phylum to unassigned classes
+  t$Class = as.character(t$Class)
+  t$Class[is.na(t$Class) & !is.na(t$Phylum)] = paste0("unassigned_", t$Phylum)[is.na(t$Class) & !is.na(t$Phylum)]
+  t$Class[is.na(t$Class) & is.na(t$Phylum) & !is.na(t$Kingdom)] = paste0("unassigned_", t$Kingdom)[is.na(t$Class) & is.na(t$Phylum) & !is.na(t$Kingdom)]
+  t$Class[is.na(t$Class) & is.na(t$Phylum) & is.na(t$Kingdom)] = "unassigned"
+  write.csv(t,"output_module1/clean_taxa.csv")
+
+  # append data to phyloseq object
+  t1 = tax_table(t)
+  rownames(t1) = rownames(t)
+  colnames(t1) = names(t)
+  tax_table(ps1) = t1
+  
+  # prune samples with 0 counts, then add read counts
+  ps1 = prune_samples(sample_sums(ps1) > 0, ps1)
+  sample_data(ps1)$count_ps1 = sample_sums(ps1)
+  
+  # save phyloseq object
+  save(ps1, file="phyloseq_files/ps1.RData")
+  rm(t, t1, taxa, otu_biom)
+} else { 
+  load("phyloseq_files/ps1.RData")
+}
+```
+* n samples: `r sum(sample_data(ps1)$control=="sample")`     
+* n controls: `r sum(sample_data(ps1)$control=="ctrl")`     
+* n features: `r ntaxa(ps1)`
+
+#### Step 2: filter by length (390-440bp) - ps2
+```{r}
+if (run_full) {
+  # create dataframe containing read lengths
+  taxa_length = data.frame(as(tax_table(ps1),"matrix"))
+  taxa_length$length = nchar(as.character(taxa_length$sequence))
+  # table(taxa_length$length)
+  
+  # select subset within range, prune ps1 to include these, then add read counts
+  taxa_length = subset(taxa_length, length >= 390 & length <= 440)
+  ps2_l = prune_taxa(rownames(taxa_length), ps1) %>% prune_samples(sample_sums(.) > 0, .)
+  sample_data(ps2_l)$count_ps2 = sample_sums(ps2_l)
+  
+  # save phyloseq object
+  save(ps2_l, file="phyloseq_files/ps2_l.RData")
+  rm(ps1)
+} else {
+  rm(ps1) # remove unused ps to clear memory
+  load("phyloseq_files/ps2_l.RData")
+}
+```
+* n samples: `r sum(sample_data(ps2_l)$control=="sample")`     
+* n controls: `r sum(sample_data(ps2_l)$control=="ctrl")`     
+* n features: `r ntaxa(ps2_l)`
+
+#### Step 3: filter non-bacterial sequences - ps3
+```{r}
+if (run_full) {
+  # select non-bacterial taxa, Cyanobacteria and Mitochondria, prune ps2 to include these, then add read counts
+  taxa_bac = subset(taxa_length, Kingdom=="Bacteria" & Phylum!="Cyanobacteria" & Family!="Mitochondria")
+  ps3_l_t = prune_taxa(rownames(taxa_bac), ps2_l) %>% prune_samples(sample_sums(.) > 0, .)
+  sample_data(ps3_l_t)$count_ps3 = sample_sums(ps3_l_t)
+  
+  # save phyloseq object
+  save(ps3_l_t, file="phyloseq_files/ps3_l_t.RData")
+  rm(ps2_l, taxa_length, taxa_bac)
+} else {
+  rm(ps2_l) # remove unused ps to clear memory
+  load("phyloseq_files/ps3_l_t.RData")
+}
+```
+* n samples: `r sum(sample_data(ps3_l_t)$control=="sample")`     
+* n controls: `r sum(sample_data(ps3_l_t)$control=="ctrl")`     
+* n features: `r ntaxa(ps3_l_t)`
+
+#### Step 4: filter taxa not present with abundance of ≥0.1% in at least 2 samples - ps4
+```{r}
+if (run_full) {
+  # convert ps3 to relative abundances
+  rps3_l_t = transform_sample_counts(ps3_l_t, function(x) {x/sum(x)})
+  
+  # remove negative controls
+  rps3_l_t_exc_negatives = subset_samples(rps3_l_t, is.neg==FALSE)
+  
+  # select present with abundance of 0.1% in at least 2 samples, prune ps3 to include these, then add read counts
+  rps4_l_t_pr = filter_taxa(rps3_l_t_exc_negatives, function(x) { sum(x >= 0.001) >= 2 }, TRUE)
+  ps4_l_t_pr = prune_taxa(taxa_names(rps4_l_t_pr), ps3_l_t) %>% prune_samples(sample_sums(.) > 0, .)
+  sample_data(ps4_l_t_pr)$count_ps4 = sample_sums(ps4_l_t_pr)
+  
+  # save phyloseq object
+  save(ps4_l_t_pr, file="phyloseq_files/ps4_l_t_pr.RData")
+  rm(ps3_l_t, rps3_l_t,rps3_l_t_exc_negatives,rps4_l_t_pr)
+} else {
+  rm(ps3_l_t) # remove unused ps to clear memory
+  load("phyloseq_files/ps4_l_t_pr.RData")
+}
+```
+* n samples: `r sum(sample_data(ps4_l_t_pr)$control=="sample")`     
+* n controls: `r sum(sample_data(ps4_l_t_pr)$control=="ctrl")`     
+* n features: `r ntaxa(ps4_l_t_pr)`
+
+#### Step 5: filter contaminants - ps5
+
+##### Read counts in extraction controls (WC) and negative-template PCR controls - stool
+```{r, fig.width=5, fig.height=3}
+# select extraction controls and PCR controls
+t = subset(data.frame(sample_data(ps4_l_t_pr)), site=="Liverpool" & (sample_type=="PCRneg" | sample_type=="WCS"))
+
+# define WCs based on whether they are pooled or single
+t$type = "pool"
+t$type[grepl("ctrl[0-9]", t$sample_ID_full) | t$sample_type=="PCRneg"] = "single"
+
+# remove duplicated extraction control from run LIMS12651 (in which same plate replicated twice on same run)
+t = subset(t, sample_ID_full!="tLIMS12651p3s268WCSctrl")
+
+# function to add consistent paramaters to each plot
+gg_add = function(plot) {
+  plot + theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(size=10)) + 
+    geom_hline(yintercept = 10000, linetype="dotted") + ylim(-1,400000) + xlab("")
+}
+
+# create plots for NTC, pooled WCs and single WCs
+t$sample_type[t$sample_type=="PCRneg"] = "NTCs"
+p1 = gg_add(ggplot(data=subset(t, sample_type=="NTCs"), aes(x=sample_type, y=count_ps4)) + geom_jitter(alpha = 0.8, width=0.2, color="darkgrey") + 
+  ylab("reads") + labs(colour="sample type") + scale_colour_brewer(palette="Set2") + 
+  ggtitle("NTCs"))
+
+p2 = gg_add(ggplot(data=subset(t, sample_type=="WCS" & type=="pool"), aes(x=country, y=count_ps4, color=country)) + geom_jitter(alpha = 0.8, width=0.2) + 
+  scale_color_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + ylab("") + 
+  ggtitle("extraction controls, pooled") + theme(legend.position = "none"))
+
+p3 = gg_add(ggplot(data=subset(t, sample_type=="WCS" & type=="single"), aes(x=country, y=count_ps4, color=country)) + geom_jitter(alpha = 0.8, width=0.2) + 
+  scale_color_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + ylab("") + 
+  ggtitle("single") + theme(legend.position = "none"))
+
+plot_grid(p1,p2,p3, align="h", rel_widths=c(1,2,1), ncol=3)
+rm(p1, p2, p3)
+```
+
+#### List of stool extraction controls with ≥10,000 sequences
+```{r}
+rownames(t[t$count_ps4>=10000,])
+rm(t)
+```
+
+##### Read counts in extraction controls (WC) and negative-template PCR controls - breastmilk
+```{r, fig.width=4, fig.height=3}
+# select extraction controls and PCR controls
+t1 = subset(data.frame(sample_data(ps4_l_t_pr)), site=="Liverpool" & (sample_type=="PCRnegBM" | sample_type=="WCBM"))
+
+# function to add consistent paramaters to each plot
+gg_add = function(plot) { 
+  plot + theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(size=10)) + 
+    geom_hline(yintercept = 10000, linetype="dotted") + ylim(-1,500000) + xlab("") 
+  }
+
+# create plots for NTC and WCs
+t1$sample_type[t1$sample_type=="PCRnegBM"] = "NTCs"
+p1 = gg_add(ggplot(data=subset(t1, sample_type=="NTCs"), aes(x=sample_type, y=count_ps4)) + geom_jitter(alpha = 0.8, width=0.2, color="darkgrey") + 
+  ylab("reads") + labs(colour="sample type") + scale_colour_brewer(palette="Set2") + ggtitle("NTCs"))
+
+p2 = gg_add(ggplot(data=subset(t1, sample_type=="WCBM"), aes(x=country, y=count_ps4, color=country)) + geom_jitter(alpha = 0.8, width=0.2) + 
+  scale_color_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + ylab("") + 
+  ggtitle("extraction controls") + theme(legend.position = "none"))
+
+plot_grid(p1,p2, align="h", rel_widths=c(1,2), ncol=2)
+rm(p1, p2)
+```
+
+#### Summary
+* All PCR-negative controls clear of significant amplification.    
+* For stool extraction controls, 4 Indian extractions pools yielded ≥10,000 reads.   
+* When individual extraction controls related to these pools were sequenced, two yielded substantial amplification (batches 14 and 27).    
+* For breastmilk extraction controls, amplification seen in majority of samples - too many to identify cross-contaminated samples on a case by case basis.    
+
+#### Composition of stool extraction controls yielding amplification
+```{r, fig.width=10, fig.height=3}
+# pick out extraction controls with ≥10,000 sequences
+ps4_sub = subset_samples(ps4_l_t_pr, (sample_type=="PCRneg" | sample_type=="WCS") & final_count>=10000 & sample_ID_full!="tLIMS12651p3s268WCSctrl") %>% 
+  prune_taxa(taxa_sums(.) > 0, .)
+rps4_sub = transform_sample_counts(ps4_sub, function(x) {x/sum(x)})
+
+# create clean sample IDs
+sample_data(rps4_sub)$ID = c("pool A", "pool B", "pool C", "pool D", "batch 14", "batch 27") 
+
+# calculate weighted Bray-Curtis distances
+beta = data.frame(sample_data(rps4_sub))
+bray_dist = phyloseq::distance(rps4_sub, method = "bray", binary=FALSE)
+bray_ord = ordinate(rps4_sub, method = "PCoA", distance = bray_dist)
+beta$bray1 = bray_ord$vectors[,1]
+beta$bray2 = bray_ord$vectors[,2]
+
+# specify which controls were pools vs singles
+beta$type = "pool"
+beta$type[beta$ID=="batch 14" | beta$ID=="batch 27"] = "single"
+
+# create beta diversity plot
+p1 = ggplot(beta, aes(bray1, bray2, colour=type)) + geom_point(size = 3, alpha = 0.8) + 
+  theme(legend.title = element_blank(), plot.title = element_text(size=10)) + 
+  xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)")) + 
+  ylim(-0.2, 0.2) + xlim(-0.75, 0.5) +
+  scale_colour_manual(values = c(pool="#01665e", single="#80cdc1")) +
+  ggtitle("Bray-Curtis distances (weighted)") + theme(plot.title = element_text(size=10))
+
+# calculate genus abundances
+rps4_sub_filter = filter_taxa(rps4_sub, function(x) { sum(x >= 0.01) >= 1 }, TRUE) # pick genera present with 1% abundance in at least one sample
+d = psmelt(rps4_sub_filter) %>% group_by(ID, Genus) %>% filter(Abundance > 0) %>% 
+  summarize(rank.abundance = sum(Abundance)) %>% mutate(relative.abundance = rank.abundance / sum(rank.abundance))
+d = d[order(d$ID),] 
+
+# specify which controls were pools vs singles
+d$type = "pool"
+d$type[d$ID=="batch 27" | d$ID=="batch 14"] = "single"
+
+# add batch annotations
+#beta[,c("ID", "bray1")] # based on PC1, pool B falls into batch 27 cluster
+d$cluster = "batch 14 cluster"
+d$cluster[d$ID=="batch 27" | d$ID=="pool B"] = "batch 27 cluster"
+
+# create genus plot
+p2 = ggplot(d, aes(x = ID, y = rank.abundance, fill = Genus)) +
+  facet_grid(cluster~type, drop = TRUE, space = "free", scales = "free") +
+  geom_bar(stat = "identity", width = 0.85) + theme_bw() + ylab("% abundance") + xlab("") +
+  theme(legend.position = "right", legend.key.size = unit(0.3, "cm"), legend.text=element_text(size=10), strip.background = element_blank()) + 
+  scale_fill_brewer(palette="Paired")
+
+# generate combined plot
+grid.arrange(p1,p2,ncol=2, widths =c(1,2))
+rm(beta,bray_ord,d,p1,p2,ps4_sub,rps4_sub,rps4_sub_filter)
+```
+
+#### Summary
+* Pools fall into two clusters: one associated with extraction batch 14, one with extraction batch 27 (containing 6 and 2 samples, respectively).  
+* Therefore, it is likely that observed amplification in Indian extraction controls reflects cross-contamination from these two extraction batches.
+* 8 samples from these two extraction batches removed from the analysis.
+
+#### Remove contaminated samples
+```{r}
+ps4_l_t_pr_clean = subset_samples(ps4_l_t_pr, 
+                                        sample_code!= "I021BS3" & sample_code!= "I032BS2" & sample_code!= "I038BS3" & sample_code!= "I043BS2" & 
+                                        sample_code!= "I062MS1" & sample_code!= "I062BS1" & # remove 6 samples from extraction batch 14
+                                        sample_code!= "I021BS5" & sample_code!= "I089BS1") %>% prune_taxa(taxa_sums(.) > 0, .) # remove 2 samples from extraction batch 27 
+t = data.frame(sample_data(ps4_l_t_pr_clean))
+```
+Stool samples/controls
+* n samples: `r sum(sample_data(ps4_l_t_pr_clean)$control=="sample")`     
+* n controls: `r sum(sample_data(ps4_l_t_pr_clean)$control=="ctrl")`     
+* n features: `r ntaxa(ps4_l_t_pr_clean)`
+
+##### Nanodrop readings by country
+```{r, fig.width=8, fig.height=3}
+ggplot(data=subset(t, sample_group!="ctrl" & site=="Liverpool"), aes(x=country, y=nanodrop_ngul, color=country)) + geom_jitter(alpha = 0.2, width=0.2) + 
+  geom_boxplot(alpha = 0.8) + facet_grid(.~sample_group_fig) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + ylab("ng/ul") + xlab("") + labs(colour="country") + 
+  scale_colour_manual(values = c(India = India_col, Malawi=Malawi_col, UK=UK_col)) + theme(legend.position="none")
+```
+
+##### Removal of contaminants from infant stools
+* Contaminants identified using frequency-based method in decontam package with default p value of 0.1.     
+* Only samples sequenced in Liverpool included as these form basis for all primary analyses. 
+* Identification of contaminants performed separately for each country (samples and extraction controls) and minimum p value taken (provided taxon observed at least 10 times).
+* Negative controls and extraction controls assigned arbitrary nanodrop reading of 0.001 ng/ul.
+
+```{r}
+# pick out infant stools and corresponding controls sequenced in Liverpool
+ps4_t = subset_samples(ps4_l_t_pr_clean, site=="Liverpool" & !is.na(nanodrop_ngul) & (sample_group=="BS" | sample_type=="WCS")) %>% prune_taxa(taxa_sums(.) > 0, .)
+
+# use contam_freq function to identify potential contaminants
+combined_res = contam_freq(ps4_t)
+contaminant_list_BS = rownames(combined_res)[combined_res$contaminant]
+write.csv(combined_res, "output_module1/decontam_results_infant_stool.csv")
+```
+* n samples: `r sum(sample_data(ps4_t)$control=="sample")`     
+* n controls: `r sum(sample_data(ps4_t)$control=="ctrl")`     
+* n taxa: `r ntaxa(ps4_t)`     
+* n contaminants: `r length(contaminant_list_BS)`
+
+##### Profile of most abundant contaminants
+```{r}
+taxa_names(ps4_t) = data.frame(as(tax_table(ps4_t), "matrix"))$taxonomy
+plot_frequency(ps4_t, taxa_names(ps4_t)[head(which(combined_res$contaminant),n = 5)], conc="nanodrop_ngul") + xlab("DNA Concentration (nanodrop, ng/ul)")
+```
+
+##### Removal of contaminants from maternal stools
+```{r}
+# pick out maternal stools and corresponding controls sequenced in Liverpool
+ps4_t = subset_samples(ps4_l_t_pr_clean, site=="Liverpool" & !is.na(nanodrop_ngul) & (sample_group=="MS" | sample_type=="WCS")) %>% prune_taxa(taxa_sums(.) > 0, .)
+
+# use contam_freq function to identify potential contaminants
+combined_res = contam_freq(ps4_t)
+contaminant_list_MS = rownames(combined_res)[combined_res$contaminant]
+write.csv(combined_res, "output_module1/decontam_results_maternal_stool.csv")
+```
+* n samples: `r sum(sample_data(ps4_t)$control=="sample")`     
+* n controls: `r sum(sample_data(ps4_t)$control=="ctrl")`     
+* n taxa: `r ntaxa(ps4_t)`     
+* n contaminants: `r length(contaminant_list_MS)`
+
+##### Profile of most abundant contaminants
+```{r}
+taxa_names(ps4_t) = data.frame(as(tax_table(ps4_t), "matrix"))$taxonomy
+plot_frequency(ps4_t, taxa_names(ps4_t)[head(which(combined_res$contaminant),n = 5)], conc="nanodrop_ngul") + xlab("DNA Concentration (nanodrop, ng/ul)")
+```
+
+##### Removal of contaminants from breastmilk samples
+```{r}
+# pick out breastmilk samples and corresponding controls sequenced in Liverpool
+ps4_t = subset_samples(ps4_l_t_pr_clean, site=="Liverpool" & !is.na(nanodrop_ngul) & (sample_group=="BM" | sample_type=="WCBM")) %>% prune_taxa(taxa_sums(.) > 0, .)
+
+# use contam_freq function to identify potential contaminants
+combined_res = contam_freq(ps4_t)
+contaminant_list_BM = rownames(combined_res)[combined_res$contaminant]
+write.csv(combined_res, "output_module1/decontam_results_breastmilk.csv")
+```
+* n samples: `r sum(sample_data(ps4_t)$control=="sample")`     
+* n controls: `r sum(sample_data(ps4_t)$control=="ctrl")`     
+* n taxa: `r ntaxa(ps4_t)`     
+* n contaminants: `r length(contaminant_list_BM)`
+
+##### Profile of most abundant contaminants
+```{r}
+taxa_names(ps4_t) = data.frame(as(tax_table(ps4_t), "matrix"))$taxonomy
+plot_frequency(ps4_t, taxa_names(ps4_t)[head(which(combined_res$contaminant),n = 5)], conc="nanodrop_ngul") + xlab("DNA Concentration (nanodrop, ng/ul)")
+```
+
+##### Summary of filtered phyloseq object
+```{r}
+if (run_full) {
+  # create data subsets for 3 sample groups
+  ps4_BS = subset_samples(ps4_l_t_pr_clean, sample_group=="BS")
+  ps4_MS = subset_samples(ps4_l_t_pr_clean, sample_group=="MS")
+  ps4_BM = subset_samples(ps4_l_t_pr_clean, sample_group=="BM" | sample_type=="WCBM")
+  ps4_ctrl = subset_samples(ps4_l_t_pr_clean, sample_group=="ctrl" & sample_type!="WCBM")
+
+  # filter contaminants from relevant subsets
+  ps4_BS_filt = prune_taxa(taxa_names(ps4_BS)[!(taxa_names(ps4_BS) %in% contaminant_list_BS)], ps4_BS)
+  ps4_MS_filt = prune_taxa(taxa_names(ps4_MS)[!(taxa_names(ps4_MS) %in% contaminant_list_MS)], ps4_MS)
+  ps4_BM_filt = prune_taxa(taxa_names(ps4_BM)[!(taxa_names(ps4_BM) %in% contaminant_list_BM)], ps4_BM)
+
+  # merge filtered phyloseq objects, then save
+  ps5_l_t_pr_d = merge_phyloseq(ps4_BS_filt, ps4_MS_filt, ps4_BM_filt, ps4_ctrl)
+  sample_data(ps5_l_t_pr_d)$count_ps5 = sample_sums(ps5_l_t_pr_d)
+  save(ps5_l_t_pr_d, file="phyloseq_files/ps5_l_t_pr_d.RData")
+  
+  # create then save phylum-level ps5
+  ps5_phylum = tax_glom(ps5_l_t_pr_d, "Phylum", NArm = TRUE)
+  save(ps5_phylum, file="phyloseq_files/ps5_phylum.RData")
+
+  # create then save genus-level ps5
+  ps5_genus = tax_glom(ps5_l_t_pr_d, "Genus", NArm = TRUE)
+  save(ps5_genus, file="phyloseq_files/ps5_genus.RData")
+  rm(ps4_t, ps4_BS, ps4_MS, ps4_BM, ps4_ctrl, ps4_BS_filt, ps4_l_t_pr_clean, ps4_MS_filt, ps4_BM_filt, ps5_phylum, ps5_genus, combined_res)
+} else { 
+  load("phyloseq_files/ps5_l_t_pr_d.RData")
+}
+```
+* n samples: `r sum(sample_data(ps5_l_t_pr_d)$control=="sample")`     
+* n controls: `r sum(sample_data(ps5_l_t_pr_d)$control=="ctrl")`     
+* n features: `r ntaxa(ps5_l_t_pr_d)`
+
+#### Step 6: remove duplicates (including validation samples sequenced at London) - ps6
+```{r}
+if (run_full) {
+  ps6_ctrls = subset_samples(ps5_l_t_pr_d, site=="Liverpool" & control=="ctrl")
+  
+  # pick replicate with greatest depth for Liverpool samples
+  t = sample_data(ps5_l_t_pr_d)
+  t$sample_sum = sample_sums(ps5_l_t_pr_d)  
+  t1 = subset(t, control=="sample" & site=="Liverpool")
+  t1 = t1[,c("sample_ID_full", "control", "sample_code", "sample_sum", "site")]
+  
+  # remove samples in duplicate list (selected to favour sample assayed for rotavirus shedding or, where multiple samples provided, collected earlier)
+  exclusion_list = read.csv("input/duplicates_to_exclude.csv", header=TRUE, stringsAsFactors=FALSE)
+  t2 = subset(t1, !(sample_ID_full %in% exclusion_list$id))
+
+  # for remaining duplicates, pick out all samples with matching sample_code, then identify sample_ID with highest depth
+  t2$sample_ID_max = NA
+  for (i in 1:nrow(t2)) {
+    code = t2$sample_code[i]
+    t3 = subset(t2, sample_code==code)
+    t3 = t3[order(-t3$sample_sum),]
+    t2$sample_ID_max[i] = t3$sample_ID_full[1]  
+  }
+  
+  # remove duplicates
+  replicate_pick = as.character(unique(t2$sample_ID_max))
+  ps6_l_t_pr_d_dd = prune_samples(replicate_pick, ps5_l_t_pr_d)
+  
+  # add data for controls then add sample counts 
+  ps6_l_t_pr_d_dd = merge_phyloseq(ps6_l_t_pr_d_dd, ps6_ctrls)
+  ps6_l_t_pr_d_dd = prune_taxa(taxa_sums(ps6_l_t_pr_d_dd) > 0, ps6_l_t_pr_d_dd)
+  sample_data(ps6_l_t_pr_d_dd)$count_ps6 = sample_sums(ps6_l_t_pr_d_dd)
+  
+  # save phyloseq object 
+  save(ps6_l_t_pr_d_dd, file="phyloseq_files/ps6_l_t_pr_d_dd.RData")
+  rm(t, t1, t2, t3, exclusion_list, ps6_ctrls)
+} else { 
+  load("phyloseq_files/ps6_l_t_pr_d_dd.RData")
+}
+```
+* n samples: `r sum(sample_data(ps6_l_t_pr_d_dd)$control=="sample")`     
+* n controls: `r sum(sample_data(ps6_l_t_pr_d_dd)$control=="ctrl")`     
+* n features: `r ntaxa(ps6_l_t_pr_d_dd)`
+
+#### Select rarefaction depth
+```{r, fig.width=8, fig.height=4}
+t = data.frame(sample_data(ps6_l_t_pr_d_dd))
+t$filtered_count = sample_sums(ps6_l_t_pr_d_dd)
+
+ggplot(subset(t, sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5"  | 
+                sample_type=="BM1"  | sample_type=="BM2" | sample_type=="BM3" | sample_type=="MS1"), 
+       aes(x=sample_type, y=filtered_count, color=sample_type)) + geom_jitter(alpha = 0.5, width=0.2) + geom_violin(alpha = 0.5) +
+  scale_y_continuous(trans='log10') + labs(color = "sample group", y = "count", x = "") + 
+  geom_hline(yintercept=10000, linetype="dotted", color="grey") +
+  geom_hline(yintercept=25000, linetype="dotted") +
+  geom_hline(yintercept=50000, linetype="dotted", color="grey") +
+  scale_color_brewer(palette="Paired")
+```
+Lines display depths of 10,000, 25,000 and 50,000 sequences. Abbreviations: BM, breastmillk; BS, baby stool; MS, maternal stool.    
+
+```{r}
+# create table of samples meeting different depth thresholds
+t = subset(t, sample_group!="ctrl")
+data.frame(n = table(t$sample_group, t$filtered_count>=0)[,1], 
+      d10k = table(t$sample_group, t$filtered_count>=10000)[,2],
+      d25k = table(t$sample_group, t$filtered_count>=25000)[,2],
+      d50k = table(t$sample_group, t$filtered_count>=50000)[,2])
+# select rarefaction depth
+depth = 25000 
+```
+
+Rarefaction depth of `r depth` sequences per sample retains `r round(sum(t$sample_group=="BS" & t$filtered_count>=depth)/sum(t$sample_group=="BS")*100,1)`% of infant samples, `r round(sum(t$sample_group=="MS" & t$filtered_count>=depth)/sum(t$sample_group=="MS")*100,1)`% of maternal samples, and `r round(sum(t$sample_group=="BM" & t$filtered_count>=depth)/sum(t$sample_group=="BM")*100,1)`% of breastmilk samples.
+
+#### Step 7: remove samples with <25,000 sequences - ps7
+```{r}
+if (run_full) {
+  # select samples with ≥25,000 sequences, then add sample counts
+  ps7_l_t_pr_d_dd_25k = prune_samples(sample_sums(ps6_l_t_pr_d_dd)>=depth, ps6_l_t_pr_d_dd) %>% prune_taxa(taxa_sums(.) > 0, .)
+  sample_data(ps7_l_t_pr_d_dd_25k)$count_ps7 = sample_sums(ps7_l_t_pr_d_dd_25k)
+  
+  # save phyloseq object (absolute and relative)
+  save(ps7_l_t_pr_d_dd_25k, file="phyloseq_files/ps7_l_t_pr_d_dd_25k.RData")
+  rps7_l_t_pr_d_dd_25k = transform_sample_counts(ps7_l_t_pr_d_dd_25k, function(x) {x/sum(x)})
+  save(rps7_l_t_pr_d_dd_25k, file="phyloseq_files/rps7_l_t_pr_d_dd_25k.RData")
+
+  # create then save phylum-level ps7 
+  ps7_phylum = tax_glom(ps7_l_t_pr_d_dd_25k, "Phylum", NArm = TRUE)
+  save(ps7_phylum, file="phyloseq_files/ps7_phylum.RData")
+
+  # create then save genus-level ps7
+  ps7_genus = tax_glom(ps7_l_t_pr_d_dd_25k, "Genus", NArm = TRUE)
+  save(ps7_genus, file="phyloseq_files/ps7_genus.RData")
+  rm(rps7_l_t_pr_d_dd_25k, ps7_phylum, ps7_genus)
+} else { 
+  load("phyloseq_files/ps7_l_t_pr_d_dd_25k.RData")
+}
+```
+* n samples: `r sum(sample_data(ps7_l_t_pr_d_dd_25k)$control=="sample")`     
+* n controls: `r sum(sample_data(ps7_l_t_pr_d_dd_25k)$control=="ctrl")`     
+* n features: `r ntaxa(ps7_l_t_pr_d_dd_25k)`
+
+#### Step 8: rarefy to 25,000 sequences - ps8
+```{r}
+if (run_full) {
+  # create rarefied otu table (absolute and relative)
+  ps8_l_t_pr_d_dd_25k_rarefied = rarefy_even_depth(ps7_l_t_pr_d_dd_25k, sample.size = depth, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+  rps8_l_t_pr_d_dd_25k_rarefied = transform_sample_counts(ps8_l_t_pr_d_dd_25k_rarefied, function(x) {x/sum(x)})
+  
+  # create phylum, class, and genus-level ps8
+  ps8_phylum = tax_glom(ps8_l_t_pr_d_dd_25k_rarefied, "Phylum", NArm = TRUE)
+  ps8_class = tax_glom(ps8_l_t_pr_d_dd_25k_rarefied, "Class", NArm = TRUE)
+  ps8_genus = tax_glom(ps8_l_t_pr_d_dd_25k_rarefied, "Genus", NArm = TRUE)
+  rps8_genus = transform_sample_counts(ps8_genus, function(x) {x/sum(x)})
+
+  # calculate genus- and rsv-level alpha diversity
+  t = data.frame(sample_data(rps8_genus))
+  t$Shannon = as.numeric(unlist(estimate_richness(ps8_genus, measures = c("Shannon"))))
+  t$Observed = colSums(otu_table(rps8_genus)>=0.001)
+  t$Shannon_rsv = as.numeric(unlist(estimate_richness(ps8_l_t_pr_d_dd_25k_rarefied, measures = c("Shannon"))))
+  t$Observed_rsv = colSums(otu_table(rps8_l_t_pr_d_dd_25k_rarefied)>=0.001)
+  all(sample_names(rps8_genus)==rownames(t))
+  
+  # calculature weighted bray curtis distances - genus
+  bray_w = phyloseq::distance(rps8_genus, method = "bray")
+  bray_w = data.frame(as.matrix(bray_w))
+  write.csv(bray_w, "output_module1/bray_w_distances.csv")
+  
+  # use add_paired_distances function to calculate weighted distances (paired and random)
+  t$turnover_randompair = t$turnover = NA
+  t = add_paired_distances(t, bray_w)
+  names(t)[c(ncol(t)-1,ncol(t))] = c("turnover_w", "turnover_randompair_w")
+  
+  # calculature unweighted bray curtis distances - genus
+  rps8_genus_strict = rps8_genus
+  otu_table(rps8_genus_strict)[otu_table(rps8_genus_strict)<0.001] = 0
+  bray_u = phyloseq::distance(rps8_genus_strict, method = "bray", binary = TRUE)
+  bray_u = data.frame(as.matrix(bray_u))
+  write.csv(bray_u, "output_module1/bray_u_distances.csv")
+  
+  # use add_paired_distances function to calculate unweighted distances (paired and random)
+  t$turnover_randompair = t$turnover = NA
+  t = add_paired_distances(t, bray_u)
+  names(t)[c(ncol(t)-1,ncol(t))] = c("turnover_u", "turnover_randompair_u")
+  
+  # calculature weighted bray curtis distances - rsv
+  bray_w = phyloseq::distance(rps8_l_t_pr_d_dd_25k_rarefied, method = "bray")
+  bray_w = data.frame(as.matrix(bray_w))
+  write.csv(bray_w, "output_module1/bray_w_distances_rsv.csv")
+  
+  # use add_paired_distances function to calculate weighted distances (paired and random)
+  t$turnover_randompair = t$turnover = NA
+  t = add_paired_distances(t, bray_w)
+  names(t)[c(ncol(t)-1,ncol(t))] = c("turnover_w_rsv", "turnover_randompair_w_rsv")
+  
+  # calculature unweighted bray curtis distances - rsv
+  rps8_genus_strict = rps8_genus
+  otu_table(rps8_genus_strict)[otu_table(rps8_genus_strict)<0.001] = 0
+  bray_u = phyloseq::distance(rps8_genus_strict, method = "bray", binary = TRUE)
+  bray_u = data.frame(as.matrix(bray_u))
+  write.csv(bray_u, "output_module1/bray_u_distances_rsv.csv")
+  
+  # use add_paired_distances function to calculate unweighted distances (paired and random)
+  t$turnover_randompair = t$turnover = NA
+  t = add_paired_distances(t, bray_u)
+  names(t)[c(ncol(t)-1,ncol(t))] = c("turnover_u_rsv", "turnover_randompair_u_rsv")
+  write.csv(t, "output_module1/final_metadata_ps8.csv")
+  
+  # add alpha and beta diversity to all ps objects
+  sample_data(ps8_l_t_pr_d_dd_25k_rarefied)$count_ps8 = sample_sums(ps8_l_t_pr_d_dd_25k_rarefied)
+  sample_data(ps8_l_t_pr_d_dd_25k_rarefied) = sample_data(rps8_l_t_pr_d_dd_25k_rarefied) = 
+    sample_data(ps8_phylum) = sample_data(ps8_class) = sample_data(ps8_genus) = sample_data(rps8_genus) = t
+  
+  # save phyloseq objects
+  save(ps8_l_t_pr_d_dd_25k_rarefied, file="phyloseq_files/ps8_l_t_pr_d_dd_25k_rarefied.RData")
+  save(rps8_l_t_pr_d_dd_25k_rarefied, file="phyloseq_files/rps8_l_t_pr_d_dd_25k_rarefied.RData")
+  save(ps8_phylum, file="phyloseq_files/ps8_phylum.RData")
+  save(ps8_class, file="phyloseq_files/ps8_class.RData")
+  save(ps8_genus, file="phyloseq_files/ps8_genus.RData")
+  save(rps8_genus, file="phyloseq_files/rps8_genus.RData")
+  rm(rps8_l_t_pr_d_dd_25k_rarefied, ps8_phylum, ps8_class, ps8_genus, rps8_genus, rps8_genus_strict, bray_u, bray_w)
+} else { 
+  load("phyloseq_files/ps8_l_t_pr_d_dd_25k_rarefied.RData")
+}  
+```
+* n samples: `r sum(sample_data(ps8_l_t_pr_d_dd_25k_rarefied)$control=="sample")`     
+* n controls: `r sum(sample_data(ps8_l_t_pr_d_dd_25k_rarefied)$control=="ctrl")`     
+* n features: `r ntaxa(ps8_l_t_pr_d_dd_25k_rarefied)`
+
+#### Filtering statistics
+```{r}
+# reload ps1, ps2 and ps3
+load("phyloseq_files/ps1.RData")
+load("phyloseq_files/ps2_l.RData")
+load("phyloseq_files/ps3_l_t.RData")
+
+# create dataframe summarising filtering
+filtering_summary = data.frame(rbind(
+  filtering_stats(ps1), filtering_stats(ps2_l), filtering_stats(ps3_l_t), 
+  filtering_stats(ps4_l_t_pr), filtering_stats(ps5_l_t_pr_d), filtering_stats(ps6_l_t_pr_d_dd), 
+  filtering_stats(ps7_l_t_pr_d_dd_25k), filtering_stats(ps8_l_t_pr_d_dd_25k_rarefied)))
+
+names(filtering_summary) = c("n_samples", "n_taxa", "total_count", "min", "mean", "sd")
+rownames(filtering_summary) = c("ps1 (unfiltered)", "ps2 (length)", "ps3 (taxonomy)", "ps4 (≥0.1% in >1)", "ps5 (decontam)", "ps6 (no duplicates)", "ps7 (samples with ≥25k)", "ps8 (rarefied to 25k)")
+filtering_summary
+```
+
+#### Statistics by sample type
+```{r}
+ps1_BS = subset_samples(ps1, site=="Liverpool" & (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5"))  %>% prune_taxa(taxa_sums(.) > 0, .)
+ps1_MS = subset_samples(ps1, site=="Liverpool" & (sample_group=="MS"))  %>% prune_taxa(taxa_sums(.) > 0, .)
+ps1_BM = subset_samples(ps1, site=="Liverpool" & (sample_type=="BM1" | sample_type=="BM2" | sample_type=="BM3"))  %>% prune_taxa(taxa_sums(.) > 0, .)
+filtering_summary = data.frame(rbind(filtering_stats(ps1_BS), filtering_stats(ps1_MS), filtering_stats(ps1_BM)))
+names(filtering_summary) = c("nsamples", "ntaxa", "total_count", "min", "av", "sd")
+rownames(filtering_summary) = c("ps1 (infant stool)", "ps1 (maternal stool)", "ps1 (breastmilk)")
+filtering_summary
+```
+
+#### Boxplots of filtering statistics by sample type
+```{r, fig.width=8, fig.height=4}
+# plot % retention distribution plot for each sample type at various stages in filtering
+t = data.frame(sample_data(ps8_l_t_pr_d_dd_25k_rarefied))
+t$ps2_perc = t$count_ps2/t$count_ps1
+t$ps3_perc = t$count_ps3/t$count_ps1
+t$ps4_perc = t$count_ps4/t$count_ps1
+t$ps5_perc = t$count_ps5/t$count_ps1
+t$ps6_perc = t$count_ps6/t$count_ps1
+t = subset(t, control!="ctrl" & count_ps7>=25000)
+
+p1 = ggplot(t, aes(sample_group_fig, ps2_perc, colour=sample_group_fig)) + geom_jitter(size = 0.5, alpha = 0.1, width=0.2) + geom_boxplot(alpha = 0.5) + 
+  theme_bw() + ylab("% retained") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + ylim(0.5,1.025) + scale_color_manual(values = brewer.pal(8, "Paired")[c(2,6,8)]) + ggtitle("ps2 (length)") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+p2 = ggplot(t, aes(sample_group_fig, ps3_perc, colour=sample_group_fig)) + geom_jitter(size = 0.5, alpha = 0.1, width=0.2) + geom_boxplot(alpha = 0.5) + 
+  theme_bw() + ylab(" ") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + ylim(0.5,1.025) + scale_color_manual(values = brewer.pal(8, "Paired")[c(2,6,8)]) + ggtitle("ps3 (taxonomy)") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+p3 = ggplot(t, aes(sample_group_fig, ps4_perc, colour=sample_group_fig)) + geom_jitter(size = 0.5, alpha = 0.1, width=0.2) + geom_boxplot(alpha = 0.5) + 
+  theme_bw() + ylab(" ") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + ylim(0.5,1.025) + scale_color_manual(values = brewer.pal(8, "Paired")[c(2,6,8)]) + ggtitle("ps4 (≥0.1% in >1)") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+p4 = ggplot(t, aes(sample_group_fig, ps5_perc, colour=sample_group_fig)) + geom_jitter(size = 0.5, alpha = 0.1, width=0.2) + geom_boxplot(alpha = 0.5) + 
+  theme_bw() + ylab(" ") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + ylim(0.5,1.025) + scale_color_manual(values = brewer.pal(8, "Paired")[c(2,6,8)]) + ggtitle("ps5 (decontam)") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+grid.arrange(p1,p2,p3,p4,ncol=4)
+rm(p1,p2,p3,p4)
+```
+
+#### Filtering retention by sample type - ps5 (decontam)
+```{r, fig.width=8, fig.height=3}
+# plot % retention distribution plot for each sample type
+t1 = t[order(-t$ps5_perc),]
+t1$sample_ID_full = factor(t1$sample_ID_full, levels = t1$sample_ID_full)
+p1 = ggplot(subset(t1, sample_group=="BM"), aes(sample_ID_full, ps5_perc, colour=sample_group)) + geom_bar(stat="identity") + 
+  scale_color_manual(values = brewer.pal(8, "Paired")[2]) + ggtitle("breastmilk") + 
+  xlab("") + theme_bw() + ylab("% retained") + theme(legend.position = "none", strip.background = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+p2 = ggplot(subset(t1, sample_group=="BS"), aes(sample_ID_full, ps5_perc, colour=sample_group)) + geom_bar(stat="identity") + 
+  scale_color_manual(values = brewer.pal(8, "Paired")[6]) + ggtitle("infant stool") + 
+  xlab("") + theme_bw() + ylab(" ") + theme(legend.position = "none", strip.background = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank()) 
+p3 = ggplot(subset(t1, sample_group=="MS"), aes(sample_ID_full, ps5_perc, colour=sample_group)) + geom_bar(stat="identity") + 
+  scale_color_manual(values = brewer.pal(8, "Paired")[8]) + ggtitle("maternal stool") + 
+  xlab("") + theme_bw() + ylab(" ") + theme(legend.position = "none", strip.background = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank()) 
+grid.arrange(p1,p2,p3,ncol=3)
+rm(p1,p2,p3)
+```
+
+Mean retention % after taxon filtering (ps5):    
+* Infant stools = `r round(median(subset(t, sample_group=="BS")$ps5_perc)*100,1)`   
+* Maternal stools = `r round(median(subset(t, sample_group=="MS")$ps5_perc)*100,1)`    
+* Breastmilk = `r round(median(subset(t, sample_group=="BM")$ps5_perc)*100,1)`
+
+#### Statistics by sample type - filtered and deduplicated
+```{r}
+ps7_BS = subset_samples(ps7_l_t_pr_d_dd_25k, sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5") %>% prune_taxa(taxa_sums(.) > 0, .)
+ps7_MS = subset_samples(ps7_l_t_pr_d_dd_25k, sample_group=="MS") %>% prune_taxa(taxa_sums(.) > 0, .)
+ps7_BM = subset_samples(ps7_l_t_pr_d_dd_25k, sample_type=="BM1" | sample_type=="BM2" | sample_type=="BM3") %>% prune_taxa(taxa_sums(.) > 0, .)
+filtering_summary = data.frame(rbind(filtering_stats(ps7_BS), filtering_stats(ps7_MS), filtering_stats(ps7_BM)))
+names(filtering_summary) = c("nsamples", "ntaxa", "total_count", "min", "av", "sd")
+rownames(filtering_summary) = c("ps7 (infant stool)", "ps7 (maternal stool)", "ps7 (breastmilk)")
+filtering_summary
+```
+
+#### Statistics by sample type - all faecal samples
+```{r}
+ps7_S = subset_samples(ps7_l_t_pr_d_dd_25k, sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_group=="MS") %>% prune_taxa(taxa_sums(.) > 0, .)
+filtering_summary = data.frame(rbind(filtering_stats(ps7_S)))
+names(filtering_summary) = c("nsamples", "ntaxa", "total_count", "min", "av", "sd")
+rownames(filtering_summary) = c("ps7 (all stool)")
+filtering_summary
+```
+
+#### Statistics by sample type - rarefied
+```{r}
+ps8_BS = subset_samples(ps8_l_t_pr_d_dd_25k_rarefied, sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5") %>% prune_taxa(taxa_sums(.) > 0, .)
+ps8_MS = subset_samples(ps8_l_t_pr_d_dd_25k_rarefied, sample_group=="MS") %>% prune_taxa(taxa_sums(.) > 0, .)
+ps8_BM = subset_samples(ps8_l_t_pr_d_dd_25k_rarefied, sample_type=="BM1" | sample_type=="BM2" | sample_type=="BM3") %>% prune_taxa(taxa_sums(.) > 0, .)
+filtering_summary = data.frame(rbind(filtering_stats(ps8_BS), filtering_stats(ps8_MS), filtering_stats(ps8_BM)))
+names(filtering_summary) = c("nsamples", "ntaxa", "total_count", "min_count", "av_count")
+rownames(filtering_summary) = c("ps8 (infant stool)", "ps8 (maternal stool)", "ps8 (breastmilk)")
+filtering_summary
+```
+
+#### Summary of filtered taxa 
+
+Ten most frequent taxanomic assignments displayed for each group. Remaining taxa grouped as 'other'. Bar heights represent proportion of RSVs assigned to taxon, independent of their relative abundance.     
+
+##### Infant stool
+```{r, fig.width=10, fig.height=6}
+taxa_filter_summary(ps1_BS, ps7_BS, "Class")
+```
+
+##### Maternal stool
+```{r, fig.width=10, fig.height=6}
+taxa_filter_summary(ps1_MS, ps7_MS, "Class")
+```
+
+##### Breastmilk
+```{r, fig.width=10, fig.height=6}
+taxa_filter_summary(ps1_BM, ps7_BM, "Class")
+rm(ps1_BS, ps1_MS, ps1_BM, ps7_BS, ps7_MS, ps7_BM, ps8_BS, ps8_MS, ps8_BM)
+rm(t, t1, ps1, ps2_l, ps3_l_t, ps4_l_t_pr, ps5_l_t_pr_d, ps6_l_t_pr_d_dd, ps7_l_t_pr_d_dd_25k, ps8_l_t_pr_d_dd_25k_rarefied)
+```
+
+
+
+
+
+Run-to-run variation {.hidden}
+===================================== 
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Stool
+
+#### Alpha and beta diversity in positive controls
+```{r, fig.width=9, fig.height=3}
+load("phyloseq_files/ps8_genus.RData")
+t = data.frame(sample_data(ps8_genus))
+
+# pick out controls
+ps8_controls = subset_samples(ps8_genus, site=="Liverpool" & 
+                                (sample_type=="BSctrl" | sample_type=="MCctrl" | sample_type=="MCQia" | sample_type=="MSctrl" | sample_type=="PCRneg" | sample_type=="WCS"))
+ps8_sub = subset_samples(ps8_controls, sample_type=="BSctrl" | sample_type=="MCctrl" | sample_type=="MSctrl")
+rps8_sub = transform_sample_counts(ps8_sub, function(x) {x/sum(x)})
+alpha = data.frame(sample_data(ps8_sub))
+
+# generate Shannon plot with R-sq
+r2 <- format(round(summary(lm(Shannon ~ sample_type, data = alpha))$r.squared,3),nsmall=3)
+p1 = ggplot(alpha, aes(factor(sample_type), y=Shannon, colour=factor(sample_type))) + geom_jitter(size = 1, alpha = 0.8, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("Shannon (genus)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + ylim(0,3) +
+  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCQia="#3288bd", MCctrl = "#66c2a5", MSctrl = "#fee08b")) +
+  ggtitle(bquote(R^2 == .(r2))) + theme(plot.title = element_text(size=10))
+
+# generate richness plot with R-sq 
+r2 <- round(summary(lm(Observed ~ sample_type, data = alpha))$r.squared,3)
+p2 = ggplot(alpha, aes(factor(sample_type), y=Observed, colour=factor(sample_type))) + geom_jitter(size = 1, alpha = 0.8, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("richness (genus)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) +
+  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCQia="#3288bd", MCctrl = "#66c2a5", MSctrl = "#fee08b")) + 
+  scale_y_continuous(limits=c(0,30), breaks=c(0,10,20,30)) +
+  ggtitle(bquote(R^2 == .(r2))) + theme(plot.title = element_text(size=10))
+
+# generate weighted Bray-Curtis plot with R-sq
+beta = data.frame(sample_data(ps8_sub))
+bray_dist = phyloseq::distance(ps8_sub, method = "bray")
+bray_ord = ordinate(ps8_sub, method = "PCoA", distance = bray_dist)
+beta$bray1 = bray_ord$vectors[,1]
+beta$bray2 = bray_ord$vectors[,2]
+r2 = round(adonis(bray_dist ~ sample_type, data = beta, permutations = 999)$aov.tab$R2[1],3)
+p3 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.5) + 
+  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCQia="#3288bd", MCctrl = "#66c2a5", MSctrl = "#fee08b")) +
+  ggtitle(bquote("weighted Bray-Curtis,"~R^2==.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + 
+  xlab(paste0("PC1 (", format(round(bray_ord$values$Relative_eig[1]*100,1),nsmall=1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)"))
+
+# generate unweighted Bray-Curtis plot with R-sq
+otu_table(rps8_sub)[otu_table(rps8_sub)<0.001] = 0
+bray_dist = phyloseq::distance(rps8_sub, method = "bray", binary=TRUE)
+bray_ord = ordinate(rps8_sub, method = "PCoA", distance = bray_dist)
+beta$bray1 = bray_ord$vectors[,1]
+beta$bray2 = bray_ord$vectors[,2]
+r2 = format(round(adonis(bray_dist ~ sample_type, data = beta, permutations = 999)$aov.tab$R2[1],3),nsmall=3)
+p4 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.5) + 
+  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCQia="#3288bd", MCctrl = "#66c2a5", MSctrl = "#fee08b")) +
+  ggtitle(bquote("unweighted Bray-Curtis,"~R^2==.(r2))) + theme(legend.title = element_blank(), plot.title = element_text(size=10)) + 
+  xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", format(round(bray_ord$values$Relative_eig[2]*100,1),nsmall=1), "%)"))
+
+# create multi-panel plot
+grid.arrange(plot_grid(p1,p2,align="v",ncol=1),p3,p4, ncol=3, widths=c(1.5,1.9,2.5))
+rm(p1, p2, p3, p4, alpha, beta, bray_ord, bray_dist, ps8_sub, rps8_sub, ps8_controls)
+```
+
+#### Variation explained by run for each sample type
+```{r, fig.width=5, fig.height=4}
+rps8_genus = transform_sample_counts(ps8_genus, function(x) {x/sum(x)})
+
+# create data frame to populate with beta diversity R-sq and p values
+collated = data.frame(country = c(rep("India",5), rep("UK",5), rep("Malawi",5)), 
+                      sample_type = rep(c("BS1", "BS2", "BS3", "BS5", "MS1"),3), 
+                      R2_w = NA, p_w = NA, R2_u = NA, p_u = NA, n_runs = NA)
+
+# in loop, calculate beta diversity R-sq and p value for each sample group (weighted and unweighted)
+for (i in 1:nrow(collated)) {
+  sample_list = t$sample_ID_full[t$country==collated$country[i] & t$sample_type==collated$sample_type[i]]
+  ps8_sub = prune_samples(sample_list, rps8_genus) %>% prune_taxa(taxa_sums(.) > 0, .)
+  rps8_sub = transform_sample_counts(ps8_sub, function(x) {x/sum(x)})
+
+  beta = data.frame(sample_data(ps8_sub))
+  collated$n_runs[i] = length(unique(beta$run))
+  
+  # weighted adonis
+  bray_dist_w = phyloseq::distance(ps8_sub, method = "bray")
+  adon = adonis(bray_dist_w ~ run, data = beta, permutations = 999)
+  collated$R2_w[i] = round(adon$aov.tab$R2[1],3)
+  collated$p_w[i] = round(adon$aov.tab$`Pr(>F)`[1],3)
+    
+  # unweighted adonis
+  otu_table(rps8_sub)[otu_table(rps8_sub)<0.001] = 0
+  bray_dist_u = phyloseq::distance(rps8_sub, method = "bray", binary = TRUE)
+  adon = adonis(bray_dist_u ~ run, data = beta, permutations = 999)
+  collated$R2_u[i] = round(adon$aov.tab$R2[1],3)
+  collated$p_u[i] = round(adon$aov.tab$`Pr(>F)`[1],3)
+}
+write.csv(collated, "output_module1/permanova_run_stool.csv")
+
+# recode sample type for plot
+collated$sample_type = rep(c("week 1", "week 4", "week 6/8", "week 10/12", "mother"),3)
+collated$sample_type = factor(collated$sample_type, levels = c("week 1", "week 4", "week 6/8", "week 10/12", "mother"))
+
+# generate weighted Bray-Curtis plot with R-sq
+r2 = round(mean(collated$R2_w),3)
+p1 = ggplot(collated, aes(y = R2_w, x=sample_type, fill = country)) + geom_bar(stat = "identity") + facet_grid(.~country) + 
+  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2~", weighted distances")) + ylim(0,0.2) + 
+  geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") + coord_flip() + 
+  scale_fill_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + theme(plot.title = element_text(size=10)) + 
+  theme(strip.background = element_blank()) 
+
+# generate unweighted Bray-Curtis plot with R-sq
+r2 = format(round(mean(collated$R2_u),3),nsmall=3)
+p2 = ggplot(collated, aes(y = R2_u, x= sample_type , fill = country)) + geom_bar(stat = "identity") + facet_grid(.~country) + 
+  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2~", unweighted distances")) + ylim(0,0.2) + 
+  geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") + coord_flip() + 
+  scale_fill_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + theme(plot.title = element_text(size=10)) + 
+  theme(strip.background = element_blank()) 
+
+# create multi-panel plot
+grid.arrange(p1,p2)
+rm(p1, p2, adon, ps8_sub, rps8_sub, beta)
+```
+
+#### Sample subsets in which adonis p value <0.05 for either weighted or unweighted analyses
+```{r}
+subset(collated, p_w<0.05 | p_u<0.05)
+rm(collated)
+```
+
+### Breastmilk
+
+#### Alpha and beta diversity in positive controls
+```{r, fig.width=9, fig.height=3}
+# pick out controls
+ps8_controls = subset_samples(ps8_genus, site=="Liverpool" & 
+                                (sample_type=="BMctrl" | sample_type=="MCctrlBM" | sample_type=="PCRnegBM" | sample_type=="WCBM"))
+ps8_sub = subset_samples(ps8_controls, sample_type=="BMctrl" | sample_type=="MCctrlBM" | sample_type=="MCQiaBM")
+rps8_sub = transform_sample_counts(ps8_sub, function(x) {x/sum(x)})
+alpha = data.frame(sample_data(ps8_sub))
+
+# generate Shannon plot with R-sq
+r2 <- format(round(summary(lm(Shannon ~ sample_type, data = alpha))$r.squared,3),nsmall=3)
+p1 = ggplot(alpha, aes(factor(sample_type), y=Shannon, colour=factor(sample_type))) + geom_jitter(size = 1, alpha = 0.8, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("Shannon (genus)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + ylim(0,3) +
+  scale_color_manual(values=c(BMctrl = "#5e4fa2", MCQiaBM="#e6550d", MCctrlBM = "#66c2a5")) +
+  ggtitle(bquote(R^2 == .(r2))) + theme(plot.title = element_text(size=10))
+
+# generate richness plot with R-sq
+r2 <- round(summary(lm(Observed ~ sample_type, data = alpha))$r.squared,3)
+p2 = ggplot(alpha, aes(factor(sample_type), y=Observed, colour=factor(sample_type))) + geom_jitter(size = 1, alpha = 0.8, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("richness (genus)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) +
+  scale_color_manual(values=c(BMctrl = "#5e4fa2", MCQiaBM="#e6550d", MCctrlBM = "#66c2a5")) + 
+  scale_y_continuous(limits=c(0,30), breaks=c(0,10,20,30)) +
+  ggtitle(bquote(R^2 == .(r2))) + theme(plot.title = element_text(size=10))
+
+# generate weighted Bray-Curtis plot with R-sq
+beta = data.frame(sample_data(ps8_sub))
+bray_dist = phyloseq::distance(ps8_sub, method = "bray")
+bray_ord = ordinate(ps8_sub, method = "PCoA", distance = bray_dist)
+beta$bray1 = bray_ord$vectors[,1]
+beta$bray2 = bray_ord$vectors[,2]
+r2 = format(round(adonis(bray_dist ~ sample_type, data = beta, permutations = 999)$aov.tab$R2[1],3),nsmall=3)
+p3 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.7) + 
+  scale_color_manual(values=c(BMctrl = "#5e4fa2", MCQiaBM="#e6550d", MCctrlBM = "#66c2a5")) + ylim(-0.2,0.2) +
+  ggtitle(bquote("weighted Bray-Curtis,"~R^2==.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + xlab(paste0("PC1 (", format(round(bray_ord$values$Relative_eig[1]*100,1),nsmall=1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)"))
+
+# generate unweighted Bray-Curtis plot with R-sq
+otu_table(rps8_sub)[otu_table(rps8_sub)<0.001] = 0
+bray_dist = phyloseq::distance(rps8_sub, method = "bray", binary=TRUE)
+bray_ord = ordinate(rps8_sub, method = "PCoA", distance = bray_dist)
+beta$bray1 = bray_ord$vectors[,1]
+beta$bray2 = bray_ord$vectors[,2]
+r2 = format(round(adonis(bray_dist ~ sample_type, data = beta, permutations = 999)$aov.tab$R2[1],3),nsmall=3)
+p4 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.7) + 
+  scale_color_manual(values=c(BMctrl = "#5e4fa2", MCQiaBM="#e6550d", MCctrlBM = "#66c2a5")) +
+  ggtitle(bquote("unweighted Bray-Curtis,"~R^2==.(r2))) + theme(legend.title = element_blank(), plot.title = element_text(size=10)) + xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", format(round(bray_ord$values$Relative_eig[2]*100,1),nsmall=1), "%)"))
+
+# create multi-panel plot
+grid.arrange(plot_grid(p1,p2,align="v",ncol=1),p3,p4, ncol=3, widths=c(1.5,1.9,2.5))
+rm(p1, p2, p3, p4, ps8_sub, rps8_sub, alpha, beta, bray_ord, ps8_controls)
+```
+
+#### Variation explained by run for each sample type
+```{r, fig.width=4, fig.height=4}
+# create data frame to populate with beta diversity R-sq and p values
+collated = data.frame(country = c(rep("India",3), rep("UK",3), rep("Malawi",3)), 
+                      sample_type = rep(c("BM1", "BM2", "BM3"),3), 
+                      R2_w = NA, p_w = NA, R2_u = NA, p_u = NA, n_runs = NA)
+
+# in loop, calculate beta diversity R-sq and p value for each sample group (weighted and unweighted)
+for (i in 1:nrow(collated)) {
+  sample_list = t$sample_ID_full[t$country==collated$country[i] & t$sample_type==collated$sample_type[i]]
+  ps8_sub = prune_samples(sample_list, rps8_genus) %>% prune_taxa(taxa_sums(.) > 0, .)
+  rps8_sub = transform_sample_counts(ps8_sub, function(x) {x/sum(x)})
+
+  beta = data.frame(sample_data(ps8_sub))
+  collated$n_runs[i] = length(unique(beta$run))
+  
+  # weighted adonis
+  bray_dist_w = phyloseq::distance(ps8_sub, method = "bray")
+  adon = adonis(bray_dist_w ~ run, data = beta, permutations = 999)
+  collated$R2_w[i] = round(adon$aov.tab$R2[1],3)
+  collated$p_w[i] = round(adon$aov.tab$`Pr(>F)`[1],3)
+    
+  # unweighted adonis
+  otu_table(rps8_sub)[otu_table(rps8_sub)<0.001] = 0
+  bray_dist_u = phyloseq::distance(rps8_sub, method = "bray", binary = TRUE)
+  adon = adonis(bray_dist_u ~ run, data = beta, permutations = 999)
+  collated$R2_u[i] = round(adon$aov.tab$R2[1],3)
+  collated$p_u[i] = round(adon$aov.tab$`Pr(>F)`[1],3)
+}
+write.csv(collated, "output_module1/permanova_run_breastmilk.csv")
+
+# recode sample type for plot
+collated$sample_type = rep(c("week 1", "week 7/9", "week 11/13"),3)
+collated$sample_type = factor(collated$sample_type, levels = c("week 1", "week 7/9", "week 11/13"))
+
+# generate weighted Bray-Curtis plot with R-sq
+r2 = round(mean(collated$R2_w),3)
+p1 = ggplot(collated, aes(y = R2_w, x=sample_type, fill = country)) + geom_bar(stat = "identity") + facet_grid(.~country) + 
+  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2~", weighted distances")) + ylim(0,0.2) +
+  geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") + coord_flip() + 
+  scale_fill_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + theme(plot.title = element_text(size=10)) + 
+  theme(strip.background = element_blank()) 
+
+# generate unweighted Bray-Curtis plot with R-sq
+r2 = format(round(mean(collated$R2_u),3),nsmall=3)
+p2 = ggplot(collated, aes(y = R2_u, x= sample_type , fill = country)) + geom_bar(stat = "identity") + facet_grid(.~country) + 
+  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2~", unweighted distances")) + ylim(0,0.2) + 
+  geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") + coord_flip() + 
+  scale_fill_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + theme(plot.title = element_text(size=10)) + 
+  theme(strip.background = element_blank()) 
+
+# create multi-panel plot
+grid.arrange(p1,p2)
+rm(p1, p2, adon, beta, ps8_sub, rps8_sub)
+```
+
+#### Sample subsets in which permanova p value <0.05 for either weighted or unweighted analyses
+```{r}
+subset(collated, p_w<0.05 | p_u<0.05)
+rm(collated)
+```
+
+
+
+
+
+10% validation {.hidden}
+===================================== 
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Stool
+
+#### Input data
+```{r, fig.width=4, fig.height=6}
+load("phyloseq_files/ps5_genus.RData")
+m1 = data.frame(sample_data(ps5_genus))
+m1$filtered_count_ps5 = sample_sums(ps5_genus)
+load("phyloseq_files/ps8_genus.RData")
+m2 = data.frame(sample_data(ps8_genus))
+
+# list of stool samples yielding ≥25,000 sequences in validation run
+imperial_list = m1$sample_code[m1$site=="London" & m1$control=="sample" & m1$filtered_count_ps5>=depth]
+
+# dataframe comprising samples with ≥25,000 sequences in both Imperial and Liverpool sequencing runs
+validation = data.frame(sample_code = m2$sample_code[m2$sample_code %in% imperial_list],
+                        imperial_id = NA, imperial_count = NA, cgr_id = NA, cgr_count = NA)
+
+# pick out full id and final count for each sample pair
+for (i in 1:nrow(validation)) {
+    id = validation$sample_code[i]
+    validation$imperial_id[i] = m1$sample_ID_full[which(m1$sample_code==id & m1$site=="London")]
+    validation$imperial_count[i] = m1$final_count[which(m1$sample_code==id & m1$site=="London")]
+
+    validation$cgr_id[i] = m2$sample_ID_full[which(m2$sample_code==id)]
+    validation$cgr_count[i] = m2$final_count[which(m2$sample_code==id)]
+}
+comparison_list = c(validation$cgr_id, validation$imperial_id)
+
+# pick out comparison list stool samples from database
+ps5_genus_val = prune_samples(comparison_list, ps5_genus) 
+ps5_genus_val = subset_samples(ps5_genus_val, sample_type!="BM1") %>% prune_taxa(taxa_sums(.) > 0, .)
+rm(m1, m2, validation, ps8_genus)
+```
+
+##### ps5_validation 
+* biom table containing paired Liverpool/London stool samples in which both have at least 25,000 reads    
+* nsamples = `r nsamples(ps5_genus_val)`    
+* ntaxa = `r ntaxa(ps5_genus_val)`   
+
+#### Alpha diversity (rarefied to 25,000 sequences per samples)
+
+```{r, fig.width=6, fig.height=8}
+# rarefy validation data
+ps5_genus_val_rarefied = rarefy_even_depth(ps5_genus_val, sample.size = depth, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+rps5_genus_val_rarefied <- transform_sample_counts(ps5_genus_val_rarefied, function(OTU) OTU/sum(OTU))
+
+# pick out subsets
+m_val = data.frame(sample_data(ps5_genus_val_rarefied))
+m_val_imp = data.frame(subset(m_val, site=="London"))
+m_val_cgr = data.frame(subset(m_val, site=="Liverpool"))
+
+# calculate alpha diversity
+alpha_df = estimate_richness(ps5_genus_val_rarefied, measures = c("Shannon"))
+alpha_df$Observed = colSums(otu_table(rps5_genus_val_rarefied)>=0.001)
+alpha_df$sample_ID_full = rownames(alpha_df)
+
+# append alpha diversity scores to site-specific dataframes, then merge
+m_val_imp = merge(m_val_imp, alpha_df, by = "sample_ID_full")
+m_val_cgr = merge(m_val_cgr, alpha_df, by = "sample_ID_full")
+imp_cgr = merge(m_val_imp, m_val_cgr[,c("sample_code", "Shannon", "Observed")], by = "sample_code")
+
+# recode sample type
+imp_cgr$sample_type[imp_cgr$sample_type=="BS1"] = "week 1"
+imp_cgr$sample_type[imp_cgr$sample_type=="BS5"] = "week 10/12"
+imp_cgr$sample_type[imp_cgr$sample_type=="MS1"] = "mother"
+imp_cgr$sample_type = factor(imp_cgr$sample_type, levels = c("week 1", "week 10/12", "mother"))
+
+# generate Shannon plot with R-sq
+r2 <- format(round(summary(lm(Shannon.y ~ Shannon.x, data = imp_cgr))$r.squared,3),nsmall=3)
+p1 = ggplot(imp_cgr, aes(Shannon.x, Shannon.y, colour = sample_type)) + geom_abline(color = "black", linetype = "dotted") + 
+  geom_point(size = 1.5, alpha = 0.7) + xlab("Shannon (genus), Liverpool") +  ylab("Shannon (genus), London") + 
+  theme_bw() + facet_grid(country~ sample_type) +
+  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
+  ggtitle(bquote("overall"~R^2==~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + 
+  theme(strip.background = element_blank()) 
+
+# generate richness plot with R-sq
+r2 <- round(summary(lm(Observed.y ~ Observed.x, data = imp_cgr))$r.squared,3)
+p2 = ggplot(imp_cgr, aes(Observed.x, Observed.y, colour = sample_type)) + geom_abline(color = "black", linetype = "dotted") + 
+  geom_point(size = 1.5, alpha = 0.7) + xlab("richness (genus), Liverpool") +  ylab("richness (genus), London") +
+  theme_bw() + facet_grid(country~ sample_type) +
+  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
+  ggtitle(bquote("overall"~R^2==~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + 
+  theme(strip.background = element_blank()) 
+plot_grid(p1,p2, align="v", ncol=1)
+rm(m_val, m_val_imp, m_val_cgr, alpha_df, p1, p2, ps5_genus_val, ps5_genus_val_rarefied)
+```
+
+#### Beta diversity plots
+```{r, fig.width=6, fig.height=12}
+# generate weighted Bray-Curtis plot for paired samples with R-sq
+beta = data.frame(sample_data(rps5_genus_val_rarefied))
+bray_dist = phyloseq::distance(rps5_genus_val_rarefied, method = "bray")
+bray_ord = ordinate(rps5_genus_val_rarefied, method = "PCoA", distance = bray_dist)
+beta$bray1 = bray_ord$vectors[,1]
+beta$bray2 = bray_ord$vectors[,2]
+r2 = round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3)
+
+# recode sample type
+beta$sample_type[beta$sample_type=="BS1"] = "week 1"
+beta$sample_type[beta$sample_type=="BS5"] = "week 10/12"
+beta$sample_type[beta$sample_type=="MS1"] = "mother"
+beta$sample_type = factor(beta$sample_type, levels = c("week 1", "week 10/12", "mother"))
+
+p1 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
+  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
+  geom_line(aes(group = sample_code)) + facet_grid(country~sample_type) +
+  xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)")) +
+  ggtitle(bquote("weighted Bray-Curtis,"~R^2~"for sample code ="~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  theme(strip.background = element_blank()) 
+
+# generate weighted Bray-Curtis plot for paired samples with R-sq
+otu_table(rps5_genus_val_rarefied)[otu_table(rps5_genus_val_rarefied)<0.001] = 0
+beta = data.frame(sample_data(rps5_genus_val_rarefied))
+bray_dist = phyloseq::distance(rps5_genus_val_rarefied, method = "bray", binary=TRUE)
+bray_ord = ordinate(rps5_genus_val_rarefied, method = "PCoA", distance = bray_dist)
+beta$bray1 = bray_ord$vectors[,1]
+beta$bray2 = bray_ord$vectors[,2]
+r2 = round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3)
+
+# recode sample type
+beta$sample_type[beta$sample_type=="BS1"] = "week 1"
+beta$sample_type[beta$sample_type=="BS5"] = "week 10/12"
+beta$sample_type[beta$sample_type=="MS1"] = "mother"
+beta$sample_type = factor(beta$sample_type, levels = c("week 1", "week 10/12", "mother"))
+
+p2 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
+  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
+  geom_line(aes(group = sample_code)) + facet_grid(country~sample_type) +
+  xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)")) +
+  ggtitle(bquote("unweighted Bray-Curtis,"~R^2~"for sample code ="~.(r2)))  + theme(legend.position = "none", plot.title = element_text(size=10)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  theme(strip.background = element_blank()) 
+
+# create multi-panel figure
+plot_grid(p1,p2, align="h", ncol=1)
+rm(beta, bray_ord, p1, p2)
+```
+
+#### Correlation of genus abundances for top-20 genera
+```{r, fig.width=3, fig.height=2}
+# create dataframe from otu table, then sort by feature abundance
+rps5_table = otu_table(rps5_genus_val_rarefied)
+rps5_table = rps5_table[order(-rowSums(rps5_table)),]
+otu_table(rps5_genus_val_rarefied) = rps5_table
+
+# prune top 20 genera by feature abundance and create site-specific subsets
+rps5_filt = prune_taxa(rank(-taxa_sums(rps5_genus_val_rarefied))<=20, rps5_genus_val_rarefied)
+rps5_Imp = subset_samples(rps5_filt, site=="London")
+rps5_CGR = subset_samples(rps5_filt, site=="Liverpool")
+
+# append genus names
+taxa_names(rps5_Imp) = data.frame(as(tax_table(rps5_Imp),"matrix"))$Genus
+taxa_names(rps5_CGR) = data.frame(as(tax_table(rps5_CGR),"matrix"))$Genus
+
+# create site-specific dataframes, then cbind together
+df_Imp = data.frame(cbind(t(otu_table(rps5_Imp)),sample_data(rps5_Imp)))
+df_Imp = df_Imp[order(df_Imp$sample_code),]
+df_CGR = data.frame(cbind(t(otu_table(rps5_CGR)),sample_data(rps5_CGR)))
+df_CGR = df_CGR[order(df_CGR$sample_code),]
+df_CGR_Imp = data.frame(cbind(df_CGR, df_Imp))
+
+# create dataframe to populate with R-sq values
+ntaxa = ntaxa(rps5_Imp)
+collated = data.frame(taxon = names(df_Imp[1:ntaxa(rps5_Imp)]),r2 = NA)
+
+# in loop, calculate R-sq correlation scores
+for (i in 1:ntaxa) {
+  taxon = collated$taxon[i]
+  df_CGR_Imp$taxon = df_CGR_Imp[,as.character(taxon)]
+  df_CGR_Imp$taxon.1 = df_CGR_Imp[,paste0(taxon,".1")]
+  collated$r2[i] = round(summary(lm(taxon.1 ~ taxon, data = df_CGR_Imp))$r.squared,3)
+}
+
+# generate summary plot
+r2 = round(mean(collated$r2),3)
+ggplot(collated, aes(x="", y=r2)) + geom_jitter(colour="#662506", size = 1, alpha = 0.8, width=0.2) + ylim(0.9,1) +
+  geom_boxplot(colour="#662506", alpha = 0.5) + ylab(bquote(R^2)) + xlab("") + theme(legend.position = "none", strip.background = element_blank()) +
+  ggtitle(bquote("mean"~R^2==.(r2)))
+rm(collated, df_CGR, df_Imp)
+```
+
+```{r, fig.width = 10, fig.height = 14}
+# generate multi_plot of genus abundance correlations
+multi_plot(df_CGR_Imp)
+rm(df_CGR_Imp, rps5_CGR, rps5_filt, rps5_Imp)
+```
+
+### Breastmilk
+
+#### Input data
+```{r, fig.width=4, fig.height=6}
+# pick out comparison list samples from database
+ps5_genus_val = prune_samples(comparison_list, ps5_genus) 
+ps5_genus_val = subset_samples(ps5_genus_val, sample_type=="BM1") %>% prune_taxa(taxa_sums(.) > 0, .)
+```
+
+##### ps5_validation 
+* biom table containing paired Liverpool/London breastmilk samples in which both have at least 25,000 reads    
+* nsamples = `r nsamples(ps5_genus_val)`    
+* ntaxa = `r ntaxa(ps5_genus_val)`   
+
+See outputs of analysis module 1 for further details of feature table filtering process.    
+
+#### Alpha diversity (rarefied to 25,000 sequences per samples)
+
+```{r, fig.width=3, fig.height=8}
+# rarefy validation data
+ps5_genus_val_rarefied = rarefy_even_depth(ps5_genus_val, sample.size = depth, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+rps5_genus_val_rarefied <- transform_sample_counts(ps5_genus_val_rarefied, function(OTU) OTU/sum(OTU))
+
+# pick out subsets
+m_val = data.frame(sample_data(ps5_genus_val_rarefied))
+m_val_imp = data.frame(subset(m_val, site=="London"))
+m_val_cgr = data.frame(subset(m_val, site=="Liverpool"))
+
+# calculate alpha diversity
+alpha_df = estimate_richness(ps5_genus_val_rarefied, measures = c("Shannon"))
+alpha_df$Observed = colSums(otu_table(rps5_genus_val_rarefied)>=0.001)
+alpha_df$sample_ID_full = rownames(alpha_df)
+
+# append alpha diversity scores to site-specific dataframes, then merge
+m_val_imp = merge(m_val_imp, alpha_df, by = "sample_ID_full")
+m_val_cgr = merge(m_val_cgr, alpha_df, by = "sample_ID_full")
+imp_cgr = merge(m_val_imp, m_val_cgr[,c("sample_code", "Shannon", "Observed")], by = "sample_code")
+
+# recode sample type
+imp_cgr$sample_type[imp_cgr$sample_type=="BM1"] = "breastmilk"
+
+# generate Shannon plot with R-sq
+r2 <- format(round(summary(lm(Shannon.y ~ Shannon.x, data = imp_cgr))$r.squared,3),nsmall=3)
+p1 = ggplot(imp_cgr, aes(Shannon.x, Shannon.y, colour = sample_type)) + geom_abline(color = "black", linetype = "dotted") + 
+  geom_point(size = 1.5, alpha = 0.7) + xlab("Shannon (genus), Liverpool") +  ylab("Shannon (genus), London") + 
+  theme_bw() + facet_grid(country~ sample_type) +
+  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
+  ggtitle(bquote("overall"~R^2==~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + 
+  theme(strip.background = element_blank()) 
+
+# generate richness plot with R-sq
+r2 <- round(summary(lm(Observed.y ~ Observed.x, data = imp_cgr))$r.squared,3)
+p2 = ggplot(imp_cgr, aes(Observed.x, Observed.y, colour = sample_type)) + geom_abline(color = "black", linetype = "dotted") + 
+  geom_point(size = 1.5, alpha = 0.7) + xlab("richness (genus), Liverpool") +  ylab("richness (genus), London") +
+  theme_bw() + facet_grid(country~ sample_type) +
+  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
+  ggtitle(bquote("overall"~R^2==~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + 
+  theme(strip.background = element_blank()) 
+plot_grid(p1,p2, align="v", ncol=1)
+rm(m_val, m_val_imp, m_val_cgr, alpha_df, p1, p2, ps5_genus, ps5_genus_val, ps5_genus_val_rarefied)
+```
+
+#### Beta diversity plots
+```{r, fig.width=3, fig.height=12}
+# generate weighted Bray-Curtis plot for paired samples with R-sq
+beta = data.frame(sample_data(rps5_genus_val_rarefied))
+bray_dist = phyloseq::distance(rps5_genus_val_rarefied, method = "bray")
+bray_ord = ordinate(rps5_genus_val_rarefied, method = "PCoA", distance = bray_dist)
+beta$bray1 = bray_ord$vectors[,1]
+beta$bray2 = bray_ord$vectors[,2]
+r2 = round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3)
+
+# recode sample type
+beta$sample_type[beta$sample_type=="BM1"] = "breastmilk"
+
+p1 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
+  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
+  geom_line(aes(group = sample_code)) + facet_grid(country~sample_type) +
+  xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)")) +
+  ggtitle(bquote("weighted Bray-Curtis,"~R^2~"for sample code ="~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  theme(strip.background = element_blank()) 
+
+# generate weighted Bray-Curtis plot for paired samples with R-sq
+otu_table(rps5_genus_val_rarefied)[otu_table(rps5_genus_val_rarefied)<0.001] = 0
+beta = data.frame(sample_data(rps5_genus_val_rarefied))
+bray_dist = phyloseq::distance(rps5_genus_val_rarefied, method = "bray", binary=TRUE)
+bray_ord = ordinate(rps5_genus_val_rarefied, method = "PCoA", distance = bray_dist)
+beta$bray1 = bray_ord$vectors[,1]
+beta$bray2 = bray_ord$vectors[,2]
+r2 = round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3)
+
+# recode sample type
+beta$sample_type[beta$sample_type=="BM1"] = "breastmilk"
+
+p2 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
+  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
+  geom_line(aes(group = sample_code)) + facet_grid(country~sample_type) +
+  xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)")) +
+  ggtitle(bquote("unweighted Bray-Curtis,"~R^2~"for sample code ="~.(r2)))  + theme(legend.position = "none", plot.title = element_text(size=10)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  theme(strip.background = element_blank()) 
+
+# create multi-panel figure
+plot_grid(p1,p2, align="h", ncol=1)
+rm(beta, bray_ord, p1, p2)
+```
+
+#### Correlation of genus abundances for top-20 genera
+```{r, fig.width=3, fig.height=2}
+# create dataframe from otu table, then sort by feature abundance
+rps5_table = otu_table(rps5_genus_val_rarefied)
+rps5_table = rps5_table[order(-rowSums(rps5_table)),]
+otu_table(rps5_genus_val_rarefied) = rps5_table
+
+# prune top 20 genera by feature abundance and create site-specific subsets
+rps5_filt = prune_taxa(rank(-taxa_sums(rps5_genus_val_rarefied))<=20, rps5_genus_val_rarefied)
+rps5_Imp = subset_samples(rps5_filt, site=="London")
+rps5_CGR = subset_samples(rps5_filt, site=="Liverpool")
+
+# append genus names
+taxa_names(rps5_Imp) = data.frame(as(tax_table(rps5_Imp),"matrix"))$Genus
+taxa_names(rps5_CGR) = data.frame(as(tax_table(rps5_CGR),"matrix"))$Genus
+
+# create site-specific dataframes, then cbind together
+df_Imp = data.frame(cbind(t(otu_table(rps5_Imp)),sample_data(rps5_Imp)))
+df_Imp = df_Imp[order(df_Imp$sample_code),]
+df_CGR = data.frame(cbind(t(otu_table(rps5_CGR)),sample_data(rps5_CGR)))
+df_CGR = df_CGR[order(df_CGR$sample_code),]
+df_CGR_Imp = data.frame(cbind(df_CGR, df_Imp))
+
+# create dataframe to populate with R-sq values
+ntaxa = ntaxa(rps5_Imp)
+collated = data.frame(taxon = names(df_Imp[1:ntaxa(rps5_Imp)]),r2 = NA)
+
+# in loop, calculate R-sq correlation scores
+for (i in 1:ntaxa) {
+  taxon = collated$taxon[i]
+  df_CGR_Imp$taxon = df_CGR_Imp[,as.character(taxon)]
+  df_CGR_Imp$taxon.1 = df_CGR_Imp[,paste0(taxon,".1")]
+  collated$r2[i] = round(summary(lm(taxon.1 ~ taxon, data = df_CGR_Imp))$r.squared,3)
+}
+
+# generate summary plot
+r2 = round(mean(collated$r2),3)
+ggplot(collated, aes(x="", y=r2)) + geom_jitter(colour="#662506", size = 1, alpha = 0.8, width=0.2) + ylim(0.8,1) +
+  geom_boxplot(colour="#662506", alpha = 0.5) + ylab(bquote(R^2)) + xlab("") + theme(legend.position = "none", strip.background = element_blank()) +
+  ggtitle(bquote("mean"~R^2==.(r2)))
+rm(collated, df_CGR, df_Imp)
+```
+
+```{r, fig.width = 10, fig.height = 14}
+# generate multi_plot of genus abundance correlations
+multi_plot(df_CGR_Imp)
+rm(df_CGR_Imp, rps5_CGR, rps5_filt, rps5_Imp)
+```
+
+
+
+
+
+Unsupervised clustering {.hidden}
+===================================== 
+
+#### Clustering of samples (columns) and taxa (rows) - presence/absence at genus level    
+```{r, fig.width=8, fig.height=8, cache=TRUE}
+# pick out infant and maternal samples, then select genera present at ≥0.1% abundance in ≥1% of samples
+load("phyloseq_files/ps7_genus.RData")
+
+ps7 = subset_samples(ps7_genus, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1")) %>% prune_taxa(taxa_sums(.) > 0, .)
+rps7 = transform_sample_counts(ps7, function(x) {x/sum(x)})
+rps7c = filter_taxa(rps7, function(x) { sum(x >= 0.001) >= 0.01*nsamples(rps7) }, TRUE)
+
+# confert into dataframe, then append genus names
+h = data.frame(t(otu_table(rps7c)))
+if (all(colnames(h)==rownames(tax_table(rps7c)))) { colnames(h) = as(tax_table(rps7c), "matrix")[,"Genus"] } else { print("error: rownames do not match")}
+
+# transform to presence/absence
+h_prev = h
+h_prev[h_prev>=0.001] = 1
+
+# append country and sample timing data
+if (all(rownames(h_prev)==sample_names(rps7c))) { 
+  annotation_col = data.frame(week = as.factor(paste0(sample_data(rps7c)$sample_type)), 
+                              country = as.factor(paste0(sample_data(rps7c)$country)))
+  rownames(annotation_col) = sample_names(rps7c)
+} else { print("error: rownames do not match")}
+
+# recode sample type
+annotation_col$week = revalue(annotation_col$week, c("BS1"="1", "BS2"="4", "BS3"="6/8", "BS5"="10/12", "MS1"="mother"))
+
+# set annotation colours
+sample_cols = c("#fee391", "#fec44f", "#fe9929", "#d95f0e", "#993404")
+names(sample_cols) = levels(annotation_col$week)
+country_cols = c(India_col, Malawi_col, UK_col)
+names(country_cols) = levels(annotation_col$country)
+ann_colors = list(week = sample_cols, country = country_cols)
+
+# draw heatmap
+pheatmap(t(h_prev), clustering_distance_rows="correlation", clustering_distance_cols="correlation", cluster_cols = T, 
+         clustering_method = "ward.D", color = c('#f1eef6','#3182bd'), breaks = c(0,0.99,2), annotation_names_col=F, legend=F,
+         annotation_col = annotation_col, annotation_colors = ann_colors, show_rownames=FALSE, show_colnames=FALSE, fontsize=10)
+rm(ann_colors, annotation_col, h, h_prev, ps7, ps7_genus, rps7)
+```
+    
+Number of taxa present at ≥0.1% abundance in ≥1% of samples: `r ntaxa(rps7c)`
+
+
+
+Sample availability {.hidden}
+===================================== 
+
+#### Heatmap of sample availability for primary analyses
+```{r, fig.width=6, fig.height=3.5}
+# load metadata
+load("phyloseq_files/ps7_l_t_pr_d_dd_25k.RData")
+m = data.frame(sample_data(ps7_l_t_pr_d_dd_25k))
+s = read.csv("input/RoVI_metadata_by_family_03112020.csv", header=TRUE, stringsAsFactors=FALSE)
+
+# pick out and re-order complete list of family IDs
+family_list = unique(s$family_ID)
+
+# create dataframe to summarise sample availability
+s_db = data.frame(family_ID = family_list[order(family_list)])
+rownames(s_db) = s_db$family_ID
+s_db = dplyr::select(s_db,-c(family_ID))
+
+# add presence/absence for outcome assays
+for (i in 1:nrow(s_db)) {
+  mb_db = subset(m, family_ID==rownames(s_db)[i])
+  full_db = subset(s, family_ID==rownames(s_db)[i])
+  
+  # serum assays
+  s_db$BB1_IgA[i] = as.numeric(!is.na(full_db$BB1_IgA[1]))
+  s_db$BB2_IgA[i] = as.numeric(!is.na(full_db$BB2_IgA[1]))
+  s_db$MB1_IgA[i] = as.numeric(!is.na(full_db$MB1_IgA[1]))
+  s_db$BM1_IgA[i] = as.numeric(!is.na(full_db$BM1_IgA[1]))
+  
+  # inflammatory biomarkers
+  s_db$BS3_A1AT[i] = as.numeric(!is.na(full_db$A1AT_BS3_Concugml[1]))
+  s_db$BS3_MPO[i] = as.numeric(!is.na(full_db$MPO_BS3_Concngml[1]))
+  s_db$BB1_A1AG[i] = as.numeric(!is.na(full_db$AG_Concugml[1]))
+  s_db$BS5_A1AT[i] = as.numeric(!is.na(full_db$A1AT_BS5_Concugml[1]))
+  s_db$BS5_MPO[i] = as.numeric(!is.na(full_db$MPO_BS5_Concngml[1]))
+
+  # 16S
+  s_db$MS1[i] = sum(mb_db$sample_type=="MS1")
+  s_db$BS1[i] = sum(mb_db$sample_type=="BS1")
+  s_db$BS2[i] = sum(mb_db$sample_type=="BS2")
+  s_db$BS3[i] = sum(mb_db$sample_type=="BS3")
+  s_db$BS5[i] = sum(mb_db$sample_type=="BS5")
+  
+  # ORV outcome
+  s_db$dose1_NSP2[i] = as.numeric(!is.na(full_db$dose1_shedding[1]))
+  s_db$dose2_NSP2[i] = as.numeric(!is.na(full_db$dose2_shedding[1]))
+  s_db$seroconversion[i] = as.numeric(!is.na(full_db$seroconv[1]))
+  s_db$any_response[i] = as.numeric(!is.na(full_db$any_response[1]))
+}
+write.csv(s_db, "output_module1/RoVI_sample_database.csv")
+
+# row annotations
+an_rows = data.frame(family_ID = rownames(s_db))
+an_rows$country[grepl("U[0-9][0-9][0-9]", an_rows$family_ID)] = "UK"
+an_rows$country[grepl("I[0-9][0-9][0-9]", an_rows$family_ID)] = "India"
+an_rows$country[grepl("M[0-9][0-9][0-9]", an_rows$family_ID)] = "Malawi"
+an_rows$country = as.factor(an_rows$country)
+rownames(an_rows) = an_rows$family_ID
+an_rows_sub = dplyr::select(an_rows,-c(family_ID))
+
+# set annotation colours
+an_colors = list(country = c("India" = India_col, Malawi = "#fc8d62", UK = "#8da0cb"))
+block_starts = levels(an_rows_sub$country)
+ind = match(block_starts, an_rows_sub$country)
+
+# draw heatmap
+s_db_plot = s_db
+names(s_db_plot) = c("infant IgA pre-ORV", "infant IgA post-ORV", "maternal IgA", "breastmilk IgA", "week 6/8 α1AT",  "week 6/8 MPO", "week 6 α1AG", "week 10/12 α1AT","week 10/12 MPO", "maternal 16S", "week 1 16S", "week 4 16S", "week 6/8 16S", "week 10/12 16S", "dose 1 shedding", "dose 2 shedding", "seroconversion", "any response")
+pheatmap(t(s_db_plot),cluster_rows = F, cluster_cols = F, legend=FALSE,
+         annotation_col = an_rows_sub, annotation_colors = an_colors, show_rownames=TRUE, 
+         show_colnames=FALSE,
+         color = c('#f1eef6','#034e7b'), breaks = c(0,0.99,2), gaps_col = ind-1, gaps_row = c(4,9,14), fontsize=9)
+rm(an_colors, an_rows, an_rows_sub, s_db_plot, full_db, m, mb_db)
+```
+
+#### Sample availability by country
+```{r, fig.width=6, fig.height=3.5}
+# append outcomes to sample database
+s_db$family_ID = rownames(s_db)
+s_db$n = 1
+s$any_response_outcome = s$any_response
+s_db = merge(s_db, s[,c("family_ID", "country", "country_exposure", "seroconv", "dose1_shedding", "either_shedding", "any_response_outcome")], by = "family_ID")
+
+# create country- and exposure-specific subsets
+s_I = subset(s_db, country=="India")
+s_Ie = subset(s_db, country_exposure=="India (exposed)")
+s_Iu = subset(s_db, country_exposure=="India (unexposed)")
+s_M = subset(s_db, country=="Malawi")
+s_U = subset(s_db, country=="UK")
+
+# column indices for relevant samples
+ind = c(which(names(s_I)=="BB1_IgA"):which(names(s_I)=="BS5"),which(names(s_I)=="n"))
+
+# calculate sample counts
+country = rbind(
+  India = colSums(s_I[,ind]), India_e = colSums(s_Ie[,ind]), India_u = colSums(s_Iu[,ind]), 
+  Malawi = colSums(s_M[,ind]), UK = colSums(s_U[,ind]))
+write.csv(country, "output_module1/n_country.csv")
+country
+```
+
+#### Sample availability by seroconversion status
+```{r, fig.width=6, fig.height=3.5}
+sero = rbind(
+      India_r = colSums(subset(s_I, seroconv==1)[,ind]), India_nr = colSums(subset(s_I, seroconv==0)[,ind]), 
+      India_r_e = colSums(subset(s_Ie, seroconv==1)[,ind]), India_nr_e = colSums(subset(s_Ie, seroconv==0)[,ind]), 
+      India_r_u = colSums(subset(s_Iu, seroconv==1)[,ind]), India_nr_u = colSums(subset(s_Iu, seroconv==0)[,ind]), 
+      Malawi_r = colSums(subset(s_M, seroconv==1)[,ind]), Malawi_nr = colSums(subset(s_M, seroconv==0)[,ind]), 
+      UK_r = colSums(subset(s_U, seroconv==1)[,ind]), UK_nr = colSums(subset(s_U, seroconv==0)[,ind]))
+write.csv(sero, "output_module1/n_seroconversion.csv")
+sero
+```
+
+#### Sample availability by dose 1 shedding status
+```{r, fig.width=6, fig.height=3.5}
+shed = rbind(
+        India_r = colSums(subset(s_I, dose1_shedding==1)[,ind]), India_nr = colSums(subset(s_I, dose1_shedding==0)[,ind]), 
+        India_r_e = colSums(subset(s_Ie, dose1_shedding==1)[,ind]), India_nr_e = colSums(subset(s_Ie, dose1_shedding==0)[,ind]), 
+        India_r_u = colSums(subset(s_Iu, dose1_shedding==1)[,ind]), India_nr_u = colSums(subset(s_Iu, dose1_shedding==0)[,ind]), 
+        Malawi_r = colSums(subset(s_M, dose1_shedding==1)[,ind]), Malawi_nr = colSums(subset(s_M, dose1_shedding==0)[,ind]), 
+        UK_r = colSums(subset(s_U, dose1_shedding==1)[,ind]),UK_nr = colSums(subset(s_U, dose1_shedding==0)[,ind])
+      )
+write.csv(shed, "output_module1/n_dose1_shedding.csv")
+shed
+```
+
+#### Sample availability by shedding at either dose
+```{r, fig.width=6, fig.height=3.5}
+shed = rbind(
+        India_r = colSums(subset(s_I, either_shedding==1)[,ind]), India_nr = colSums(subset(s_I, either_shedding==0)[,ind]), 
+        India_r_e = colSums(subset(s_Ie, either_shedding==1)[,ind]), India_nr_e = colSums(subset(s_Ie, either_shedding==0)[,ind]), 
+        India_r_u = colSums(subset(s_Iu, either_shedding==1)[,ind]), India_nr_u = colSums(subset(s_Iu, either_shedding==0)[,ind]), 
+        Malawi_r = colSums(subset(s_M, either_shedding==1)[,ind]), Malawi_nr = colSums(subset(s_M, either_shedding==0)[,ind]), 
+        UK_r = colSums(subset(s_U, either_shedding==1)[,ind]), UK_nr = colSums(subset(s_U, either_shedding==0)[,ind])
+      )
+write.csv(shed, "output_module1/n_shed_either.csv")
+shed
+```
+
+#### Sample availability by any response status
+```{r, fig.width=6, fig.height=3.5}
+any = rbind(
+      India_r = colSums(subset(s_I, any_response_outcome==1)[,ind]), India_nr = colSums(subset(s_I, any_response_outcome==0)[,ind]), 
+      India_r_e = colSums(subset(s_Ie, any_response_outcome==1)[,ind]), India_nr_e = colSums(subset(s_Ie, any_response_outcome==0)[,ind]), 
+      India_r_u = colSums(subset(s_Iu, any_response_outcome==1)[,ind]), India_nr_u = colSums(subset(s_Iu, any_response_outcome==0)[,ind]), 
+      Malawi_r = colSums(subset(s_M, any_response_outcome==1)[,ind]), Malawi_nr = colSums(subset(s_M, any_response_outcome==0)[,ind]), 
+      UK_r = colSums(subset(s_U, any_response_outcome==1)[,ind]), UK_nr = colSums(subset(s_U, any_response_outcome==0)[,ind])
+      )
+write.csv(any, "output_module1/n_any_response.csv")
+any
+```
+
+#### Sample availability by post-ORV IgA status
+```{r, fig.width=6, fig.height=3.5}
+final_IgA = rbind(
+      India = colSums(subset(s_I, BB2_IgA==1)[,ind]), 
+      India_e = colSums(subset(s_Ie, BB2_IgA==1)[,ind]), 
+      India_u = colSums(subset(s_Iu, BB2_IgA==1)[,ind]), 
+      Malawi = colSums(subset(s_M, BB2_IgA==1)[,ind]), 
+      UK = colSums(subset(s_U, BB2_IgA==1)[,ind]))
+write.csv(final_IgA, "output_module1/n_post_ORV_IgA.csv")
+final_IgA
+```

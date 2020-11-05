@@ -1,0 +1,36 @@
+"","variable","n","level 1","level 2","pearson","beta (95% CI)","p"
+"1","sex_baby","54","male (n = 33), 23.8 (12.4-45.8)","female (n = 21), 34.4 (15.8-74.6)",NA,"1.44 (0.53-3.93)","0.467"
+"2","mode_delivery","54","vaginal (n = 53), 28.1 (17.1-46.0)","caesarean (n = 1), 8.9 (NaN-NaN)",NA,NA,NA
+"3","place_delivery","0",NA,NA,NA,NA,NA
+"4","breastfed_child","54","nonexclusive (n = 29), 29.3 (15.6-55.1)","exclusive (n = 25), 25.5 (11.4-56.9)",NA,"0.87 (0.32-2.32)","0.775"
+"5","age_at_first_dose","54",NA,NA,"-0.032","0.99 (0.88-1.11)","0.821"
+"6","birth_weight","54",NA,NA,"0.058","1.25 (0.43-3.60)","0.677"
+"7","HIV_status","0",NA,NA,NA,NA,NA
+"8","HAZ_6_8w","0",NA,NA,NA,NA,NA
+"9","antibiotic_exposure","54","no (n = 48), 24.8 (14.6-41.9)","yes (n = 6), 63.1 (15.6-255.7)",NA,NA,NA
+"10","age_mother","0",NA,NA,NA,NA,NA
+"11","mother_weight","0",NA,NA,NA,NA,NA
+"12","parity","0",NA,NA,NA,NA,NA
+"13","maternal_education","0",NA,NA,NA,NA,NA
+"14","type_house","0",NA,NA,NA,NA,NA
+"15","water_treat_wami","0",NA,NA,NA,NA,NA
+"16","sanitation","0",NA,NA,NA,NA,NA
+"17","kitchen","0",NA,NA,NA,NA,NA
+"18","refrigerator","0",NA,NA,NA,NA,NA
+"19","crowding_wami","0",NA,NA,NA,NA,NA
+"20","household_income","0",NA,NA,NA,NA,NA
+"21","A1AT_BS3_Concugml","43",NA,NA,"-0.081","0.94 (0.73-1.21)","0.604"
+"22","A1AT_BS5_Concugml","48",NA,NA,"0.220","1.31 (0.92-1.86)","0.133"
+"23","MPO_BS3_Concngml","42",NA,NA,"-0.039","0.95 (0.65-1.39)","0.807"
+"24","MPO_BS5_Concngml","46",NA,NA,"-0.236","0.77 (0.56-1.07)","0.114"
+"25","AG_Concugml","0",NA,NA,NA,NA,NA
+"26","MB1_IgA","45",NA,NA,"-0.117","0.87 (0.59-1.26)","0.445"
+"27","BM1_IgA","29",NA,NA,"0.192","1.42 (0.70-2.90)","0.317"
+"28","MB1_IgG","0",NA,NA,NA,NA,NA
+"29","CB1_IgG","0",NA,NA,NA,NA,NA
+"30","BB1_IgG","0",NA,NA,NA,NA,NA
+"31","Shannon_6w","48",NA,NA,"-0.036","0.84 (0.21-3.42)","0.806"
+"32","Observed_6w","48",NA,NA,"-0.093","0.64 (0.16-2.61)","0.530"
+"33","Shannon_10w","51",NA,NA,"-0.093","0.61 (0.13-2.77)","0.514"
+"34","Observed_10w","51",NA,NA,"-0.010","0.95 (0.25-3.65)","0.943"
+"35","pre_exposed","49","no (n = 48), 25.6 (15.1-43.6)","yes (n = 1), 282.2 (NaN-NaN)",NA,NA,NA

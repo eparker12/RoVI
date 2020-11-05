@@ -1,0 +1,79 @@
+"","Estimate","Std.Error","pvalue","method","taxon","padj","signif","pscale","n_tested","failed_convergence","comparison","prevalence","mean"
+"Bifidobacterium",0.02,0.007,0.0025,"nb","Bifidobacterium",0.00590909090909091,"positively correlated",2.22847932851537,26,0,"age",0.992,0.449786310721117
+"Escherichia/Shigella",0.001,0.012,0.92,"zinb","Escherichia/Shigella",0.96,"ns",0.0177287669604316,26,0,"age",0.936,0.141181101295466
+"Streptococcus",-0.006,0.011,0.56,"nb","Streptococcus",0.728,"ns",0.137868620686963,26,0,"age",1,0.115388664816314
+"Staphylococcus",-0.465,0.016,3.9e-109,"nb","Staphylococcus",1.014e-107,"negatively correlated",106.993962045003,26,0,"age",0.9536,0.0321698168761684
+"Bacteroides",0.001,0.015,0.93,"zinb","Bacteroides",0.96,"ns",0.0177287669604316,26,0,"age",0.328,0.0296733845726011
+"Veillonella",0.107,0.015,1.3e-12,"zinb","Veillonella",8.45e-12,"positively correlated",11.0731432910503,26,0,"age",0.856,0.0702365830605464
+"Lactobacillus",0.057,0.013,9e-06,"zinb","Lactobacillus",2.925e-05,"positively correlated",4.5338741295818,26,0,"age",0.6272,0.0368535241662337
+"Collinsella",-0.006,0.014,0.67,"zinb","Collinsella",0.82952380952381,"ns",0.0811711440622749,26,0,"age",0.2768,0.0185948451181206
+"Haemophilus",-0.076,0.015,2.4e-07,"zinb","Haemophilus",1.04e-06,"negatively correlated",5.98296666070122,26,0,"age",0.3488,0.00189627131606563
+"Klebsiella",-0.08,0.016,9.2e-07,"zinb","Klebsiella",3.41714285714286e-06,"negatively correlated",5.46633686469788,26,0,"age",0.8704,0.0511635276628241
+"Enterococcus",-0.016,0.016,0.32,"zinb","Enterococcus",0.437894736842105,"ns",0.358630274662105,26,0,"age",0.7568,0.0268346192701237
+"Rothia",0.039,0.014,0.0051,"zinb","Rothia",0.0102,"positively correlated",1.99139982823808,26,0,"age",0.7776,0.00261025948659468
+"unassigned_Lachnospiraceae",-0.05,0.017,0.0036,"zinb","unassigned_Lachnospiraceae",0.0078,"negatively correlated",2.10790539730952,26,0,"age",0.272,0.00622930336348312
+"Gemella",-0.048,0.013,0.00022,"zinb","Gemella",0.000635555555555556,"negatively correlated",3.1968464806463,26,0,"age",0.6336,0.000344686667784561
+"Enterobacter",0.015,0.015,0.31,"zinb","Enterobacter",0.437894736842105,"ns",0.358630274662105,26,0,"age",0.4112,0.00451944222856526
+"Acinetobacter",0.025,0.067,0.71,"zinb","Acinetobacter",0.839090909090909,"ns",0.076190984132313,26,0,"age",0.256,0.000357698441152826
+"Corynebacterium_1",0.012,0.012,0.31,"zinb","Corynebacterium_1",0.437894736842105,"ns",0.358630274662105,26,0,"age",0.6672,0.000209843689604167
+"Clostridium_sensu_stricto_1",-0.121,0.018,6.1e-11,"zinb","Clostridium_sensu_stricto_1",3.172e-10,"negatively correlated",9.49866682135443,26,0,"age",0.3264,0.00628213005621087
+"unassigned_Enterobacteriaceae",0.036,0.014,0.012,"zinb","unassigned_Enterobacteriaceae",0.0222857142857143,"positively correlated",1.6519734416598,26,0,"age",0.2384,0.00177289573725284
+"Clostridioides",-0.054,0.015,4e-04,"zinb","Clostridioides",0.00104,"negatively correlated",2.98296666070122,26,0,"age",0.224,0.0021257737994787
+"Atopobium",0.241,0.013,6.4e-58,"zinb","Atopobium",8.32e-57,"positively correlated",56.0798766737093,26,0,"age",0.2144,0.000384650777387911
+"Actinomyces",0.147,0.013,4e-25,"zinb","Actinomyces",3.46666666666667e-24,"positively correlated",23.4600879154209,26,0,"age",0.2896,0.000815710082075175
+"Finegoldia",0.1,0.044,0.022,"zinb","Finegoldia",0.0381333333333333,"positively correlated",1.41869523026266,26,0,"age",0.2624,2.77899167601498e-05
+"Dolosigranulum",0.017,0.013,0.19,"zinb","Dolosigranulum",0.30875,"ns",0.510393033732278,26,0,"age",0.4208,0.000131977048794905
+"Anaerococcus",0.007,0.136,0.96,"zinb","Anaerococcus",0.96,"ns",0.0177287669604316,26,0,"age",0.24,8.88015752182269e-05
+"Peptoniphilus",-0.03,0.22,0.89,"zinb","Peptoniphilus",0.96,"ns",0.0177287669604316,26,0,"age",0.2,0.000320388254055783
+"Bifidobacterium1",0.059,0.048,0.22,"nb","Bifidobacterium",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.992,0.449786310721117
+"Escherichia/Shigella1",-0.141,0.138,0.31,"zinb","Escherichia/Shigella",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.936,0.141181101295466
+"Streptococcus1",0.014,0.129,0.91,"nb","Streptococcus",0.91,"ns",0.0409586076789064,26,0,"seroconv",1,0.115388664816314
+"Staphylococcus1",-0.156,0.217,0.47,"nb","Staphylococcus",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.9536,0.0321698168761684
+"Bacteroides1",0.228,0.317,0.47,"zinb","Bacteroides",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.328,0.0296733845726011
+"Veillonella1",-0.179,0.262,0.5,"zinb","Veillonella",0.764705882352941,"ns",0.116505569071437,26,0,"seroconv",0.856,0.0702365830605464
+"Lactobacillus1",-0.098,0.225,0.66,"zinb","Lactobacillus",0.9048,"ns",0.0434474080826011,26,0,"seroconv",0.6272,0.0368535241662337
+"Collinsella1",-0.547,0.343,0.11,"zinb","Collinsella",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.2768,0.0185948451181206
+"Haemophilus1",0.131,0.618,0.83,"zinb","Haemophilus",0.9048,"ns",0.0434474080826011,26,0,"seroconv",0.3488,0.00189627131606563
+"Klebsiella1",-0.073,0.258,0.78,"zinb","Klebsiella",0.9048,"ns",0.0434474080826011,26,0,"seroconv",0.8704,0.0511635276628241
+"Enterococcus1",-0.489,0.389,0.21,"zinb","Enterococcus",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.7568,0.0268346192701237
+"Rothia1",0.079,0.213,0.71,"zinb","Rothia",0.9048,"ns",0.0434474080826011,26,0,"seroconv",0.7776,0.00261025948659468
+"unassigned_Lachnospiraceae1",-0.292,0.34,0.39,"zinb","unassigned_Lachnospiraceae",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.272,0.00622930336348312
+"Gemella1",0.088,0.263,0.74,"zinb","Gemella",0.9048,"ns",0.0434474080826011,26,0,"seroconv",0.6336,0.000344686667784561
+"Enterobacter1",-0.739,0.647,0.25,"zinb","Enterobacter",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.4112,0.00451944222856526
+"Acinetobacter1",-0.35,0.486,0.47,"zinb","Acinetobacter",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.256,0.000357698441152826
+"Corynebacterium_11",0.138,0.141,0.33,"zinb","Corynebacterium_1",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.6672,0.000209843689604167
+"Clostridium_sensu_stricto_11",-0.62,0.401,0.12,"zinb","Clostridium_sensu_stricto_1",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.3264,0.00628213005621087
+"unassigned_Enterobacteriaceae1",-0.399,0.403,0.32,"zinb","unassigned_Enterobacteriaceae",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.2384,0.00177289573725284
+"Clostridioides1",-0.249,0.307,0.42,"zinb","Clostridioides",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.224,0.0021257737994787
+"Atopobium1",0.879,0.751,0.24,"zinb","Atopobium",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.2144,0.000384650777387911
+"Actinomyces1",0.81,0.68,0.24,"zinb","Actinomyces",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.2896,0.000815710082075175
+"Finegoldia1",-0.234,0.322,0.47,"zinb","Finegoldia",0.76375,"ns",0.117048776749389,26,0,"seroconv",0.2624,2.77899167601498e-05
+"Dolosigranulum1",-0.068,0.403,0.87,"zinb","Dolosigranulum",0.9048,"ns",0.0434474080826011,26,0,"seroconv",0.4208,0.000131977048794905
+"Anaerococcus1",-0.187,0.962,0.85,"zinb","Anaerococcus",0.9048,"ns",0.0434474080826011,26,0,"seroconv",0.24,8.88015752182269e-05
+"Peptoniphilus1",-0.076,0.45,0.87,"zinb","Peptoniphilus",0.9048,"ns",0.0434474080826011,26,0,"seroconv",0.2,0.000320388254055783
+"Bifidobacterium2",0.012,0.013,0.34,"nb","Bifidobacterium",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.992,0.449786310721117
+"Escherichia/Shigella2",0,0.036,0.99,"zinb","Escherichia/Shigella",0.99,"ns",0.00436480540245009,26,0,"IgA",0.936,0.141181101295466
+"Streptococcus2",-0.031,0.033,0.35,"nb","Streptococcus",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",1,0.115388664816314
+"Staphylococcus2",0.048,0.054,0.38,"nb","Staphylococcus",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.9536,0.0321698168761684
+"Bacteroides2",0.033,0.079,0.68,"zinb","Bacteroides",0.884,"ns",0.0535477349869269,26,0,"IgA",0.328,0.0296733845726011
+"Veillonella2",-0.015,0.067,0.82,"zinb","Veillonella",0.938260869565217,"ns",0.0276763956707011,26,0,"IgA",0.856,0.0702365830605464
+"Lactobacillus2",-0.181,0.055,0.0014,"zinb","Lactobacillus",0.0364,"negatively correlated",1.43889861635094,26,0,"IgA",0.6272,0.0368535241662337
+"Collinsella2",-0.116,0.084,0.17,"zinb","Collinsella",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.2768,0.0185948451181206
+"Haemophilus2",0.121,0.158,0.44,"zinb","Haemophilus",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.3488,0.00189627131606563
+"Klebsiella2",0.004,0.065,0.96,"zinb","Klebsiella",0.99,"ns",0.00436480540245009,26,0,"IgA",0.8704,0.0511635276628241
+"Enterococcus2",-0.021,0.099,0.83,"zinb","Enterococcus",0.938260869565217,"ns",0.0276763956707011,26,0,"IgA",0.7568,0.0268346192701237
+"Rothia2",0.075,0.055,0.18,"zinb","Rothia",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.7776,0.00261025948659468
+"unassigned_Lachnospiraceae2",-0.021,0.089,0.81,"zinb","unassigned_Lachnospiraceae",0.938260869565217,"ns",0.0276763956707011,26,0,"IgA",0.272,0.00622930336348312
+"Gemella2",-0.132,0.065,0.046,"zinb","Gemella",0.3575,"ns",0.446723953862901,26,0,"IgA",0.6336,0.000344686667784561
+"Enterobacter2",-0.42,0.161,0.0099,"zinb","Enterobacter",0.1287,"ns",0.890421453095613,26,0,"IgA",0.4112,0.00451944222856526
+"Acinetobacter2",-0.005,0.122,0.97,"zinb","Acinetobacter",0.99,"ns",0.00436480540245009,26,0,"IgA",0.256,0.000357698441152826
+"Corynebacterium_12",-0.026,0.036,0.47,"zinb","Corynebacterium_1",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.6672,0.000209843689604167
+"Clostridium_sensu_stricto_12",0.104,0.101,0.31,"zinb","Clostridium_sensu_stricto_1",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.3264,0.00628213005621087
+"unassigned_Enterobacteriaceae2",0.08,0.102,0.43,"zinb","unassigned_Enterobacteriaceae",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.2384,0.00177289573725284
+"Clostridioides2",0.069,0.079,0.38,"zinb","Clostridioides",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.224,0.0021257737994787
+"Atopobium2",-0.213,0.193,0.27,"zinb","Atopobium",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.2144,0.000384650777387911
+"Actinomyces2",0.337,0.175,0.055,"zinb","Actinomyces",0.3575,"ns",0.446723953862901,26,0,"IgA",0.2896,0.000815710082075175
+"Finegoldia2",0.055,0.08,0.49,"zinb","Finegoldia",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.2624,2.77899167601498e-05
+"Dolosigranulum2",0.095,0.102,0.35,"zinb","Dolosigranulum",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.4208,0.000131977048794905
+"Anaerococcus2",0.06,0.123,0.62,"zinb","Anaerococcus",0.848421052631579,"ns",0.0713885634837571,26,0,"IgA",0.24,8.88015752182269e-05
+"Peptoniphilus2",0.118,0.142,0.41,"zinb","Peptoniphilus",0.707777777777778,"ns",0.150103077103974,26,0,"IgA",0.2,0.000320388254055783
