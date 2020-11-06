@@ -6,7 +6,7 @@ This github page contains the code and input data associated with the [RoVI stud
 
 ## Primary outcome paper
 
-The primary outcome paper of the RoVI study will shortly be available on bioRxiv. All figures and statsical analyses from this study can be recreated using the code in this github page.
+The primary outcome paper of the RoVI study is now available on [*medRxiv*](https://www.medrxiv.org/content/10.1101/2020.11.02.20224576v1) . All figures and statsical analyses from this paper can be recreated using the code and data in this github repository.
 
 ## Bioinformatics code
 
@@ -19,6 +19,7 @@ The statistical analyses are arranged as follows:
 - **Rmd** markdown files containing the statistical analysis code for each analysis module.
 - **html** output files containing statistical analysis results.
 - **output** folders containing additional statistical analysis outputs.
+Large files are zipped to reduce file size.
 
 ## Analysis modules
 
