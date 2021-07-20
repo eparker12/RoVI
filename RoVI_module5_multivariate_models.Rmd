@@ -16,13 +16,13 @@ Sidebar {.sidebar}
 
 [Regression: dose 1 shedding]    
 
-[Regression: either shedding]     
-
 [Regression: neonatal RV]    
 
 [Regression: RV-IgA]    
 
-[Multivariate regressions]
+[Multivariate regressions]    
+
+[Session info]
 
 
 
@@ -69,12 +69,12 @@ a$HIV_status = droplevels(a$HIV_status)
 a_I = subset(a, country=="India")
 module1 = a_I[,c("family_ID", "sex_baby", "mode_delivery", "place_delivery", "breastfed_child", "age_at_first_dose", "birth_weight",
                "HAZ_6_8w", "age_mother",	"mother_weight", "parity", "maternal_education",	
-               "type_house",	"water_treat_wami",  "sanitation", "kitchen",	"refrigerator",	"kitchen", 
+               "type_house",	"water_treat_wami",  "sanitation", "kitchen",	"refrigerator",	 
                "crowding_wami",	"household_income")]
 module1$household_income = log(module1$household_income)
 module1 = na.omit(module1) # remove any rows with missing values
 rownames(module1) = module1$family_ID
-module1 = module1 %>% select(-family_ID)
+module1 = module1 %>% dplyr::select(-family_ID)
 sample_list_module1 = rownames(module1)
 
 # module 2: exposure
@@ -83,14 +83,14 @@ module2 = a_I[,c("family_ID", "antibiotic_exposure", "pre_exposed", "OPV_IPV", "
 module2[,5:ncol(module2)] = log(module2[,5:ncol(module2)])
 module2 = na.omit(module2) # remove any rows with missing values
 rownames(module2) = module2$family_ID
-module2 = module2 %>% select(-family_ID)
+module2 = module2 %>% dplyr::select(-family_ID)
 sample_list_module2 = rownames(module2)
 
 ### module 3: 16S genus abundances
 load("phyloseq_files/rps8_genus.RData")
 input_rps = subset_samples(rps8_genus, country=="India" & sample_type=="BS3" & !is.na(seroconv) & !is.na(pre_exposed)
                            & !is.na(BB2_IgA) & !is.na(dose1_shedding) & !is.na(either_shedding))
-input_rps = filter_taxa(input_rps, function(x) { sum(x > 0) > 0.01*nsamples(input_rps) }, TRUE)
+input_rps = filter_taxa(input_rps, function(x) { sum(x > 0 ) > 0.05*nsamples(input_rps) }, TRUE)
 module3 = data.frame(t(otu_table(input_rps))) # create matrix of OTU abundances 
 names(module3) = tax_table(input_rps)[,"Genus"] # append genus assignment
 rownames(module3) = as(sample_data(input_rps), "matrix")[,"family_ID"]
@@ -136,63 +136,73 @@ either_unexposed = outcomes[unexposed_list,]$either_shedding
 IgA_unexposed = log(outcomes[unexposed_list,]$BB2_IgA)
 ```
 
+##### IND (full)
 Number of infants with complete data: `r length(final_list)`    
-Number who seroconverted: `r sum(outcomes$seroconv)`    
-Number who shed dose 1: `r sum(outcomes$dose1_shedding)`
-Number with any response: `r sum(outcomes$any_response)`
+Number who seroconverted: `r sum(outcomes$seroconv==1)`; number who did not: `r sum(outcomes$seroconv==0)`
+Number who shed dose 1: `r sum(outcomes$dose1_shedding==1)` ; number who did not: `r sum(outcomes$dose1_shedding==0)`
+
+
+##### IND (neo+)
+Number of infants with complete data: `r length(exposed_list)`    
+Number who seroconverted: `r sum(seroconv_exposed==1)`; number who did not: `r sum(seroconv_exposed==0)`
+Number who shed dose 1: `r sum(dose1_exposed==1)` ; number who did not: `r sum(dose1_exposed==0)`
+
+##### IND (neo-)
+Number of infants with complete data: `r length(unexposed_list)`    
+Number who seroconverted: `r sum(seroconv_unexposed==1)`; number who did not: `r sum(seroconv_unexposed==0)`
+Number who shed dose 1: `r sum(dose1_unexposed==1)` ; number who did not: `r sum(dose1_unexposed==0)`
 
 #### Model accuracy
-```{r, fig.width=13, fig.height=4}
+```{r, fig.width=10, fig.height=3.5}
 if (run_rf_full) {
   set.seed(12345)
 
   # calculate modular RF outcomes for seroconversion using rf_modules_binary function  
-  module1_seroconv = rf_modules_binary(module1, "module1", seroconv, "seroconv")
-  module2_seroconv = rf_modules_binary(module2, "module2", seroconv, "seroconv")
-  module3_seroconv = rf_modules_binary(module3, "module3", seroconv, "seroconv")
+  #module1_seroconv = rf_modules_binary(module1, "module1", seroconv, "seroconv")
+  #module2_seroconv = rf_modules_binary(module2, "module2", seroconv, "seroconv")
+  #module3_seroconv = rf_modules_binary(module3, "module3", seroconv, "seroconv")
   module4_seroconv = rf_modules_binary(module4, "module4", seroconv, "seroconv")
   module4e_seroconv = rf_modules_binary(module4_exposed, "module4_exposed", seroconv_exposed, "seroconv")
   module4u_seroconv = rf_modules_binary(module4_unexposed, "module4_unexposed", seroconv_unexposed, "seroconv")
-  collated_seroconv = rbind(module1_seroconv, module2_seroconv, module3_seroconv, module4_seroconv, 
-                            module4e_seroconv, module4u_seroconv)
+  collated_seroconv = rbind(module4_seroconv, module4e_seroconv, module4u_seroconv) #module1_seroconv, module2_seroconv, module3_seroconv, 
   write.csv(collated_seroconv,file=paste0("output_module5/collated_seroconv_full.csv"))
   
   # calculate modular RF outcomes for dose 1 shedding using rf_modules_binary function  
-  module1_dose1= rf_modules_binary(module1, "module1", dose1, "dose1")
-  module2_dose1 = rf_modules_binary(module2, "module2", dose1, "dose1")
-  module3_dose1 = rf_modules_binary(module3, "module3", dose1, "dose1")
+  #module1_dose1= rf_modules_binary(module1, "module1", dose1, "dose1")
+  #module2_dose1 = rf_modules_binary(module2, "module2", dose1, "dose1")
+  #module3_dose1 = rf_modules_binary(module3, "module3", dose1, "dose1")
   module4_dose1 = rf_modules_binary(module4, "module4", dose1, "dose1")
   module4e_dose1 = rf_modules_binary(module4_exposed, "module4_exposed", dose1_exposed, "dose1")
   module4u_dose1 = rf_modules_binary(module4_unexposed, "module4_unexposed", dose1_unexposed, "dose1")
-  collated_dose1 = rbind(module1_dose1, module2_dose1, module3_dose1, module4_dose1, module4e_dose1, module4u_dose1)
+  collated_dose1 = rbind(module4_dose1, module4e_dose1, module4u_dose1) #module1_dose1, module2_dose1, module3_dose1, 
   write.csv(collated_dose1,file=paste0("output_module5/collated_dose1_full.csv"))
   
   # calculate modular RF outcomes for either shedding using rf_modules_binary function  
-  module1_either = rf_modules_binary(module1, "module1", either, "either")
-  module2_either = rf_modules_binary(module2, "module2", either, "either")
-  module3_either = rf_modules_binary(module3, "module3", either, "either")
-  module4_either = rf_modules_binary(module4, "module4", either, "either")
-  module4e_either = rf_modules_binary(module4_exposed, "module4_exposed", either_exposed, "either")
-  module4u_either = rf_modules_binary(module4_unexposed, "module4_unexposed", either_unexposed, "either")
-  collated_either = rbind(module1_either, module2_either, module3_either, module4_either, module4e_either, module4u_either)
-  write.csv(collated_either,file=paste0("output_module5/collated_either_full.csv"))
+  #module1_either = rf_modules_binary(module1, "module1", either, "either")
+  #module2_either = rf_modules_binary(module2, "module2", either, "either")
+  #module3_either = rf_modules_binary(module3, "module3", either, "either")
+  #module4_either = rf_modules_binary(module4, "module4", either, "either")
+  #module4e_either = rf_modules_binary(module4_exposed, "module4_exposed", either_exposed, "either")
+  #module4u_either = rf_modules_binary(module4_unexposed, "module4_unexposed", either_unexposed, "either")
+  #collated_either = rbind(module1_either, module2_either, module3_either, module4_either, module4e_either, module4u_either)
+  #write.csv(collated_either,file=paste0("output_module5/collated_either_full.csv"))
   
   # calculate modular RF outcomes for RV-IgA shedding using rf_modules_IgA function  
-  module1_IgA = rf_modules_IgA(module1, "module1")
-  module2_IgA = rf_modules_IgA(module2, "module2")
-  module3_IgA = rf_modules_IgA(module3, "module3")
+  #module1_IgA = rf_modules_IgA(module1, "module1")
+  #module2_IgA = rf_modules_IgA(module2, "module2")
+  #module3_IgA = rf_modules_IgA(module3, "module3")
   module4_IgA = rf_modules_IgA(module4, "module4")
   IgA = IgA_exposed
   module4e_IgA = rf_modules_IgA(module4_exposed, "module4_exposed")
   IgA = IgA_unexposed
   module4u_IgA = rf_modules_IgA(module4_unexposed, "module4_unexposed")
-  collated_IgA = rbind(module1_IgA, module2_IgA, module3_IgA, module4_IgA, module4e_IgA, module4u_IgA)
+  collated_IgA = rbind(module4_IgA, module4e_IgA, module4u_IgA) # module1_IgA, module2_IgA, module3_IgA, 
   write.csv(collated_IgA,file=paste0("output_module5/collated_IgA_full.csv"))
   
 } else {
   collated_seroconv = read.csv(file=paste0("output_module5/collated_seroconv_full.csv"))
   collated_dose1 = read.csv(file=paste0("output_module5/collated_dose1_full.csv"))
-  collated_either = read.csv(file=paste0("output_module5/collated_either_full.csv"))
+  #collated_either = read.csv(file=paste0("output_module5/collated_either_full.csv"))
   collated_IgA = read.csv(file=paste0("output_module5/collated_IgA_full.csv"))
 }
 
@@ -200,98 +210,99 @@ if (run_rf_full) {
 # seroconversion
 sero = collated_seroconv[!duplicated(collated_seroconv$module),]
 sero$nvar = as.numeric(table(collated_seroconv$module))
+sero$group = factor(c("all", "neo+", "neo-"), levels = c("all", "neo+", "neo-"))
 
 # dose 1 shedding
 dose1 = collated_dose1[!duplicated(collated_dose1$module),]
 dose1$nvar = as.numeric(table(collated_dose1$module))
+dose1$group = factor(c("all", "neo+", "neo-"), levels = c("all", "neo+", "neo-"))
 
 # any response
-either = collated_either[!duplicated(collated_either$module),]
-either$nvar = as.numeric(table(collated_either$module))
+#either = collated_either[!duplicated(collated_either$module),]
+#either$nvar = as.numeric(table(collated_either$module))
 
 # IgA
 IgA = data.frame(
-  crossval_mean = aggregate(tst_lm_R2 ~ module, collated_IgA, function(x) c(mean = mean(x)))[,2],
-  crossval_sd = aggregate(tst_lm_R2 ~ module, collated_IgA, function(x) c(sd = sd(x)))[,2],
+  crossval_median = aggregate(tst_lm_R2 ~ module, collated_IgA, function(x) c(mean = mean(x)))[,2],
+  crossval_q1 = aggregate(tst_lm_R2 ~ module, collated_IgA, function(x) c(crossval_q1 = quantile(x)[2]))[,2],
+  crossval_q3 = aggregate(tst_lm_R2 ~ module, collated_IgA, function(x) c(crossval_q1 = quantile(x)[4]))[,2],
   nvar = as.numeric(table(collated_seroconv$module))
 )
+IgA$group = factor(c("all", "neo+", "neo-"), levels = c("all", "neo+", "neo-"))
 write.csv(IgA, "output_module5/collated_IgA_summary.csv")
 
 # add module names
-sero$module = dose1$module = either$module = IgA$module = factor(c("demography/baseline", "exposure/antibodies", "microbiota", "all", "all (neo+)", "all (neo-)"), levels = rev(c("demography/baseline", "exposure/antibodies", "microbiota", "all", "all (neo+)", "all (neo-)")))
+# sero$module = dose1$module  = IgA$module = factor(c("demography/baseline", "exposure/antibodies", "microbiota", "all", "all (neo+)", "all (neo-)"), levels = rev(c("demography/baseline", "exposure/antibodies", "microbiota", "all", "all (neo+)", "all (neo-)")))
 
-# seroconversion plot
-p1 = plot_grid(
-  modules_fig_main(sero, "seroconversion") + geom_hline(yintercept=0.5, linetype="dotted"), 
-  modules_fig_extra(sero) + geom_hline(yintercept=0.5, linetype="dotted"), 
-  ncol=1, align="vh", axis = "l", rel_heights = c(2,1.3)
-  )
+p1 = ggplot(sero, aes(y = crossval_median, x = factor(group))) + 
+    geom_point(size = 5, alpha=0.8, colour = India_col) +
+    geom_errorbar(aes(ymin=crossval_q1, ymax=crossval_q3), width=0, colour = India_col) + 
+    geom_hline(yintercept=0.5, linetype="dotted") + xlab("") +
+    ylab("CV accuracy") + 
+    scale_y_continuous(limits=c(0.3, 1), oob=rescale_none, breaks=c(0.5,0.75,1)) + 
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col, UK = UK_col)) +
+    theme_bw() + theme(legend.position = "", strip.background = element_blank()) +
+    ggtitle("\nseroconversion") + 
+    theme(axis.text = element_text(size = 16), axis.title = element_text(size = 16), plot.title = element_text(size = 15, hjust = 0.5), 
+          strip.text = element_text(size = 16))
 
-# dose 1 shedding plot
-p2 = plot_grid(
-  modules_fig_main(dose1, "shedding, dose 1") + geom_hline(yintercept=0.5, linetype="dotted"), 
-  modules_fig_extra(dose1) + geom_hline(yintercept=0.5, linetype="dotted"), 
-  ncol=1, align="vh", axis = "l", rel_heights = c(2,1.3)
-  )
+p2 = ggplot(dose1, aes(y = crossval_median, x = factor(group))) + 
+    geom_point(size = 5, alpha=0.8, colour = India_col) +
+    geom_errorbar(aes(ymin=crossval_q1, ymax=crossval_q3), width=0, colour = India_col) + 
+    geom_hline(yintercept=0.5, linetype="dotted") + xlab("") +
+    ylab(" ") + 
+    scale_y_continuous(limits=c(0.3, 1), oob=rescale_none, breaks=c(0.5,0.75,1)) + 
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col, UK = UK_col)) +
+    theme_bw() + theme(legend.position = "", strip.background = element_blank()) +
+    ggtitle("ORV shedding after dose 1,\nweek of life 7") + 
+    theme(axis.text = element_text(size = 16), axis.title = element_text(size = 16), plot.title = element_text(size = 15, hjust = 0.5), 
+          strip.text = element_text(size = 16))
 
-# either shedding plot
-p3 = plot_grid(
-  modules_fig_main(either, "shedding, either") + geom_hline(yintercept=0.5, linetype="dotted"), 
-  modules_fig_extra(either) + geom_hline(yintercept=0.5, linetype="dotted"), 
-  ncol=1, align="vh", axis = "l", rel_heights = c(2,1.3)
-  )
-
-# RV-IgA plot
-p4 = plot_grid(
-  modules_fig_main(IgA, "infant IgA (post-ORV)") + ylim(-0.1,0.5) + geom_hline(yintercept=0, linetype="dotted"), 
-  modules_fig_extra(IgA) + ylab(bquote("cross-validation"~R^2)) + ylim(-0.1,0.5) + 
-    geom_hline(yintercept=0, linetype="dotted"), 
-  ncol=1, align="vh", axis = "l", rel_heights = c(2,1.3)
-  )
-
-plot_grid(p1,p2,p3,p4, ncol=4)
+p3 = ggplot(IgA, aes(y = crossval_median*100, x = factor(group))) + 
+    geom_point(size = 5, alpha=0.8, colour = India_col) +
+    geom_errorbar(aes(ymin=crossval_q1*100, ymax=crossval_q3*100), width=0, colour = India_col) + 
+    geom_hline(yintercept=0, linetype="dotted") + xlab("") +
+    ylab(bquote("CV"~R^2~"(%)")) +
+    scale_y_continuous(limits=c(0, 50), oob=rescale_none, breaks=c(0,25,50)) + 
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col, UK = UK_col)) +
+    theme_bw() + theme(legend.position = "", strip.background = element_blank()) +
+    ggtitle("infant RV-IgA post-ORV,\nweek of life 14") + 
+    theme(axis.text = element_text(size = 16), axis.title = element_text(size = 16), plot.title = element_text(size = 15, hjust = 0.5), 
+          strip.text = element_text(size = 16))
+  
+plot_grid(p1,p2,p3, ncol=3)
 ```
-
-#### One plot with legend (to extract for manuscript figure)
-```{r, fig.width=5, fig.height=3.5}
-modules_fig_main(sero, "seroconversion") + geom_hline(yintercept=0.5, linetype="dotted") + theme(legend.position = "right")
-```
-
 
 #### Importance - infant RV-IgA post-ORV
-```{r, fig.width=10, fig.height=3}
-p1 = modules_importance_plot("output_module5/RF_output_importance/importance_regression_IgA_module4.csv", binary=FALSE) + ggtitle("India (all)")
-p2 = modules_importance_plot("output_module5/RF_output_importance/importance_regression_IgA_module4_exposed.csv", binary=FALSE) + ggtitle("India (neo+)") 
-p3 = modules_importance_plot("output_module5/RF_output_importance/importance_regression_IgA_module4_unexposed.csv", binary=FALSE) + ggtitle("India (neo-)")
+```{r, fig.width=13, fig.height=3.5}
+p1 = modules_importance_plot("output_module5/RF_output_importance/importance_regression_IgA_module4.csv", binary=FALSE) + ggtitle("all") +
+  scale_y_continuous(breaks = c(0,1,2))
+p2 = modules_importance_plot("output_module5/RF_output_importance/importance_regression_IgA_module4_exposed.csv", binary=FALSE) + ggtitle("neo+") +
+  scale_y_continuous(breaks = c(0,0.2,0.4))
+p3 = modules_importance_plot("output_module5/RF_output_importance/importance_regression_IgA_module4_unexposed.csv", binary=FALSE) + ggtitle("neo-") +
+  scale_y_continuous(breaks = c(0,0.02,0.04))
 
 plot_grid(p1,p2,p3, ncol=3, align="h")
 ```
 
 #### Importance - seroconversion
-```{r, fig.width=10, fig.height=3}
-p1 = modules_importance_plot("output_module5/RF_output_importance/importance_seroconv_module4.csv") + ggtitle("India (all)")
-p2 = modules_importance_plot("output_module5/RF_output_importance/importance_seroconv_module4_exposed.csv") + ggtitle("India (neo+)")
-p3 = modules_importance_plot("output_module5/RF_output_importance/importance_seroconv_module4_unexposed.csv") + ggtitle("India (neo-)")
+```{r, fig.width=13, fig.height=3.5}
+p1 = modules_importance_plot("output_module5/RF_output_importance/importance_seroconv_module4.csv") + ggtitle("all")
+p2 = modules_importance_plot("output_module5/RF_output_importance/importance_seroconv_module4_exposed.csv") + ggtitle("neo+")
+p3 = modules_importance_plot("output_module5/RF_output_importance/importance_seroconv_module4_unexposed.csv") + ggtitle("neo-")
 
 plot_grid(p1,p2,p3, ncol=3, align="h")
 ```
 
 #### Importance - dose 1 shedding
-```{r, fig.width=10, fig.height=3}
-p1 = modules_importance_plot("output_module5/RF_output_importance/importance_dose1_module4.csv") + ggtitle("India (all)")
-p2 = modules_importance_plot("output_module5/RF_output_importance/importance_dose1_module4_exposed.csv") + ggtitle("India (neo+)")
-p3 = modules_importance_plot("output_module5/RF_output_importance/importance_dose1_module4_unexposed.csv") + ggtitle("India (neo-)")
+```{r, fig.width=13, fig.height=3.5}
+p1 = modules_importance_plot("output_module5/RF_output_importance/importance_dose1_module4.csv") + ggtitle("all")
+p2 = modules_importance_plot("output_module5/RF_output_importance/importance_dose1_module4_exposed.csv") + ggtitle("neo+")
+p3 = modules_importance_plot("output_module5/RF_output_importance/importance_dose1_module4_unexposed.csv") + ggtitle("neo-")
 
 plot_grid(p1,p2,p3, ncol=3, align="h")
 ```
 
-#### Importance - shedding at either dose
-```{r, fig.width=10, fig.height=3}
-p1 = modules_importance_plot("output_module5/RF_output_importance/importance_either_module4.csv") + ggtitle("India (all)")
-p2 = modules_importance_plot("output_module5/RF_output_importance/importance_either_module4_exposed.csv") + ggtitle("India (neo+)")
-p3 = modules_importance_plot("output_module5/RF_output_importance/importance_either_module4_unexposed.csv") + ggtitle("India (neo-)")
-plot_grid(p1,p2,p3, ncol=3, align="h")
-```
 
 
 
@@ -308,11 +319,21 @@ Column {.tabset .tabset-fade}
 ```{r, message=FALSE}
 # append pre-vaccination diversity metrics
 t = data.frame(sample_data(rps8_genus))
+t_1w = subset(t, sample_type=="BS1")
+t_4w = subset(t, sample_type=="BS2")
 t_6w = subset(t, sample_type=="BS3")
 t_10w = subset(t, sample_type=="BS5")
+a = merge(a, t_1w[,c("family_ID", "Shannon", "Observed")], by = "family_ID", all.x=TRUE)
+names(a)[(ncol(a)-1):ncol(a)] = c("Shannon_1w", "Observed_1w")
+
+a = merge(a, t_4w[,c("family_ID", "Shannon", "Observed")], by = "family_ID", all.x=TRUE)
+names(a)[(ncol(a)-1):ncol(a)] = c("Shannon_4w", "Observed_4w")
+
 a = merge(a, t_6w[,c("family_ID", "Shannon", "Observed")], by = "family_ID", all.x=TRUE)
+names(a)[(ncol(a)-1):ncol(a)] = c("Shannon_6w", "Observed_6w")
+
 a = merge(a, t_10w[,c("family_ID", "Shannon", "Observed")], by = "family_ID", all.x=TRUE)
-names(a)[(ncol(a)-3):ncol(a)] = c("Shannon_6w", "Observed_6w", "Shannon_10w", "Observed_10w")
+names(a)[(ncol(a)-1):ncol(a)] = c("Shannon_10w", "Observed_10w")
 
 # perform regressions
 a$outcome = factor(a$seroconv)
@@ -597,152 +618,6 @@ table(input_sub$OPV_IPV)
 
 
 
-
-Regression: either shedding {.hidden}
-===================================== 
-Column {.tabset .tabset-fade}
--------------------------------------
-
-### India (full)
-
-#### Baseline variables
-```{r, message=FALSE}
-a$outcome = factor(a$either_shedding)
-a1 = subset(a, country=="India")
-summary = baseline_summary(a1)
-summary = rbind(summary, summarise_regression("pre_exposed", a1))
-write.csv(summary, "output_module5/India_full_either.csv")
-formattable(summary)
-```
-
-#### Polio vaccine schedule
-```{r}
-input_sub = subset(a1, !is.na(OPV_IPV) & !is.na(outcome))
-nr = subset(input_sub, outcome==0)
-r = subset(input_sub, outcome==1)
-
-summary = data.frame(levels = levels(input_sub$OPV_IPV)[c(1:4)],
-                    responders = paste0(table(r$OPV_IPV)[c(1:4)],"/",nrow(r)," (",format(round(table(r$OPV_IPV)[c(1:4)]/nrow(r)*100,1),nsmall=1),"%)"),
-                    nonresponders = paste0(table(nr$OPV_IPV)[c(1:4)],"/",nrow(nr)," (",format(round(table(nr$OPV_IPV)[c(1:4)]/nrow(nr)*100,1),nsmall=1),"%)"))
-lr = glm(outcome ~ OPV_IPV, data = a1, family = binomial)
-rr = odds_to_rr(lr)
-summary$rr = paste0(format(round(rr$`Risk Ratio`,2),nsmall=2)," (",format(round(rr$CI_low,2),nsmall=2),"-",format(round(rr$CI_high,2),nsmall=2),")")
-summary$p = format(round(summary(lr)$coefficients[,4],3),nsmall=3)
-summary$rr[1] = summary$p[1] = "ref"
-formattable(summary)
-```
-
-#### Likelihood ratio test
-```{r}
-lr1 = glm(outcome ~ 1, data = a1, family = binomial)
-anova(lr, lr1, test = 'LRT')
-```
-
-
-### India (neo+)
-
-#### Baseline variables
-```{r, message = FALSE}
-a1 = subset(a, country=="India" & pre_exposed=="yes")
-summary = baseline_summary(a1)
-write.csv(summary, "output_module5/India_neo+_either.csv")
-formattable(summary)
-```
-
-#### Polio vaccine schedule
-```{r}
-input_sub = subset(a1, !is.na(OPV_IPV) & !is.na(outcome))
-nr = subset(input_sub, outcome==0)
-r = subset(input_sub, outcome==1)
-
-summary = data.frame(levels = levels(input_sub$OPV_IPV)[c(1:4)],
-                    responders = paste0(table(r$OPV_IPV)[c(1:4)],"/",nrow(r)," (",format(round(table(r$OPV_IPV)[c(1:4)]/nrow(r)*100,1),nsmall=1),"%)"),
-                    nonresponders = paste0(table(nr$OPV_IPV)[c(1:4)],"/",nrow(nr)," (",format(round(table(nr$OPV_IPV)[c(1:4)]/nrow(nr)*100,1),nsmall=1),"%)"))
-lr = glm(outcome ~ OPV_IPV, data = a1, family = binomial)
-rr = odds_to_rr(lr)
-summary$rr = paste0(format(round(rr$`Risk Ratio`,2),nsmall=2)," (",format(round(rr$CI_low,2),nsmall=2),"-",format(round(rr$CI_high,2),nsmall=2),")")
-summary$p = format(round(summary(lr)$coefficients[,4],3),nsmall=3)
-summary$rr[1] = summary$p[1] = "ref"
-formattable(summary)
-```
-
-#### Likelihood ratio test
-```{r}
-lr1 = glm(outcome ~ 1, data = a1, family = binomial)
-anova(lr, lr1, test = 'LRT')
-```
-
-### India (neo-)
-
-#### Baseline variables
-```{r, message = FALSE}
-a1 = subset(a,  country=="India" & pre_exposed=="no")
-summary = baseline_summary(a1)
-write.csv(summary, "output_module5/India_neo-_either.csv")
-formattable(summary)
-```
-
-#### Polio vaccine schedule
-```{r}
-input_sub = subset(a1, !is.na(OPV_IPV) & !is.na(outcome))
-nr = subset(input_sub, outcome==0)
-r = subset(input_sub, outcome==1)
-
-summary = data.frame(levels = levels(input_sub$OPV_IPV)[c(1:4)],
-                    responders = paste0(table(r$OPV_IPV)[c(1:4)],"/",nrow(r)," (",format(round(table(r$OPV_IPV)[c(1:4)]/nrow(r)*100,1),nsmall=1),"%)"),
-                    nonresponders = paste0(table(nr$OPV_IPV)[c(1:4)],"/",nrow(nr)," (",format(round(table(nr$OPV_IPV)[c(1:4)]/nrow(nr)*100,1),nsmall=1),"%)"))
-lr = glm(outcome ~ OPV_IPV, data = a1, family = binomial)
-rr = odds_to_rr(lr)
-summary$rr = paste0(format(round(rr$`Risk Ratio`,2),nsmall=2)," (",format(round(rr$CI_low,2),nsmall=2),"-",format(round(rr$CI_high,2),nsmall=2),")")
-summary$p = format(round(summary(lr)$coefficients[,4],3),nsmall=3)
-summary$rr[1] = summary$p[1] = "ref"
-formattable(summary)
-```
-
-#### Likelihood ratio test
-```{r}
-lr1 = glm(outcome ~ 1, data = a1, family = binomial)
-round(anova(lr, lr1, test = 'LRT')[5],3)
-```
-
-### Malawi
-
-#### Baseline variables
-```{r, message = FALSE}
-a1 = subset(a,  country=="Malawi")
-summary = baseline_summary(a1)
-summary = rbind(summary, summarise_regression("pre_exposed", a1))
-write.csv(summary, "output_module5/Malawi_full_either.csv")
-formattable(summary)
-```
-
-#### Polio vaccine schedule
-```{r}
-input_sub = subset(a1, !is.na(OPV_IPV) & !is.na(outcome))
-table(input_sub$OPV_IPV)
-```
-
-### UK
-
-#### Baseline variables
-```{r, message = FALSE}
-a1 = subset(a,  country=="UK")
-summary = baseline_summary(a1)
-summary = rbind(summary, summarise_regression("pre_exposed", a1))
-write.csv(summary, "output_module5/UK_full_either.csv")
-formattable(summary)
-```
-
-#### Polio vaccine schedule
-```{r}
-input_sub = subset(a1, !is.na(OPV_IPV) & !is.na(outcome))
-table(input_sub$OPV_IPV)
-```
-
-
-
-
-
 Regression: neonatal RV {.hidden}
 ===================================== 
 
@@ -997,10 +872,11 @@ Column {.tabset .tabset-fade}
 #### India (full)
 ```{r}
 a1 = subset(a, country=="India")
+a1$logrichness = log(a1$Observed_6w)
 lm = glm(seroconv ~ breastfed_child + Shannon_6w + OPV_IPV, data = a1, family=binomial)
 beta = round(odds_to_rr(lm)[,3:5],2)
 beta_summary = data.frame(beta_CI = paste0(format(beta[,1],nsmall=2)," (",format(beta[,2],nsmall=2),"-",format(beta[,3],nsmall=2),")"),
-                          adjusted_p = format(round(summary(lm)$coefficients[,4],3),nsmall=3))
+                          adjusted_p = format(round(summary(lm)$coefficients[,4],4),nsmall=4))
 beta_summary
 ```
 N: `r length(lm$fitted.values)`
@@ -1061,41 +937,6 @@ No significant variables in univariate analysis, so no multivariate model requir
 Not applicable - insufficient non-shedders
 
 
-### Either - multi
-
-#### India (full)
-```{r}
-a1 = subset(a, country=="India")
-a1$logMB1_IgG = log(a1$MB1_IgG)
-lm = glm(either_shedding ~ place_delivery + pre_exposed + logMB1_IgG, data = a1, family=binomial)
-beta = round(odds_to_rr(lm)[,3:5],2)
-beta_summary = data.frame(beta_CI = paste0(format(beta[,1],nsmall=2)," (",format(beta[,2],nsmall=2),"-",format(beta[,3],nsmall=2),")"),
-                          adjusted_p = format(round(summary(lm)$coefficients[,4],3),nsmall=3))
-beta_summary
-```
-N: `r length(lm$fitted.values)`
-
-#### India (neo+)
-```{r}
-a1 = subset(a, country=="India" & pre_exposed=="yes")
-a1$logMB1_IgG = log(a1$MB1_IgG)
-lm = glm(either_shedding ~ sanitation + logMB1_IgG, data = a1, family=binomial)
-beta = round(odds_to_rr(lm)[,3:5],2)
-beta_summary = data.frame(beta_CI = paste0(format(beta[,1],nsmall=2)," (",format(beta[,2],nsmall=2),"-",format(beta[,3],nsmall=2),")"),
-                          adjusted_p = format(round(summary(lm)$coefficients[,4],3),nsmall=3))
-beta_summary
-```
-
-N: `r length(lm$fitted.values)`
-
-#### India (neo-)
-Only one significant variable in univariate analysis, so no multivariate model required
-
-#### Malawi
-No significant variables in univariate analysis, so no multivariate model required
-
-#### UK
-Not applicable - insufficient non-shedders
 
 ### RV-IgA - multi
 
@@ -1127,7 +968,7 @@ N: `r length(lm$fitted.values)`
 #### India (neo-)
 ```{r}
 a1 = subset(a, country=="India" & pre_exposed=="no")
-lm = lm(log(BB2_IgA) ~ mode_delivery + place_delivery + type_house + water_treat_wami + log(Observed_6w), data = a1)
+lm = lm(log(BB2_IgA) ~ mode_delivery + place_delivery + type_house + water_treat_wami + Shannon_6w, data = a1)
 beta = round(exp(cbind(coef(lm), confint(lm))),2)
 beta_summary = data.frame(beta_CI = paste0(beta[,1]," (",beta[,2],"-",beta[,3],")"),
                           adjusted_p = round(summary(lm)$coefficients[,4],3))
@@ -1148,15 +989,11 @@ beta_summary
 Adjusted R-squared: `r round(summary(lm)$adj.r.squared,3)`
 N: `r length(lm$fitted.values)`
 
-### Neonatal RV - multi
 
-#### India (full)
+Session info {.hidden}
+===================================== 
+
 ```{r}
-a1 = subset(a, country=="India")
-lm = glm(pre_exposed ~ mode_delivery + type_house + refrigerator, data = a1, family=binomial)
-beta = round(odds_to_rr(lm)[,3:5],2)
-beta_summary = data.frame(beta_CI = paste0(format(beta[,1],nsmall=2)," (",format(beta[,2],nsmall=2),"-",format(beta[,3],nsmall=2),")"),
-                          adjusted_p = format(round(summary(lm)$coefficients[,4],3),nsmall=3))
-beta_summary
+print(sessionInfo())
 ```
-
+.

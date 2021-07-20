@@ -22,6 +22,8 @@ Sidebar {.sidebar}
 
 [Sample availability]     
 
+[Session info]     
+
 
 
 
@@ -30,9 +32,6 @@ Run statistics {.hidden}
 ===================================== 
 
 ```{r, message=FALSE}
-# expand available memory
-Sys.setenv("R_MAX_VSIZE" = 8e9) #check assignment using Sys.getenv("R_MAX_VSIZE")
-
 # variable to define whether to run analysis in full (TRUE) or not (FALSE)
 run_full = FALSE 
 
@@ -96,6 +95,13 @@ t
 rm(t)
 ```
 
+#### Number of unique stool samples from primary endpoint population
+```{r}
+t = subset(metadata, (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1") & (!is.na(dose1_shedding) | !is.na(seroconv)))
+t = t[!duplicated(t$sample_code), ]
+```
+
+N samples: `r nrow(t)`
 
 
 
@@ -203,13 +209,14 @@ if (run_full) {
 ```{r}
 if (run_full) {
   # select non-bacterial taxa, Cyanobacteria and Mitochondria, prune ps2 to include these, then add read counts
-  taxa_bac = subset(taxa_length, Kingdom=="Bacteria" & Phylum!="Cyanobacteria" & Family!="Mitochondria")
-  ps3_l_t = prune_taxa(rownames(taxa_bac), ps2_l) %>% prune_samples(sample_sums(.) > 0, .)
+  taxa_nonbac = subset(taxa_length, Kingdom!="Bacteria" | Phylum=="Cyanobacteria" | Family=="Mitochondria")
+  taxa_keep = rownames(taxa_length)[!rownames(taxa_length) %in% rownames(taxa_nonbac)]
+  ps3_l_t = prune_taxa(taxa_keep, ps2_l) %>% prune_samples(sample_sums(.) > 0, .)
   sample_data(ps3_l_t)$count_ps3 = sample_sums(ps3_l_t)
   
   # save phyloseq object
   save(ps3_l_t, file="phyloseq_files/ps3_l_t.RData")
-  rm(ps2_l, taxa_length, taxa_bac)
+  rm(ps2_l, taxa_length, taxa_nonbac, taxa_keep)
 } else {
   rm(ps2_l) # remove unused ps to clear memory
   load("phyloseq_files/ps3_l_t.RData")
@@ -252,6 +259,12 @@ if (run_full) {
 # select extraction controls and PCR controls
 t = subset(data.frame(sample_data(ps4_l_t_pr)), site=="Liverpool" & (sample_type=="PCRneg" | sample_type=="WCS"))
 
+# updated coding for country
+t$country_full = t$country
+t$country[t$country=="India"] = "IND"
+t$country[t$country=="Malawi"] = "MLW"
+t$country[t$country=="UK"] = "UK"
+
 # define WCs based on whether they are pooled or single
 t$type = "pool"
 t$type[grepl("ctrl[0-9]", t$sample_ID_full) | t$sample_type=="PCRneg"] = "single"
@@ -261,23 +274,24 @@ t = subset(t, sample_ID_full!="tLIMS12651p3s268WCSctrl")
 
 # function to add consistent paramaters to each plot
 gg_add = function(plot) {
-  plot + theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(size=10)) + 
-    geom_hline(yintercept = 10000, linetype="dotted") + ylim(-1,400000) + xlab("")
+  plot + theme(plot.title = element_text(size=10)) + 
+    geom_hline(yintercept = 10000, linetype="dotted") + ylim(-1,400000) + xlab("") +
+    scale_y_continuous(limits = c(-1,400000), labels = function(l) {trans = l / 1000 })
 }
 
 # create plots for NTC, pooled WCs and single WCs
 t$sample_type[t$sample_type=="PCRneg"] = "NTCs"
 p1 = gg_add(ggplot(data=subset(t, sample_type=="NTCs"), aes(x=sample_type, y=count_ps4)) + geom_jitter(alpha = 0.8, width=0.2, color="darkgrey") + 
-  ylab("reads") + labs(colour="sample type") + scale_colour_brewer(palette="Set2") + 
+  ylab("reads (1000s)") + labs(colour="sample type") + scale_colour_brewer(palette="Set2") + 
   ggtitle("NTCs"))
 
 p2 = gg_add(ggplot(data=subset(t, sample_type=="WCS" & type=="pool"), aes(x=country, y=count_ps4, color=country)) + geom_jitter(alpha = 0.8, width=0.2) + 
-  scale_color_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + ylab("") + 
-  ggtitle("extraction controls, pooled") + theme(legend.position = "none"))
+  scale_color_manual(values = c("IND" = India_col, "MLW" = Malawi_col, "UK" = UK_col)) + ylab("") + 
+  ggtitle("extraction controls, pooled") + theme(legend.position = "none")) 
 
 p3 = gg_add(ggplot(data=subset(t, sample_type=="WCS" & type=="single"), aes(x=country, y=count_ps4, color=country)) + geom_jitter(alpha = 0.8, width=0.2) + 
-  scale_color_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + ylab("") + 
-  ggtitle("single") + theme(legend.position = "none"))
+  scale_color_manual(values = c("IND" = India_col, "MLW" = Malawi_col, "UK" = UK_col)) + ylab("") +
+  ggtitle("single") + theme(legend.position = "none")) 
 
 plot_grid(p1,p2,p3, align="h", rel_widths=c(1,2,1), ncol=3)
 rm(p1, p2, p3)
@@ -294,19 +308,25 @@ rm(t)
 # select extraction controls and PCR controls
 t1 = subset(data.frame(sample_data(ps4_l_t_pr)), site=="Liverpool" & (sample_type=="PCRnegBM" | sample_type=="WCBM"))
 
+# updated coding for country
+t1$country[t1$country=="India"] = "IND"
+t1$country[t1$country=="Malawi"] = "MLW"
+t1$country[t1$country=="UK"] = "UK"
+
 # function to add consistent paramaters to each plot
 gg_add = function(plot) { 
-  plot + theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(size=10)) + 
-    geom_hline(yintercept = 10000, linetype="dotted") + ylim(-1,500000) + xlab("") 
+  plot + theme(plot.title = element_text(size=10)) + 
+    geom_hline(yintercept = 10000, linetype="dotted") + xlab("") +
+    scale_y_continuous(limits = c(-1,500000), labels = function(l) {trans = l / 1000 })
   }
 
 # create plots for NTC and WCs
 t1$sample_type[t1$sample_type=="PCRnegBM"] = "NTCs"
 p1 = gg_add(ggplot(data=subset(t1, sample_type=="NTCs"), aes(x=sample_type, y=count_ps4)) + geom_jitter(alpha = 0.8, width=0.2, color="darkgrey") + 
-  ylab("reads") + labs(colour="sample type") + scale_colour_brewer(palette="Set2") + ggtitle("NTCs"))
+  ylab("reads (1000s)") + labs(colour="sample type") + scale_colour_brewer(palette="Set2") + ggtitle("NTCs"))
 
 p2 = gg_add(ggplot(data=subset(t1, sample_type=="WCBM"), aes(x=country, y=count_ps4, color=country)) + geom_jitter(alpha = 0.8, width=0.2) + 
-  scale_color_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + ylab("") + 
+  scale_color_manual(values = c("IND" = India_col, "MLW" = Malawi_col, "UK" = UK_col)) + ylab("") + 
   ggtitle("extraction controls") + theme(legend.position = "none"))
 
 plot_grid(p1,p2, align="h", rel_widths=c(1,2), ncol=2)
@@ -320,7 +340,7 @@ rm(p1, p2)
 * For breastmilk extraction controls, amplification seen in majority of samples - too many to identify cross-contaminated samples on a case by case basis.    
 
 #### Composition of stool extraction controls yielding amplification
-```{r, fig.width=10, fig.height=3}
+```{r, fig.width=11, fig.height=3.5}
 # pick out extraction controls with ≥10,000 sequences
 ps4_sub = subset_samples(ps4_l_t_pr, (sample_type=="PCRneg" | sample_type=="WCS") & final_count>=10000 & sample_ID_full!="tLIMS12651p3s268WCSctrl") %>% 
   prune_taxa(taxa_sums(.) > 0, .)
@@ -344,9 +364,9 @@ beta$type[beta$ID=="batch 14" | beta$ID=="batch 27"] = "single"
 p1 = ggplot(beta, aes(bray1, bray2, colour=type)) + geom_point(size = 3, alpha = 0.8) + 
   theme(legend.title = element_blank(), plot.title = element_text(size=10)) + 
   xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)")) + 
-  ylim(-0.2, 0.2) + xlim(-0.75, 0.5) +
+  ylim(-0.2, 0.2) + xlim(-1, 0.5) +
   scale_colour_manual(values = c(pool="#01665e", single="#80cdc1")) +
-  ggtitle("Bray-Curtis distances (weighted)") + theme(plot.title = element_text(size=10))
+  ggtitle("Bray-Curtis distances (weighted)") + theme(plot.title = element_text(size=10), axis.text = element_text(size = 10), legend.text=element_text(size=10))
 
 # calculate genus abundances
 rps4_sub_filter = filter_taxa(rps4_sub, function(x) { sum(x >= 0.01) >= 1 }, TRUE) # pick genera present with 1% abundance in at least one sample
@@ -368,11 +388,12 @@ p2 = ggplot(d, aes(x = ID, y = rank.abundance, fill = Genus)) +
   facet_grid(cluster~type, drop = TRUE, space = "free", scales = "free") +
   geom_bar(stat = "identity", width = 0.85) + theme_bw() + ylab("% abundance") + xlab("") +
   theme(legend.position = "right", legend.key.size = unit(0.3, "cm"), legend.text=element_text(size=10), strip.background = element_blank()) + 
-  scale_fill_brewer(palette="Paired")
+  scale_fill_brewer(palette="Paired") + scale_y_continuous(breaks = c(0,0.5,1)) +
+  theme(plot.title = element_text(size=10), axis.text = element_text(size = 10), strip.text = element_text(size = 10))
 
 # generate combined plot
-grid.arrange(p1,p2,ncol=2, widths =c(1,2))
-rm(beta,bray_ord,d,p1,p2,ps4_sub,rps4_sub,rps4_sub_filter)
+grid.arrange(p1,p2,ncol=2, widths =c(1,1.7))
+#rm(beta,bray_ord,d,p1,p2,ps4_sub,rps4_sub,rps4_sub_filter)
 ```
 
 #### Summary
@@ -396,7 +417,7 @@ Stool samples/controls
 ##### Nanodrop readings by country
 ```{r, fig.width=8, fig.height=3}
 ggplot(data=subset(t, sample_group!="ctrl" & site=="Liverpool"), aes(x=country, y=nanodrop_ngul, color=country)) + geom_jitter(alpha = 0.2, width=0.2) + 
-  geom_boxplot(alpha = 0.8) + facet_grid(.~sample_group_fig) + 
+  geom_boxplot(alpha = 0.8) + facet_grid(.~sample_group_fig) + theme(strip.background = element_blank()) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + ylab("ng/ul") + xlab("") + labs(colour="country") + 
   scale_colour_manual(values = c(India = India_col, Malawi=Malawi_col, UK=UK_col)) + theme(legend.position="none")
 ```
@@ -610,6 +631,7 @@ if (run_full) {
 if (run_full) {
   # create rarefied otu table (absolute and relative)
   ps8_l_t_pr_d_dd_25k_rarefied = rarefy_even_depth(ps7_l_t_pr_d_dd_25k, sample.size = depth, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+  sample_data(ps8_l_t_pr_d_dd_25k_rarefied)$count_ps8 = sample_sums(ps8_l_t_pr_d_dd_25k_rarefied)
   rps8_l_t_pr_d_dd_25k_rarefied = transform_sample_counts(ps8_l_t_pr_d_dd_25k_rarefied, function(x) {x/sum(x)})
   
   # create phylum, class, and genus-level ps8
@@ -659,9 +681,9 @@ if (run_full) {
   names(t)[c(ncol(t)-1,ncol(t))] = c("turnover_w_rsv", "turnover_randompair_w_rsv")
   
   # calculature unweighted bray curtis distances - rsv
-  rps8_genus_strict = rps8_genus
-  otu_table(rps8_genus_strict)[otu_table(rps8_genus_strict)<0.001] = 0
-  bray_u = phyloseq::distance(rps8_genus_strict, method = "bray", binary = TRUE)
+  rps8_strict = rps8_l_t_pr_d_dd_25k_rarefied
+  otu_table(rps8_strict)[otu_table(rps8_strict)<0.001] = 0
+  bray_u = phyloseq::distance(rps8_strict, method = "bray", binary = TRUE)
   bray_u = data.frame(as.matrix(bray_u))
   write.csv(bray_u, "output_module1/bray_u_distances_rsv.csv")
   
@@ -672,7 +694,6 @@ if (run_full) {
   write.csv(t, "output_module1/final_metadata_ps8.csv")
   
   # add alpha and beta diversity to all ps objects
-  sample_data(ps8_l_t_pr_d_dd_25k_rarefied)$count_ps8 = sample_sums(ps8_l_t_pr_d_dd_25k_rarefied)
   sample_data(ps8_l_t_pr_d_dd_25k_rarefied) = sample_data(rps8_l_t_pr_d_dd_25k_rarefied) = 
     sample_data(ps8_phylum) = sample_data(ps8_class) = sample_data(ps8_genus) = sample_data(rps8_genus) = t
   
@@ -831,64 +852,77 @@ Column {.tabset .tabset-fade}
 ### Stool
 
 #### Alpha and beta diversity in positive controls
-```{r, fig.width=9, fig.height=3}
-load("phyloseq_files/ps8_genus.RData")
-t = data.frame(sample_data(ps8_genus))
+```{r, fig.width=7, fig.height=3}
+load("phyloseq_files/ps8_l_t_pr_d_dd_25k_rarefied.RData")
+t = data.frame(sample_data(ps8_l_t_pr_d_dd_25k_rarefied))
 
 # pick out controls
-ps8_controls = subset_samples(ps8_genus, site=="Liverpool" & 
+ps8_controls = subset_samples(ps8_l_t_pr_d_dd_25k_rarefied, site=="Liverpool" & 
                                 (sample_type=="BSctrl" | sample_type=="MCctrl" | sample_type=="MCQia" | sample_type=="MSctrl" | sample_type=="PCRneg" | sample_type=="WCS"))
 ps8_sub = subset_samples(ps8_controls, sample_type=="BSctrl" | sample_type=="MCctrl" | sample_type=="MSctrl")
 rps8_sub = transform_sample_counts(ps8_sub, function(x) {x/sum(x)})
 alpha = data.frame(sample_data(ps8_sub))
 
 # generate Shannon plot with R-sq
-r2 <- format(round(summary(lm(Shannon ~ sample_type, data = alpha))$r.squared,3),nsmall=3)
-p1 = ggplot(alpha, aes(factor(sample_type), y=Shannon, colour=factor(sample_type))) + geom_jitter(size = 1, alpha = 0.8, width=0.2) +
-  geom_boxplot(alpha = 0.5) + ylab("Shannon (genus)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + ylim(0,3) +
-  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCQia="#3288bd", MCctrl = "#66c2a5", MSctrl = "#fee08b")) +
-  ggtitle(bquote(R^2 == .(r2))) + theme(plot.title = element_text(size=10))
+r2 <- format(round(summary(lm(Shannon_rsv ~ sample_type, data = alpha))$r.squared,3),nsmall=3)
+p1 = ggplot(alpha, aes(factor(sample_type), y=Shannon_rsv, colour=factor(sample_type))) + geom_jitter(size = 2, alpha = 0.8, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("Shannon") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) +# ylim(0,3) +
+  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCctrl = "#66c2a5", MSctrl = "#CC6677")) +
+  ggtitle(bquote(R^2 == .(r2))) + theme(axis.title = element_text(size=13), axis.text = element_text(size=13), plot.title = element_text(size=13))
 
 # generate richness plot with R-sq 
-r2 <- round(summary(lm(Observed ~ sample_type, data = alpha))$r.squared,3)
-p2 = ggplot(alpha, aes(factor(sample_type), y=Observed, colour=factor(sample_type))) + geom_jitter(size = 1, alpha = 0.8, width=0.2) +
-  geom_boxplot(alpha = 0.5) + ylab("richness (genus)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) +
-  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCQia="#3288bd", MCctrl = "#66c2a5", MSctrl = "#fee08b")) + 
-  scale_y_continuous(limits=c(0,30), breaks=c(0,10,20,30)) +
-  ggtitle(bquote(R^2 == .(r2))) + theme(plot.title = element_text(size=10))
+r2 <- format(round(summary(lm(Observed_rsv ~ sample_type, data = alpha))$r.squared,3),nsmall=3)
+p2 = ggplot(alpha, aes(factor(sample_type), y=Observed_rsv, colour=factor(sample_type))) + geom_jitter(size = 2, alpha = 0.8, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("richness") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) +
+  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCctrl = "#66c2a5", MSctrl = "#CC6677")) + 
+  #scale_y_continuous(limits=c(0,30), breaks=c(0,10,20,30)) +
+  ggtitle(bquote(R^2 == .(r2))) + theme(axis.title = element_text(size=13), axis.text = element_text(size=13), plot.title = element_text(size=13))
+
 
 # generate weighted Bray-Curtis plot with R-sq
-beta = data.frame(sample_data(ps8_sub))
-bray_dist = phyloseq::distance(ps8_sub, method = "bray")
+beta = data.frame(sample_data(rps8_sub))
+bray_dist = phyloseq::distance(rps8_sub, method = "bray")
 bray_ord = ordinate(ps8_sub, method = "PCoA", distance = bray_dist)
 beta$bray1 = bray_ord$vectors[,1]
 beta$bray2 = bray_ord$vectors[,2]
-r2 = round(adonis(bray_dist ~ sample_type, data = beta, permutations = 999)$aov.tab$R2[1],3)
-p3 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.5) + 
-  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCQia="#3288bd", MCctrl = "#66c2a5", MSctrl = "#fee08b")) +
+r2 = format(round(adonis(bray_dist ~ sample_type, data = beta, permutations = 999)$aov.tab$R2[1],3),nsmall=3)
+p3 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 3, alpha = 0.5) + 
+  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCctrl = "#66c2a5", MSctrl = "#CC6677")) +
   ggtitle(bquote("weighted Bray-Curtis,"~R^2==.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + 
-  xlab(paste0("PC1 (", format(round(bray_ord$values$Relative_eig[1]*100,1),nsmall=1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)"))
+  xlab(paste0("PC1 (", format(round(bray_ord$values$Relative_eig[1]*100,1),nsmall=1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)")) +
+  theme(axis.title = element_text(size=13), axis.text = element_text(size=12), plot.title = element_text(size=13))
+
 
 # generate unweighted Bray-Curtis plot with R-sq
-otu_table(rps8_sub)[otu_table(rps8_sub)<0.001] = 0
-bray_dist = phyloseq::distance(rps8_sub, method = "bray", binary=TRUE)
-bray_ord = ordinate(rps8_sub, method = "PCoA", distance = bray_dist)
+rps8_sub_strict = rps8_sub
+otu_table(rps8_sub_strict)[otu_table(rps8_sub_strict)<0.001] = 0
+bray_dist = phyloseq::distance(rps8_sub_strict, method = "bray", binary=TRUE)
+bray_ord = ordinate(rps8_sub_strict, method = "PCoA", distance = bray_dist)
 beta$bray1 = bray_ord$vectors[,1]
 beta$bray2 = bray_ord$vectors[,2]
 r2 = format(round(adonis(bray_dist ~ sample_type, data = beta, permutations = 999)$aov.tab$R2[1],3),nsmall=3)
-p4 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.5) + 
-  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCQia="#3288bd", MCctrl = "#66c2a5", MSctrl = "#fee08b")) +
-  ggtitle(bquote("unweighted Bray-Curtis,"~R^2==.(r2))) + theme(legend.title = element_blank(), plot.title = element_text(size=10)) + 
-  xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", format(round(bray_ord$values$Relative_eig[2]*100,1),nsmall=1), "%)"))
+p4 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 3, alpha = 0.5) + 
+  scale_color_manual(values=c(BSctrl = "#5e4fa2", MCctrl = "#66c2a5", MSctrl = "#CC6677")) +
+  ggtitle(bquote("Bray-Curtis,"~R^2==.(r2))) + theme(legend.title = element_blank(), plot.title = element_text(size=10)) + 
+  xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", format(round(bray_ord$values$Relative_eig[2]*100,1),nsmall=1), "%)")) +
+  theme(axis.title = element_text(size=13), axis.text = element_text(size=12), plot.title = element_text(size=13), legend.text=element_text(size=13))
 
 # create multi-panel plot
-grid.arrange(plot_grid(p1,p2,align="v",ncol=1),p3,p4, ncol=3, widths=c(1.5,1.9,2.5))
-rm(p1, p2, p3, p4, alpha, beta, bray_ord, bray_dist, ps8_sub, rps8_sub, ps8_controls)
+#grid.arrange(plot_grid(p1,p2,align="v",ncol=1),p3,p4, ncol=3, widths=c(1.5,1.9,2.5))
+grid.arrange(p1,p4, ncol=2, widths=c(1,1.4))
+#rm(p1, p2, p3, p4, alpha, beta, bray_ord, bray_dist, ps8_sub, rps8_sub, ps8_controls)
 ```
 
+#### N (alpha)
+```{r}
+table(alpha$sample_type)
+```
+
+
+
 #### Variation explained by run for each sample type
-```{r, fig.width=5, fig.height=4}
-rps8_genus = transform_sample_counts(ps8_genus, function(x) {x/sum(x)})
+```{r, fig.width=6, fig.height=6}
+rps8_l_t_pr_d_dd_25k_rarefied = transform_sample_counts(ps8_l_t_pr_d_dd_25k_rarefied, function(x) {x/sum(x)})
 
 # create data frame to populate with beta diversity R-sq and p values
 collated = data.frame(country = c(rep("India",5), rep("UK",5), rep("Malawi",5)), 
@@ -896,56 +930,75 @@ collated = data.frame(country = c(rep("India",5), rep("UK",5), rep("Malawi",5)),
                       R2_w = NA, p_w = NA, R2_u = NA, p_u = NA, n_runs = NA)
 
 # in loop, calculate beta diversity R-sq and p value for each sample group (weighted and unweighted)
+if (run_full) {
 for (i in 1:nrow(collated)) {
   sample_list = t$sample_ID_full[t$country==collated$country[i] & t$sample_type==collated$sample_type[i]]
-  ps8_sub = prune_samples(sample_list, rps8_genus) %>% prune_taxa(taxa_sums(.) > 0, .)
+  ps8_sub = prune_samples(sample_list, rps8_l_t_pr_d_dd_25k_rarefied) %>% prune_taxa(taxa_sums(.) > 0, .)
   rps8_sub = transform_sample_counts(ps8_sub, function(x) {x/sum(x)})
 
   beta = data.frame(sample_data(ps8_sub))
   collated$n_runs[i] = length(unique(beta$run))
-  
+  collated$n_samples[i] = nrow(beta)
+
   # weighted adonis
-  bray_dist_w = phyloseq::distance(ps8_sub, method = "bray")
+  bray_dist_w = phyloseq::distance(rps8_sub, method = "bray")
   adon = adonis(bray_dist_w ~ run, data = beta, permutations = 999)
   collated$R2_w[i] = round(adon$aov.tab$R2[1],3)
   collated$p_w[i] = round(adon$aov.tab$`Pr(>F)`[1],3)
     
   # unweighted adonis
-  otu_table(rps8_sub)[otu_table(rps8_sub)<0.001] = 0
-  bray_dist_u = phyloseq::distance(rps8_sub, method = "bray", binary = TRUE)
+  rps8_sub_strict = rps8_sub
+  otu_table(rps8_sub_strict)[otu_table(rps8_sub_strict)<0.001] = 0
+  bray_dist_u = phyloseq::distance(rps8_sub_strict, method = "bray", binary = TRUE)
   adon = adonis(bray_dist_u ~ run, data = beta, permutations = 999)
   collated$R2_u[i] = round(adon$aov.tab$R2[1],3)
   collated$p_u[i] = round(adon$aov.tab$`Pr(>F)`[1],3)
 }
 write.csv(collated, "output_module1/permanova_run_stool.csv")
-
+} else {
+  collated = read.csv("output_module1/permanova_run_stool.csv", row.names = 1)
+}
 # recode sample type for plot
-collated$sample_type = rep(c("week 1", "week 4", "week 6/8", "week 10/12", "mother"),3)
-collated$sample_type = factor(collated$sample_type, levels = c("week 1", "week 4", "week 6/8", "week 10/12", "mother"))
+collated$sample_type = rep(c("week of life 1", "week of life 4", "week of life 6", "week of life 10", "mother"),3)
+collated$sample_type = factor(collated$sample_type, levels = c("week of life 1", "week of life 4", "week of life 6", "week of life 10", "mother"))
+
+# updated coding for country
+collated$country = as.character(collated$country)
+collated$country[collated$country=="India"] = "IND"
+collated$country[collated$country=="Malawi"] = "MLW"
+collated$country[collated$country=="UK"] = "UK"
 
 # generate weighted Bray-Curtis plot with R-sq
-r2 = round(mean(collated$R2_w),3)
-p1 = ggplot(collated, aes(y = R2_w, x=sample_type, fill = country)) + geom_bar(stat = "identity") + facet_grid(.~country) + 
-  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2~", weighted distances")) + ylim(0,0.2) + 
-  geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") + coord_flip() + 
-  scale_fill_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + theme(plot.title = element_text(size=10)) + 
+r2 = format(round(mean(collated$R2_w),3),nsmall=3)
+p5 = ggplot(collated, aes(y = R2_w, x=sample_type, fill = country)) + geom_bar(stat = "identity") + facet_grid(.~country) + 
+  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2~", weighted distances")) + 
+  scale_y_continuous(limits=c(0,0.15), breaks=c(0,0.1,0.2)) +
+ # geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") + 
+  coord_flip() + scale_fill_manual(values = c("IND" = India_col, "MLW" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
+ # theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + 
+  theme(plot.title = element_text(size=13), axis.text = element_text(size=12), axis.title = element_text(size=13), strip.text = element_text(size=13)) + 
   theme(strip.background = element_blank()) 
 
 # generate unweighted Bray-Curtis plot with R-sq
 r2 = format(round(mean(collated$R2_u),3),nsmall=3)
-p2 = ggplot(collated, aes(y = R2_u, x= sample_type , fill = country)) + geom_bar(stat = "identity") + facet_grid(.~country) + 
-  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2~", unweighted distances")) + ylim(0,0.2) + 
-  geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") + coord_flip() + 
-  scale_fill_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + theme(plot.title = element_text(size=10)) + 
+p6 = ggplot(collated, aes(y = R2_u, x= sample_type , fill = country)) + geom_bar(stat = "identity") + facet_grid(.~country) + 
+  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2)) + 
+  scale_y_continuous(limits=c(0,0.15), breaks=c(0,0.1,0.2)) +
+ # geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") + 
+  coord_flip() + scale_fill_manual(values = c("IND" = India_col, "MLW" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
+ # theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + 
+  theme(plot.title = element_text(size=13), axis.text = element_text(size=12), axis.title = element_text(size=13), strip.text = element_text(size=13)) + 
   theme(strip.background = element_blank()) 
 
 # create multi-panel plot
-grid.arrange(p1,p2)
-rm(p1, p2, adon, ps8_sub, rps8_sub, beta)
+grid.arrange(p5,p6)
+```
+
+#### Supplementary figure
+```{r, fig.width=12, fig.height=3.5}
+plot_grid(p1,p4,p6, ncol=3, align = "h", axis = "tb", rel_widths=c(1,1.4,1.6))
 ```
 
 #### Sample subsets in which adonis p value <0.05 for either weighted or unweighted analyses
@@ -957,109 +1010,127 @@ rm(collated)
 ### Breastmilk
 
 #### Alpha and beta diversity in positive controls
-```{r, fig.width=9, fig.height=3}
+```{r, fig.width=10, fig.height=3}
 # pick out controls
-ps8_controls = subset_samples(ps8_genus, site=="Liverpool" & 
+ps8_controls = subset_samples(ps8_l_t_pr_d_dd_25k_rarefied, site=="Liverpool" & 
                                 (sample_type=="BMctrl" | sample_type=="MCctrlBM" | sample_type=="PCRnegBM" | sample_type=="WCBM"))
 ps8_sub = subset_samples(ps8_controls, sample_type=="BMctrl" | sample_type=="MCctrlBM" | sample_type=="MCQiaBM")
 rps8_sub = transform_sample_counts(ps8_sub, function(x) {x/sum(x)})
 alpha = data.frame(sample_data(ps8_sub))
 
 # generate Shannon plot with R-sq
-r2 <- format(round(summary(lm(Shannon ~ sample_type, data = alpha))$r.squared,3),nsmall=3)
-p1 = ggplot(alpha, aes(factor(sample_type), y=Shannon, colour=factor(sample_type))) + geom_jitter(size = 1, alpha = 0.8, width=0.2) +
-  geom_boxplot(alpha = 0.5) + ylab("Shannon (genus)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + ylim(0,3) +
+r2 <- format(round(summary(lm(Shannon_rsv ~ sample_type, data = alpha))$r.squared,3),nsmall=3)
+p1 = ggplot(alpha, aes(factor(sample_type), y=Shannon_rsv, colour=factor(sample_type))) + geom_jitter(size = 1, alpha = 0.8, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("Shannon") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + #ylim(0,3) +
   scale_color_manual(values=c(BMctrl = "#5e4fa2", MCQiaBM="#e6550d", MCctrlBM = "#66c2a5")) +
-  ggtitle(bquote(R^2 == .(r2))) + theme(plot.title = element_text(size=10))
+  ggtitle(bquote(R^2 == .(r2))) + theme(axis.text = element_text(size=11), plot.title = element_text(size=11))
 
 # generate richness plot with R-sq
-r2 <- round(summary(lm(Observed ~ sample_type, data = alpha))$r.squared,3)
-p2 = ggplot(alpha, aes(factor(sample_type), y=Observed, colour=factor(sample_type))) + geom_jitter(size = 1, alpha = 0.8, width=0.2) +
-  geom_boxplot(alpha = 0.5) + ylab("richness (genus)") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) +
+r2 <- format(round(summary(lm(Observed_rsv ~ sample_type, data = alpha))$r.squared,3),nsmall=3)
+p2 = ggplot(alpha, aes(factor(sample_type), y=Observed_rsv, colour=factor(sample_type))) + geom_jitter(size = 1, alpha = 0.8, width=0.2) +
+  geom_boxplot(alpha = 0.5) + ylab("richness") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) +
   scale_color_manual(values=c(BMctrl = "#5e4fa2", MCQiaBM="#e6550d", MCctrlBM = "#66c2a5")) + 
-  scale_y_continuous(limits=c(0,30), breaks=c(0,10,20,30)) +
-  ggtitle(bquote(R^2 == .(r2))) + theme(plot.title = element_text(size=10))
+#  scale_y_continuous(limits=c(0,30), breaks=c(0,10,20,30)) +
+  ggtitle(bquote(R^2 == .(r2))) +  theme(axis.text = element_text(size=11), plot.title = element_text(size=11))
 
 # generate weighted Bray-Curtis plot with R-sq
-beta = data.frame(sample_data(ps8_sub))
-bray_dist = phyloseq::distance(ps8_sub, method = "bray")
+beta = data.frame(sample_data(rps8_sub))
+bray_dist = phyloseq::distance(rps8_sub, method = "bray")
 bray_ord = ordinate(ps8_sub, method = "PCoA", distance = bray_dist)
 beta$bray1 = bray_ord$vectors[,1]
 beta$bray2 = bray_ord$vectors[,2]
 r2 = format(round(adonis(bray_dist ~ sample_type, data = beta, permutations = 999)$aov.tab$R2[1],3),nsmall=3)
 p3 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.7) + 
   scale_color_manual(values=c(BMctrl = "#5e4fa2", MCQiaBM="#e6550d", MCctrlBM = "#66c2a5")) + ylim(-0.2,0.2) +
-  ggtitle(bquote("weighted Bray-Curtis,"~R^2==.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + xlab(paste0("PC1 (", format(round(bray_ord$values$Relative_eig[1]*100,1),nsmall=1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)"))
+  ggtitle(bquote("weighted Bray-Curtis,"~R^2==.(r2))) + theme(legend.position = "none") + xlab(paste0("PC1 (", format(round(bray_ord$values$Relative_eig[1]*100,1),nsmall=1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)"))+
+    theme(axis.text = element_text(size=11), plot.title = element_text(size=11))
+
 
 # generate unweighted Bray-Curtis plot with R-sq
-otu_table(rps8_sub)[otu_table(rps8_sub)<0.001] = 0
-bray_dist = phyloseq::distance(rps8_sub, method = "bray", binary=TRUE)
-bray_ord = ordinate(rps8_sub, method = "PCoA", distance = bray_dist)
+rps8_sub_strict = rps8_sub
+otu_table(rps8_sub_strict)[otu_table(rps8_sub_strict)<0.001] = 0
+bray_dist = phyloseq::distance(rps8_sub_strict, method = "bray", binary=TRUE)
+bray_ord = ordinate(rps8_sub_strict, method = "PCoA", distance = bray_dist)
 beta$bray1 = bray_ord$vectors[,1]
 beta$bray2 = bray_ord$vectors[,2]
 r2 = format(round(adonis(bray_dist ~ sample_type, data = beta, permutations = 999)$aov.tab$R2[1],3),nsmall=3)
 p4 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.7) + 
   scale_color_manual(values=c(BMctrl = "#5e4fa2", MCQiaBM="#e6550d", MCctrlBM = "#66c2a5")) +
-  ggtitle(bquote("unweighted Bray-Curtis,"~R^2==.(r2))) + theme(legend.title = element_blank(), plot.title = element_text(size=10)) + xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", format(round(bray_ord$values$Relative_eig[2]*100,1),nsmall=1), "%)"))
+  ggtitle(bquote("Bray-Curtis,"~R^2==.(r2))) + theme(legend.title = element_blank()) + xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", format(round(bray_ord$values$Relative_eig[2]*100,1),nsmall=1), "%)")) +
+    theme(axis.text = element_text(size=11), plot.title = element_text(size=11), legend.text=element_text(size=11))
 
 # create multi-panel plot
-grid.arrange(plot_grid(p1,p2,align="v",ncol=1),p3,p4, ncol=3, widths=c(1.5,1.9,2.5))
+grid.arrange(plot_grid(p1,p2,align="v",ncol=1),p3,p4, ncol=3, widths=c(1.5,1.8,2.5))
 rm(p1, p2, p3, p4, ps8_sub, rps8_sub, alpha, beta, bray_ord, ps8_controls)
 ```
 
+
 #### Variation explained by run for each sample type
-```{r, fig.width=4, fig.height=4}
+```{r, fig.width=6, fig.height=5}
 # create data frame to populate with beta diversity R-sq and p values
 collated = data.frame(country = c(rep("India",3), rep("UK",3), rep("Malawi",3)), 
                       sample_type = rep(c("BM1", "BM2", "BM3"),3), 
                       R2_w = NA, p_w = NA, R2_u = NA, p_u = NA, n_runs = NA)
 
 # in loop, calculate beta diversity R-sq and p value for each sample group (weighted and unweighted)
+if (run_full) {
 for (i in 1:nrow(collated)) {
   sample_list = t$sample_ID_full[t$country==collated$country[i] & t$sample_type==collated$sample_type[i]]
-  ps8_sub = prune_samples(sample_list, rps8_genus) %>% prune_taxa(taxa_sums(.) > 0, .)
+  ps8_sub = prune_samples(sample_list, rps8_l_t_pr_d_dd_25k_rarefied) %>% prune_taxa(taxa_sums(.) > 0, .)
   rps8_sub = transform_sample_counts(ps8_sub, function(x) {x/sum(x)})
 
   beta = data.frame(sample_data(ps8_sub))
   collated$n_runs[i] = length(unique(beta$run))
-  
+  collated$n_samples[i] = nrow(beta)
+
   # weighted adonis
-  bray_dist_w = phyloseq::distance(ps8_sub, method = "bray")
+  bray_dist_w = phyloseq::distance(rps8_sub, method = "bray")
   adon = adonis(bray_dist_w ~ run, data = beta, permutations = 999)
   collated$R2_w[i] = round(adon$aov.tab$R2[1],3)
   collated$p_w[i] = round(adon$aov.tab$`Pr(>F)`[1],3)
     
   # unweighted adonis
-  otu_table(rps8_sub)[otu_table(rps8_sub)<0.001] = 0
-  bray_dist_u = phyloseq::distance(rps8_sub, method = "bray", binary = TRUE)
+  rps8_sub_strict = rps8_sub
+  otu_table(rps8_sub_strict)[otu_table(rps8_sub_strict)<0.001] = 0
+  bray_dist_u = phyloseq::distance(rps8_sub_strict, method = "bray", binary = TRUE)
   adon = adonis(bray_dist_u ~ run, data = beta, permutations = 999)
   collated$R2_u[i] = round(adon$aov.tab$R2[1],3)
   collated$p_u[i] = round(adon$aov.tab$`Pr(>F)`[1],3)
 }
 write.csv(collated, "output_module1/permanova_run_breastmilk.csv")
-
+} else {
+  collated = read.csv("output_module1/permanova_run_breastmilk.csv", row.names=1)
+}
 # recode sample type for plot
-collated$sample_type = rep(c("week 1", "week 7/9", "week 11/13"),3)
-collated$sample_type = factor(collated$sample_type, levels = c("week 1", "week 7/9", "week 11/13"))
+collated$sample_type = rep(c("week of life 1", "week of life 7", "week of life 11"),3)
+collated$sample_type = factor(collated$sample_type, levels = c("week of life 1", "week of life 7", "week of life 11"))
+
+# updated coding for country
+collated$country = as.character(collated$country)
+collated$country[collated$country=="India"] = "IND"
+collated$country[collated$country=="Malawi"] = "MLW"
+collated$country[collated$country=="UK"] = "UK"
 
 # generate weighted Bray-Curtis plot with R-sq
-r2 = round(mean(collated$R2_w),3)
+r2 = format(round(mean(collated$R2_w),3),nsmall=3)
 p1 = ggplot(collated, aes(y = R2_w, x=sample_type, fill = country)) + geom_bar(stat = "identity") + facet_grid(.~country) + 
-  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2~", weighted distances")) + ylim(0,0.2) +
-  geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") + coord_flip() + 
-  scale_fill_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + theme(plot.title = element_text(size=10)) + 
+  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2~", weighted distances")) + 
+  scale_y_continuous(limits=c(0,0.15), breaks=c(0,0.1,0.2)) +
+  #geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") +
+  coord_flip() + scale_fill_manual(values = c("IND" = India_col, "MLW" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
+  #theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + theme(plot.title = element_text(size=12), axis.text = element_text(size=11), axis.title = element_text(size=11), strip.text = element_text(size=11)) + 
   theme(strip.background = element_blank()) 
 
 # generate unweighted Bray-Curtis plot with R-sq
 r2 = format(round(mean(collated$R2_u),3),nsmall=3)
 p2 = ggplot(collated, aes(y = R2_u, x= sample_type , fill = country)) + geom_bar(stat = "identity") + facet_grid(.~country) + 
-  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2~", unweighted distances")) + ylim(0,0.2) + 
-  geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") + coord_flip() + 
-  scale_fill_manual(values = c("India" = India_col, "Malawi" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + theme(plot.title = element_text(size=10)) + 
+  scale_x_discrete(limits = rev(levels(collated$sample_type))) + xlab("") + ylab(bquote(R^2)) + 
+  scale_y_continuous(limits=c(0,0.15), breaks=c(0,0.1,0.2)) +
+  #geom_hline(yintercept = mean(collated$R2_w), linetype="dotted") + 
+  coord_flip() + scale_fill_manual(values = c("IND" = India_col, "MLW" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") + 
+  #theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle(bquote("mean"~R^2~"for run ="~.(r2))) + theme(plot.title = element_text(size=12), axis.text = element_text(size=11), axis.title = element_text(size=11), strip.text = element_text(size=11)) + 
   theme(strip.background = element_blank()) 
 
 # create multi-panel plot
@@ -1086,11 +1157,11 @@ Column {.tabset .tabset-fade}
 
 #### Input data
 ```{r, fig.width=4, fig.height=6}
-load("phyloseq_files/ps5_genus.RData")
-m1 = data.frame(sample_data(ps5_genus))
-m1$filtered_count_ps5 = sample_sums(ps5_genus)
-load("phyloseq_files/ps8_genus.RData")
-m2 = data.frame(sample_data(ps8_genus))
+load("phyloseq_files/ps5_l_t_pr_d.RData")
+m1 = data.frame(sample_data(ps5_l_t_pr_d))
+m1$filtered_count_ps5 = sample_sums(ps5_l_t_pr_d)
+load("phyloseq_files/ps8_l_t_pr_d_dd_25k_rarefied.RData")
+m2 = data.frame(sample_data(ps8_l_t_pr_d_dd_25k_rarefied))
 
 # list of stool samples yielding ≥25,000 sequences in validation run
 imperial_list = m1$sample_code[m1$site=="London" & m1$control=="sample" & m1$filtered_count_ps5>=depth]
@@ -1111,31 +1182,31 @@ for (i in 1:nrow(validation)) {
 comparison_list = c(validation$cgr_id, validation$imperial_id)
 
 # pick out comparison list stool samples from database
-ps5_genus_val = prune_samples(comparison_list, ps5_genus) 
-ps5_genus_val = subset_samples(ps5_genus_val, sample_type!="BM1") %>% prune_taxa(taxa_sums(.) > 0, .)
-rm(m1, m2, validation, ps8_genus)
+ps5_l_t_pr_d_val = prune_samples(comparison_list, ps5_l_t_pr_d) 
+ps5_l_t_pr_d_val = subset_samples(ps5_l_t_pr_d_val, sample_type!="BM1") %>% prune_taxa(taxa_sums(.) > 0, .)
+rm(m1, m2, validation, ps8_l_t_pr_d_dd_25k_rarefied)
 ```
 
 ##### ps5_validation 
 * biom table containing paired Liverpool/London stool samples in which both have at least 25,000 reads    
-* nsamples = `r nsamples(ps5_genus_val)`    
-* ntaxa = `r ntaxa(ps5_genus_val)`   
+* nsamples = `r nsamples(ps5_l_t_pr_d_val)`    
+* ntaxa = `r ntaxa(ps5_l_t_pr_d_val)`   
 
 #### Alpha diversity (rarefied to 25,000 sequences per samples)
 
 ```{r, fig.width=6, fig.height=8}
 # rarefy validation data
-ps5_genus_val_rarefied = rarefy_even_depth(ps5_genus_val, sample.size = depth, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
-rps5_genus_val_rarefied <- transform_sample_counts(ps5_genus_val_rarefied, function(OTU) OTU/sum(OTU))
+ps5_l_t_pr_d_val_rarefied = rarefy_even_depth(ps5_l_t_pr_d_val, sample.size = depth, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+rps5_l_t_pr_d_val_rarefied <- transform_sample_counts(ps5_l_t_pr_d_val_rarefied, function(OTU) OTU/sum(OTU))
 
 # pick out subsets
-m_val = data.frame(sample_data(ps5_genus_val_rarefied))
+m_val = data.frame(sample_data(ps5_l_t_pr_d_val_rarefied))
 m_val_imp = data.frame(subset(m_val, site=="London"))
 m_val_cgr = data.frame(subset(m_val, site=="Liverpool"))
 
 # calculate alpha diversity
-alpha_df = estimate_richness(ps5_genus_val_rarefied, measures = c("Shannon"))
-alpha_df$Observed = colSums(otu_table(rps5_genus_val_rarefied)>=0.001)
+alpha_df = estimate_richness(ps5_l_t_pr_d_val_rarefied, measures = c("Shannon"))
+alpha_df$Observed = colSums(otu_table(rps5_l_t_pr_d_val_rarefied)>=0.001)
 alpha_df$sample_ID_full = rownames(alpha_df)
 
 # append alpha diversity scores to site-specific dataframes, then merge
@@ -1144,86 +1215,120 @@ m_val_cgr = merge(m_val_cgr, alpha_df, by = "sample_ID_full")
 imp_cgr = merge(m_val_imp, m_val_cgr[,c("sample_code", "Shannon", "Observed")], by = "sample_code")
 
 # recode sample type
-imp_cgr$sample_type[imp_cgr$sample_type=="BS1"] = "week 1"
-imp_cgr$sample_type[imp_cgr$sample_type=="BS5"] = "week 10/12"
+imp_cgr$sample_type[imp_cgr$sample_type=="BS1"] = "week of life 1"
+imp_cgr$sample_type[imp_cgr$sample_type=="BS5"] = "week of life 10"
 imp_cgr$sample_type[imp_cgr$sample_type=="MS1"] = "mother"
-imp_cgr$sample_type = factor(imp_cgr$sample_type, levels = c("week 1", "week 10/12", "mother"))
+imp_cgr$sample_type = factor(imp_cgr$sample_type, levels = c("week of life 1", "week of life 10", "mother"))
 
-# generate Shannon plot with R-sq
+# updated coding for country
+imp_cgr$country = as.character(imp_cgr$country)
+imp_cgr$country[imp_cgr$country=="India"] = "IND"
+imp_cgr$country[imp_cgr$country=="Malawi"] = "MLW"
+imp_cgr$country[imp_cgr$country=="UK"] = "UK"
+
+#generate Shannon plot with R-sq
 r2 <- format(round(summary(lm(Shannon.y ~ Shannon.x, data = imp_cgr))$r.squared,3),nsmall=3)
 p1 = ggplot(imp_cgr, aes(Shannon.x, Shannon.y, colour = sample_type)) + geom_abline(color = "black", linetype = "dotted") + 
-  geom_point(size = 1.5, alpha = 0.7) + xlab("Shannon (genus), Liverpool") +  ylab("Shannon (genus), London") + 
-  theme_bw() + facet_grid(country~ sample_type) +
-  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
-  ggtitle(bquote("overall"~R^2==~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + 
+   geom_point(size = 1.5, alpha = 0.7) + xlab("Shannon, Liverpool") +  ylab("Shannon, London") + 
+   theme_bw() + facet_grid(country~ sample_type) +
+   scale_colour_manual(values = c("week of life 1" = "#fe9929", "week of life 10" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
+  ggtitle(bquote("overall"~R^2==~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=12), axis.text = element_text(size=11), strip.text = element_text(size=11)) + 
   theme(strip.background = element_blank()) 
 
 # generate richness plot with R-sq
-r2 <- round(summary(lm(Observed.y ~ Observed.x, data = imp_cgr))$r.squared,3)
+r2 <- format(round(summary(lm(Observed.y ~ Observed.x, data = imp_cgr))$r.squared,3),nsmall=3)
 p2 = ggplot(imp_cgr, aes(Observed.x, Observed.y, colour = sample_type)) + geom_abline(color = "black", linetype = "dotted") + 
-  geom_point(size = 1.5, alpha = 0.7) + xlab("richness (genus), Liverpool") +  ylab("richness (genus), London") +
+  geom_point(size = 1.5, alpha = 0.7) + xlab("richness, Liverpool") +  ylab("richness, London") +
   theme_bw() + facet_grid(country~ sample_type) +
-  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
-  ggtitle(bquote("overall"~R^2==~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + 
+  scale_colour_manual(values = c("week of life 1" = "#fe9929", "week of life 10" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
+  ggtitle(bquote("overall"~R^2==~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=12), axis.text = element_text(size=11), strip.text = element_text(size=11)) + 
   theme(strip.background = element_blank()) 
 plot_grid(p1,p2, align="v", ncol=1)
-rm(m_val, m_val_imp, m_val_cgr, alpha_df, p1, p2, ps5_genus_val, ps5_genus_val_rarefied)
+```
+
+#### N paired samples
+```{r}
+table(m_val_cgr$sample_type, m_val_cgr$country)
 ```
 
 #### Beta diversity plots
 ```{r, fig.width=6, fig.height=12}
 # generate weighted Bray-Curtis plot for paired samples with R-sq
-beta = data.frame(sample_data(rps5_genus_val_rarefied))
-bray_dist = phyloseq::distance(rps5_genus_val_rarefied, method = "bray")
-bray_ord = ordinate(rps5_genus_val_rarefied, method = "PCoA", distance = bray_dist)
+beta = data.frame(sample_data(rps5_l_t_pr_d_val_rarefied))
+bray_dist = phyloseq::distance(rps5_l_t_pr_d_val_rarefied, method = "bray")
+bray_ord = ordinate(rps5_l_t_pr_d_val_rarefied, method = "PCoA", distance = bray_dist)
 beta$bray1 = bray_ord$vectors[,1]
 beta$bray2 = bray_ord$vectors[,2]
-r2 = round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3)
+r2 = format(round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3),nsmall=3)
 
 # recode sample type
-beta$sample_type[beta$sample_type=="BS1"] = "week 1"
-beta$sample_type[beta$sample_type=="BS5"] = "week 10/12"
+beta$sample_type[beta$sample_type=="BS1"] = "week of life 1"
+beta$sample_type[beta$sample_type=="BS5"] = "week of life 10"
 beta$sample_type[beta$sample_type=="MS1"] = "mother"
-beta$sample_type = factor(beta$sample_type, levels = c("week 1", "week 10/12", "mother"))
+beta$sample_type = factor(beta$sample_type, levels = c("week of life 1", "week of life 10", "mother"))
 
-p1 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
-  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
+# updated coding for country
+beta$country = as.character(beta$country)
+beta$country[beta$country=="India"] = "IND"
+beta$country[beta$country=="Malawi"] = "MLW"
+beta$country[beta$country=="UK"] = "UK"
+
+p3 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
+  scale_colour_manual(values = c("week of life 1" = "#fe9929", "week of life 10" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
   geom_line(aes(group = sample_code)) + facet_grid(country~sample_type) +
-  xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)")) +
-  ggtitle(bquote("weighted Bray-Curtis,"~R^2~"for sample code ="~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  xlab(paste0("PC1 (", format(round(bray_ord$values$Relative_eig[1]*100,1),nsmall=1), "%)")) + ylab(paste0("PC2 (", format(round(bray_ord$values$Relative_eig[2]*100,1),nsmall=1), "%)")) +
+  ggtitle(bquote("weighted Bray-Curtis,"~R^2~"for sample code ="~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=12), axis.text = element_text(size=11), strip.text = element_text(size=11)) +
+ # theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
   theme(strip.background = element_blank()) 
 
 # generate weighted Bray-Curtis plot for paired samples with R-sq
-otu_table(rps5_genus_val_rarefied)[otu_table(rps5_genus_val_rarefied)<0.001] = 0
-beta = data.frame(sample_data(rps5_genus_val_rarefied))
-bray_dist = phyloseq::distance(rps5_genus_val_rarefied, method = "bray", binary=TRUE)
-bray_ord = ordinate(rps5_genus_val_rarefied, method = "PCoA", distance = bray_dist)
+rps5_l_t_pr_d_val_rarefied_strict = rps5_l_t_pr_d_val_rarefied
+otu_table(rps5_l_t_pr_d_val_rarefied_strict)[otu_table(rps5_l_t_pr_d_val_rarefied_strict)<0.001] = 0
+beta = data.frame(sample_data(rps5_l_t_pr_d_val_rarefied_strict))
+bray_dist = phyloseq::distance(rps5_l_t_pr_d_val_rarefied_strict, method = "bray", binary=TRUE)
+bray_ord = ordinate(rps5_l_t_pr_d_val_rarefied_strict, method = "PCoA", distance = bray_dist)
 beta$bray1 = bray_ord$vectors[,1]
 beta$bray2 = bray_ord$vectors[,2]
-r2 = round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3)
+r2 = format(round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3),nsmall=3)
 
 # recode sample type
-beta$sample_type[beta$sample_type=="BS1"] = "week 1"
-beta$sample_type[beta$sample_type=="BS5"] = "week 10/12"
+beta$sample_type[beta$sample_type=="BS1"] = "week of life 1"
+beta$sample_type[beta$sample_type=="BS5"] = "week of life 10"
 beta$sample_type[beta$sample_type=="MS1"] = "mother"
-beta$sample_type = factor(beta$sample_type, levels = c("week 1", "week 10/12", "mother"))
+beta$sample_type = factor(beta$sample_type, levels = c("week of life 1", "week of life 10", "mother"))
 
-p2 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
-  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
+# updated coding for country
+beta$country = as.character(beta$country)
+beta$country[beta$country=="India"] = "IND"
+beta$country[beta$country=="Malawi"] = "MLW"
+beta$country[beta$country=="UK"] = "UK"
+
+p4 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
+  scale_colour_manual(values = c("week of life 1" = "#fe9929", "week of life 10" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
   geom_line(aes(group = sample_code)) + facet_grid(country~sample_type) +
-  xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)")) +
-  ggtitle(bquote("unweighted Bray-Curtis,"~R^2~"for sample code ="~.(r2)))  + theme(legend.position = "none", plot.title = element_text(size=10)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  xlab(paste0("PC1 (", format(round(bray_ord$values$Relative_eig[1]*100,1),nsmall=1), "%)")) + ylab(paste0("PC2 (", format(round(bray_ord$values$Relative_eig[2]*100,1),nsmall=1), "%)")) +
+  ggtitle(bquote("Bray-Curtis,"~R^2~"for sample code ="~.(r2)))  + theme(legend.position = "none", plot.title = element_text(size=12), axis.text = element_text(size=11), strip.text = element_text(size=11)) +
+ # theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
   theme(strip.background = element_blank()) 
 
 # create multi-panel figure
-plot_grid(p1,p2, align="h", ncol=1)
-rm(beta, bray_ord, p1, p2)
+plot_grid(p3,p4, align="h", ncol=1)
+```
+
+#### Supplementary Figure
+```{r, fig.width=12, fig.height=5}
+plot_grid(p1,p4, align="h", ncol=2)
 ```
 
 #### Correlation of genus abundances for top-20 genera
 ```{r, fig.width=3, fig.height=2}
+# rarefy validation data
+load("phyloseq_files/ps5_genus.RData")
+ps5_genus_val = prune_samples(comparison_list, ps5_genus) 
+ps5_genus_val = subset_samples(ps5_genus_val, sample_type!="BM1") %>% prune_taxa(taxa_sums(.) > 0, .)
+ps5_genus_val_rarefied = rarefy_even_depth(ps5_genus_val, sample.size = depth, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+rps5_genus_val_rarefied <- transform_sample_counts(ps5_genus_val_rarefied, function(OTU) OTU/sum(OTU))
+
 # create dataframe from otu table, then sort by feature abundance
 rps5_table = otu_table(rps5_genus_val_rarefied)
 rps5_table = rps5_table[order(-rowSums(rps5_table)),]
@@ -1276,14 +1381,14 @@ rm(df_CGR_Imp, rps5_CGR, rps5_filt, rps5_Imp)
 #### Input data
 ```{r, fig.width=4, fig.height=6}
 # pick out comparison list samples from database
-ps5_genus_val = prune_samples(comparison_list, ps5_genus) 
-ps5_genus_val = subset_samples(ps5_genus_val, sample_type=="BM1") %>% prune_taxa(taxa_sums(.) > 0, .)
+ps5_l_t_pr_d_val = prune_samples(comparison_list, ps5_l_t_pr_d) 
+ps5_l_t_pr_d_val = subset_samples(ps5_l_t_pr_d_val, sample_type=="BM1") %>% prune_taxa(taxa_sums(.) > 0, .)
 ```
 
 ##### ps5_validation 
 * biom table containing paired Liverpool/London breastmilk samples in which both have at least 25,000 reads    
-* nsamples = `r nsamples(ps5_genus_val)`    
-* ntaxa = `r ntaxa(ps5_genus_val)`   
+* nsamples = `r nsamples(ps5_l_t_pr_d_val)`    
+* ntaxa = `r ntaxa(ps5_l_t_pr_d_val)`   
 
 See outputs of analysis module 1 for further details of feature table filtering process.    
 
@@ -1291,17 +1396,17 @@ See outputs of analysis module 1 for further details of feature table filtering 
 
 ```{r, fig.width=3, fig.height=8}
 # rarefy validation data
-ps5_genus_val_rarefied = rarefy_even_depth(ps5_genus_val, sample.size = depth, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
-rps5_genus_val_rarefied <- transform_sample_counts(ps5_genus_val_rarefied, function(OTU) OTU/sum(OTU))
+ps5_l_t_pr_d_val_rarefied = rarefy_even_depth(ps5_l_t_pr_d_val, sample.size = depth, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+rps5_l_t_pr_d_val_rarefied <- transform_sample_counts(ps5_l_t_pr_d_val_rarefied, function(OTU) OTU/sum(OTU))
 
 # pick out subsets
-m_val = data.frame(sample_data(ps5_genus_val_rarefied))
+m_val = data.frame(sample_data(ps5_l_t_pr_d_val_rarefied))
 m_val_imp = data.frame(subset(m_val, site=="London"))
 m_val_cgr = data.frame(subset(m_val, site=="Liverpool"))
 
 # calculate alpha diversity
-alpha_df = estimate_richness(ps5_genus_val_rarefied, measures = c("Shannon"))
-alpha_df$Observed = colSums(otu_table(rps5_genus_val_rarefied)>=0.001)
+alpha_df = estimate_richness(ps5_l_t_pr_d_val_rarefied, measures = c("Shannon"))
+alpha_df$Observed = colSums(otu_table(rps5_l_t_pr_d_val_rarefied)>=0.001)
 alpha_df$sample_ID_full = rownames(alpha_df)
 
 # append alpha diversity scores to site-specific dataframes, then merge
@@ -1311,76 +1416,106 @@ imp_cgr = merge(m_val_imp, m_val_cgr[,c("sample_code", "Shannon", "Observed")], 
 
 # recode sample type
 imp_cgr$sample_type[imp_cgr$sample_type=="BM1"] = "breastmilk"
+imp_cgr$sample_type = factor(imp_cgr$sample_type, levels = c("breastmilk"))
 
-# generate Shannon plot with R-sq
+# updated coding for country
+imp_cgr$country = as.character(imp_cgr$country)
+imp_cgr$country[imp_cgr$country=="India"] = "IND"
+imp_cgr$country[imp_cgr$country=="Malawi"] = "MLW"
+imp_cgr$country[imp_cgr$country=="UK"] = "UK"
+
+#generate Shannon plot with R-sq
 r2 <- format(round(summary(lm(Shannon.y ~ Shannon.x, data = imp_cgr))$r.squared,3),nsmall=3)
 p1 = ggplot(imp_cgr, aes(Shannon.x, Shannon.y, colour = sample_type)) + geom_abline(color = "black", linetype = "dotted") + 
-  geom_point(size = 1.5, alpha = 0.7) + xlab("Shannon (genus), Liverpool") +  ylab("Shannon (genus), London") + 
+  geom_point(size = 1.5, alpha = 0.7) + xlab("Shannon, Liverpool") +  ylab("Shannon, London") + 
   theme_bw() + facet_grid(country~ sample_type) +
-  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
+  scale_colour_manual(values = c("week of life 1" = "#fe9929", "week of life 10" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
   ggtitle(bquote("overall"~R^2==~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + 
   theme(strip.background = element_blank()) 
 
 # generate richness plot with R-sq
-r2 <- round(summary(lm(Observed.y ~ Observed.x, data = imp_cgr))$r.squared,3)
+r2 <- format(round(summary(lm(Observed.y ~ Observed.x, data = imp_cgr))$r.squared,3),nsmall=3)
 p2 = ggplot(imp_cgr, aes(Observed.x, Observed.y, colour = sample_type)) + geom_abline(color = "black", linetype = "dotted") + 
-  geom_point(size = 1.5, alpha = 0.7) + xlab("richness (genus), Liverpool") +  ylab("richness (genus), London") +
+  geom_point(size = 1.5, alpha = 0.7) + xlab("richness, Liverpool") +  ylab("richness, London") +
   theme_bw() + facet_grid(country~ sample_type) +
-  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
-  ggtitle(bquote("overall"~R^2==~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) + 
+  scale_colour_manual(values = c("week of life 1" = "#fe9929", "week of life 10" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + theme(legend.position = "none") +
+  ggtitle(bquote("overall"~R^2==~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=12), axis.text = element_text(size=11), strip.text = element_text(size=11)) + 
   theme(strip.background = element_blank()) 
 plot_grid(p1,p2, align="v", ncol=1)
-rm(m_val, m_val_imp, m_val_cgr, alpha_df, p1, p2, ps5_genus, ps5_genus_val, ps5_genus_val_rarefied)
 ```
 
 #### Beta diversity plots
 ```{r, fig.width=3, fig.height=12}
 # generate weighted Bray-Curtis plot for paired samples with R-sq
-beta = data.frame(sample_data(rps5_genus_val_rarefied))
-bray_dist = phyloseq::distance(rps5_genus_val_rarefied, method = "bray")
-bray_ord = ordinate(rps5_genus_val_rarefied, method = "PCoA", distance = bray_dist)
+beta = data.frame(sample_data(rps5_l_t_pr_d_val_rarefied))
+bray_dist = phyloseq::distance(rps5_l_t_pr_d_val_rarefied, method = "bray")
+bray_ord = ordinate(rps5_l_t_pr_d_val_rarefied, method = "PCoA", distance = bray_dist)
 beta$bray1 = bray_ord$vectors[,1]
 beta$bray2 = bray_ord$vectors[,2]
-r2 = round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3)
+r2 = format(round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3),nsmall=3)
 
 # recode sample type
 beta$sample_type[beta$sample_type=="BM1"] = "breastmilk"
 
-p1 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
-  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
+# updated coding for country
+beta$country = as.character(beta$country)
+beta$country[beta$country=="India"] = "IND"
+beta$country[beta$country=="Malawi"] = "MLW"
+beta$country[beta$country=="UK"] = "UK"
+
+p3 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
+  scale_colour_manual(values = c("week of life 1" = "#fe9929", "week of life 10" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
   geom_line(aes(group = sample_code)) + facet_grid(country~sample_type) +
   xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)")) +
-  ggtitle(bquote("weighted Bray-Curtis,"~R^2~"for sample code ="~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=10)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  ggtitle(bquote("weighted Bray-Curtis,"~R^2~"for sample code ="~.(r2))) + theme(legend.position = "none", plot.title = element_text(size=12), axis.text = element_text(size=11), strip.text = element_text(size=11)) +
+  # theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
   theme(strip.background = element_blank()) 
 
 # generate weighted Bray-Curtis plot for paired samples with R-sq
-otu_table(rps5_genus_val_rarefied)[otu_table(rps5_genus_val_rarefied)<0.001] = 0
-beta = data.frame(sample_data(rps5_genus_val_rarefied))
-bray_dist = phyloseq::distance(rps5_genus_val_rarefied, method = "bray", binary=TRUE)
-bray_ord = ordinate(rps5_genus_val_rarefied, method = "PCoA", distance = bray_dist)
+rps5_l_t_pr_d_val_rarefied_strict = rps5_l_t_pr_d_val_rarefied
+otu_table(rps5_l_t_pr_d_val_rarefied_strict)[otu_table(rps5_l_t_pr_d_val_rarefied_strict)<0.001] = 0
+beta = data.frame(sample_data(rps5_l_t_pr_d_val_rarefied_strict))
+bray_dist = phyloseq::distance(rps5_l_t_pr_d_val_rarefied_strict, method = "bray", binary=TRUE)
+bray_ord = ordinate(rps5_l_t_pr_d_val_rarefied_strict, method = "PCoA", distance = bray_dist)
 beta$bray1 = bray_ord$vectors[,1]
 beta$bray2 = bray_ord$vectors[,2]
-r2 = round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3)
+r2 = format(round(adonis(bray_dist ~ sample_code, data = beta, permutations = 999)$aov.tab$R2[1],3),nsmall=3)
 
 # recode sample type
 beta$sample_type[beta$sample_type=="BM1"] = "breastmilk"
 
-p2 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
-  scale_colour_manual(values = c("week 1" = "#fe9929", "week 10/12" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
+# updated coding for country
+beta$country = as.character(beta$country)
+beta$country[beta$country=="India"] = "IND"
+beta$country[beta$country=="Malawi"] = "MLW"
+beta$country[beta$country=="UK"] = "UK"
+
+p4 = ggplot(beta, aes(bray1, bray2, colour=sample_type)) + geom_point(size = 2, alpha = 0.3) + 
+  scale_colour_manual(values = c("week of life 1" = "#fe9929", "week of life 10" = "#cc4c02", "mother" = "#662506", "breastmilk" = "#2c7fb8")) + 
   geom_line(aes(group = sample_code)) + facet_grid(country~sample_type) +
   xlab(paste0("PC1 (", round(bray_ord$values$Relative_eig[1]*100,1), "%)")) + ylab(paste0("PC2 (", round(bray_ord$values$Relative_eig[2]*100,1), "%)")) +
-  ggtitle(bquote("unweighted Bray-Curtis,"~R^2~"for sample code ="~.(r2)))  + theme(legend.position = "none", plot.title = element_text(size=10)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  ggtitle(bquote("Bray-Curtis,"~R^2~"for sample code ="~.(r2)))  + theme(legend.position = "none", plot.title = element_text(size=12), axis.text = element_text(size=11), strip.text = element_text(size=11)) +
+  # theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
   theme(strip.background = element_blank()) 
 
 # create multi-panel figure
-plot_grid(p1,p2, align="h", ncol=1)
-rm(beta, bray_ord, p1, p2)
+plot_grid(p3,p4, align="h", ncol=1)
+```
+
+#### Supplementary Figure
+```{r, fig.width=6, fig.height=5}
+plot_grid(p2,p4, align="h", ncol=2)
 ```
 
 #### Correlation of genus abundances for top-20 genera
 ```{r, fig.width=3, fig.height=2}
+# rarefy validation data
+load("phyloseq_files/ps5_genus.RData")
+ps5_genus_val = prune_samples(comparison_list, ps5_genus) 
+ps5_genus_val = subset_samples(ps5_genus_val, sample_type=="BM1") %>% prune_taxa(taxa_sums(.) > 0, .)
+ps5_genus_val_rarefied = rarefy_even_depth(ps5_genus_val, sample.size = depth, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+rps5_genus_val_rarefied <- transform_sample_counts(ps5_genus_val_rarefied, function(OTU) OTU/sum(OTU))
+
 # create dataframe from otu table, then sort by feature abundance
 rps5_table = otu_table(rps5_genus_val_rarefied)
 rps5_table = rps5_table[order(-rowSums(rps5_table)),]
@@ -1415,7 +1550,7 @@ for (i in 1:ntaxa) {
 }
 
 # generate summary plot
-r2 = round(mean(collated$r2),3)
+r2 = format(round(mean(collated$r2),3),nsmall=3)
 ggplot(collated, aes(x="", y=r2)) + geom_jitter(colour="#662506", size = 1, alpha = 0.8, width=0.2) + ylim(0.8,1) +
   geom_boxplot(colour="#662506", alpha = 0.5) + ylab(bquote(R^2)) + xlab("") + theme(legend.position = "none", strip.background = element_blank()) +
   ggtitle(bquote("mean"~R^2==.(r2)))
@@ -1442,7 +1577,8 @@ load("phyloseq_files/ps7_genus.RData")
 
 ps7 = subset_samples(ps7_genus, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1")) %>% prune_taxa(taxa_sums(.) > 0, .)
 rps7 = transform_sample_counts(ps7, function(x) {x/sum(x)})
-rps7c = filter_taxa(rps7, function(x) { sum(x >= 0.001) >= 0.01*nsamples(rps7) }, TRUE)
+#rps7c = filter_taxa(rps7, function(x) { sum(x >= 0.001) >= 0.01*nsamples(rps7) }, TRUE)
+rps7c = filter_taxa(rps7, function(x) { sum(x > 0) >= 0.01*nsamples(rps7) }, TRUE)
 
 # confert into dataframe, then append genus names
 h = data.frame(t(otu_table(rps7c)))
@@ -1450,33 +1586,36 @@ if (all(colnames(h)==rownames(tax_table(rps7c)))) { colnames(h) = as(tax_table(r
 
 # transform to presence/absence
 h_prev = h
-h_prev[h_prev>=0.001] = 1
+#h_prev[h_prev>=0.001] = 1
+h_prev[h_prev>0] = 1
 
 # append country and sample timing data
 if (all(rownames(h_prev)==sample_names(rps7c))) { 
-  annotation_col = data.frame(week = as.factor(paste0(sample_data(rps7c)$sample_type)), 
+  annotation_col = data.frame(sample = as.factor(paste0(sample_data(rps7c)$sample_type)), 
                               country = as.factor(paste0(sample_data(rps7c)$country)))
   rownames(annotation_col) = sample_names(rps7c)
 } else { print("error: rownames do not match")}
 
 # recode sample type
-annotation_col$week = revalue(annotation_col$week, c("BS1"="1", "BS2"="4", "BS3"="6/8", "BS5"="10/12", "MS1"="mother"))
+annotation_col$sample = revalue(annotation_col$sample, c("BS1"="week of life 1", "BS2"="week of life 4", "BS3"="week of life 6", "BS5"="week of life 10", "MS1"="mother"))
+annotation_col$country = revalue(annotation_col$country, c("Malawi"="MLW", "India"="IND"))
 
 # set annotation colours
 sample_cols = c("#fee391", "#fec44f", "#fe9929", "#d95f0e", "#993404")
-names(sample_cols) = levels(annotation_col$week)
+names(sample_cols) = levels(annotation_col$sample)
 country_cols = c(India_col, Malawi_col, UK_col)
 names(country_cols) = levels(annotation_col$country)
-ann_colors = list(week = sample_cols, country = country_cols)
+ann_colors = list(sample = sample_cols, country = country_cols)
 
 # draw heatmap
 pheatmap(t(h_prev), clustering_distance_rows="correlation", clustering_distance_cols="correlation", cluster_cols = T, 
          clustering_method = "ward.D", color = c('#f1eef6','#3182bd'), breaks = c(0,0.99,2), annotation_names_col=F, legend=F,
-         annotation_col = annotation_col, annotation_colors = ann_colors, show_rownames=FALSE, show_colnames=FALSE, fontsize=10)
-rm(ann_colors, annotation_col, h, h_prev, ps7, ps7_genus, rps7)
+         annotation_col = annotation_col, annotation_colors = ann_colors, show_rownames=FALSE, show_colnames=FALSE, fontsize=13)
+rm(ann_colors, annotation_col, h, ps7, ps7_genus, rps7)
 ```
     
-Number of taxa present at ≥0.1% abundance in ≥1% of samples: `r ntaxa(rps7c)`
+Number of taxa present at ≥0.1% abundance in ≥1% of samples: `r ncol(h_prev)`    
+Number of samples include: `r nrow(h_prev)`
 
 
 
@@ -1643,3 +1782,12 @@ final_IgA = rbind(
 write.csv(final_IgA, "output_module1/n_post_ORV_IgA.csv")
 final_IgA
 ```
+
+
+Session info {.hidden}
+===================================== 
+
+```{r}
+print(sessionInfo())
+```
+.

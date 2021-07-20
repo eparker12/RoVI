@@ -6,7 +6,7 @@ This github page contains the code and input data associated with the [RoVI stud
 
 ## Primary outcome paper
 
-The primary outcome paper of the RoVI study is now available on [*medRxiv*](https://www.medrxiv.org/content/10.1101/2020.11.02.20224576v1) . All figures and statsical analyses from this paper can be recreated using the code and data in this github repository.
+The primary outcome paper of the RoVI study is now available on [*medRxiv*](https://www.medrxiv.org/content/10.1101/2020.11.02.20224576v2) . All figures and statsical analyses from this paper can be recreated using the code and data in this github repository.
 
 ## Bioinformatics code
 
@@ -29,6 +29,7 @@ Current analyses include the following 5  modules:
 - **RoVI_module3_16S_vs_country:** analysis of geographic discrepancies in gut microbiota composition, including alpha diversity, beta diversity,  composition of major genera, statistical learning results (Random Forests), and zero-inflated negative binomial model outputs.
 - **RoVI_module4_16S_vs_ORV:** analysis of gut microbiota composition in relation to ORV outcome, including alpha diversity, beta diversity,  composition of major genera, statistical learning results (Random Forests), and zero-inflated negative binomial model outputs.
 - **RoVI_module5_multivariate_models:** integrated analysis of infant and maternal cofactors associated with ORV outcome, including statistical learning results (Random Forests), and univariate and multivariate regression analyses.
+- **RoVI_module6_16S_vs_demography:** an exploratory analysis of variables associated with microbiota composition (alpha and beta diversity) at the time of the first dose of ORV in each cohort.
 Additional information is contained in the annotations of each **Rmd** file.
 
 ## Contact

@@ -1,21 +1,21 @@
-"","sample_subset","crossval_sd","crossval_mean","country","nonresponders","responders"
-"1","BS1",0.110840453177556,0.5035,"India","nonresponders","responders"
-"2","BS1",0.152570396325847,0.501484848484848,"India (exposed)","nonresponders","responders"
-"3","BS1",0.117677270142961,0.517014619883041,"India (unexposed)","nonresponders","responders"
-"4","BS1",0.117905104654595,0.413409090909091,"Malawi","nonresponders","responders"
-"5","BS2",0.111577304813725,0.535,"India","nonresponders","responders"
-"6","BS2",0.132830167370808,0.51319696969697,"India (exposed)","nonresponders","responders"
-"7","BS2",0.10700163321479,0.508190058479532,"India (unexposed)","nonresponders","responders"
-"8","BS2",0.125585791214377,0.552197802197802,"Malawi","nonresponders","responders"
-"9","BS3",0.113238596767974,0.5445,"India","nonresponders","responders"
-"10","BS3",0.15201972534086,0.524015151515152,"India (exposed)","nonresponders","responders"
-"11","BS3",0.0980645835083138,0.578520467836257,"India (unexposed)","nonresponders","responders"
-"12","BS3",0.135180388273364,0.597,"Malawi","nonresponders","responders"
-"13","BS5",0.101199872240108,0.481,"India","nonresponders","responders"
-"14","BS5",0.139655936824333,0.432515151515152,"India (exposed)","nonresponders","responders"
-"15","BS5",0.113830532451259,0.526163742690059,"India (unexposed)","nonresponders","responders"
-"16","BS5",0.158230951205639,0.591055555555556,"Malawi","nonresponders","responders"
-"17","MS1",0.114706476528467,0.532,"India","nonresponders","responders"
-"18","MS1",0.147047619127432,0.499848484848485,"India (exposed)","nonresponders","responders"
-"19","MS1",0.114425818109401,0.538529239766082,"India (unexposed)","nonresponders","responders"
-"20","MS1",0.157287134721453,0.46469696969697,"Malawi","nonresponders","responders"
+"","sample_subset","country","nonresponders","responders","crossval_median","crossval_q1","crossval_q3"
+"1","BS1","India","nonresponders","responders",0.5,0.45,0.55
+"2","BS1","India (exposed)","nonresponders","responders",0.5,0.4,0.6
+"3","BS1","India (unexposed)","nonresponders","responders",0.5,0.421052631578947,0.611111111111111
+"4","BS1","Malawi","nonresponders","responders",0.454545454545455,0.356060606060606,0.545454545454545
+"5","BS2","India","nonresponders","responders",0.525,0.45,0.6
+"6","BS2","India (exposed)","nonresponders","responders",0.583333333333333,0.454545454545455,0.666666666666667
+"7","BS2","India (unexposed)","nonresponders","responders",0.473684210526316,0.4,0.56140350877193
+"8","BS2","Malawi","nonresponders","responders",0.583333333333333,0.5,0.692307692307692
+"9","BS3","India","nonresponders","responders",0.55,0.45,0.6
+"10","BS3","India (exposed)","nonresponders","responders",0.5,0.4,0.6
+"11","BS3","India (unexposed)","nonresponders","responders",0.6,0.526315789473684,0.636184210526316
+"12","BS3","Malawi","nonresponders","responders",0.6,0.5,0.7
+"13","BS5","India","nonresponders","responders",0.5,0.4,0.55
+"14","BS5","India (exposed)","nonresponders","responders",0.408333333333333,0.363636363636364,0.545454545454545
+"15","BS5","India (unexposed)","nonresponders","responders",0.526315789473684,0.444444444444444,0.578947368421053
+"16","BS5","Malawi","nonresponders","responders",0.625,0.5,0.75
+"17","MS1","India","nonresponders","responders",0.5,0.45,0.6
+"18","MS1","India (exposed)","nonresponders","responders",0.545454545454545,0.454545454545455,0.636363636363636
+"19","MS1","India (unexposed)","nonresponders","responders",0.567251461988304,0.5,0.654166666666667
+"20","MS1","Malawi","nonresponders","responders",0.5,0.4,0.6

@@ -1,0 +1,9 @@
+"","age_group","clean_age_group","variable","clean_variable","group","R2_u","p_u","n_samples","fdr_p_u"
+"1","BS3","week of life 8","sex_baby","female","infant",0.035,0.049,53,0.392
+"2","BS3","week of life 8","breastfed_child","exclusively breastfed","infant",0.019,0.476,53,0.575
+"3","BS3","week of life 8","age_at_first_dose","age at first ORV dose (days)","infant",0.019,0.503,53,0.575
+"4","BS3","week of life 8","birth_weight","birth weight (kg)","infant",0.027,0.163,53,0.575
+"5","BS3","week of life 8","A1AT_BS3_Concugml","A1AT at 6w (μg/ml)","infant",0.02,0.493,48,0.575
+"6","BS3","week of life 8","MPO_BS3_Concngml","MPO at 6w (ng/ml)","infant",0.021,0.491,47,0.575
+"7","BS3","week of life 8","MB1_IgA","maternal RV-IgA (IU/ml)","rotavirus",0.03,0.248,42,0.575
+"8","BS3","week of life 8","BM1_IgA","breastmilk RV-IgA (IU/ml)","rotavirus",0.024,0.756,27,0.756

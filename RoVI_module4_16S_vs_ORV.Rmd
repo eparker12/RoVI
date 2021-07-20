@@ -18,7 +18,11 @@ Sidebar {.sidebar}
 
 [Differential taxa]     
 
+[Summary figures]
+
 [Longitudinal abundance comparisons]    
+
+[Session info]
 
 
 
@@ -57,6 +61,12 @@ ps8_genus = subset_samples(ps8_genus, sample_type=="BS1" | sample_type=="BS2" | 
 ps8 = subset_samples(ps8_l_t_pr_d_dd_25k_rarefied, sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1") %>% prune_taxa(taxa_sums(.) > 0, .)
 #all(sample_names(ps7_genus)==sample_names(ps8_genus))
 
+# amend taxa names to be consistent across ps7 and ps8 levels
+taxa_names(ps7_genus) = data.frame(as(tax_table(ps7_genus), "matrix"))$Genus
+taxa_names(ps7) = data.frame(as(tax_table(ps7), "matrix"))$tax_id
+taxa_names(ps8_genus) = data.frame(as(tax_table(ps8_genus), "matrix"))$Genus
+taxa_names(ps8) = data.frame(as(tax_table(ps8), "matrix"))$tax_id
+
 # transform to relative abundances
 rps7_genus = transform_sample_counts(ps7_genus, function(x) {x/sum(x)})
 rps7 = transform_sample_counts(ps7, function(x) {x/sum(x)})
@@ -82,55 +92,271 @@ Alpha diversity {.hidden}
 Column {.tabset .tabset-fade}
 -------------------------------------
 
-### Genus-level
+### Seroconversion
 
-#### Seroconversion
-#### Longitudinal plots
-```{r, fig.width=8, fig.height=6}
+#### Longitudinal plots - Shannon
+```{r, fig.width=10, fig.height=3.5}
 t = data.frame(sample_data(rps8_genus))
+
+# updated coding for week
+t$week_fig[t$week_fig=="week 1"] = "week of life 1"
+t$week_fig[t$week_fig=="week 4"] = "week of life 4"
+t$week_fig[t$week_fig=="week 6/8"] = "week of life 6"
+t$week_fig[t$week_fig=="week 10/12"] = "week of life 10"
+t$week_fig = factor(t$week_fig, levels = c("week of life 1","week of life 4","week of life 6","week of life 10"))
+
+# update coding for outcome
+#t$seroconv[t$seroconv==0] = "-"
+#t$seroconv[t$seroconv==1] = "+"
+
+# updated coding for country
+t$country[t$country=="India"] = "IND"
+t$country[t$country=="Malawi"] = "MLW"
+t$country[t$country=="UK"] = "UK"
+t$country_exposure[t$country_exposure=="India (exposed)"] = "IND (neo+)"
+t$country_exposure[t$country_exposure=="India (unexposed)"] = "IND (neo-)"
+t$country_exposure[t$country_exposure=="Malawi"] = "MLW"
+
 t1 = subset(t, !is.na(seroconv) & sample_type!="MS1")
-t1$week_fig = factor(t1$week_fig, levels = c("week 1","week 4","week 6/8","week 10/12"))
+
+# collate dataframes for plot
+t2 = subset(t1, country_exposure=="IND (neo+)" | country_exposure=="IND (neo-)")
+t2$country = t2$country_exposure
+t_plot = rbind(t1,t2)
+t_plot$country = factor(t_plot$country, levels = c("IND", "MLW", "UK", "IND (neo+)", "IND (neo-)"))
 
 # generate plots
-p1 = alpha_longitudinal(t1, "Shannon", "Shannon (genus)", "seroconv", "seroconversion", exposure=FALSE) + ylim(0,3)
-p2 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Shannon", "Shannon (genus)", "seroconv", "seroconversion", exposure=TRUE) + ylim(0,3) +  facet_grid(.~country_exposure) 
-p3 = alpha_longitudinal(t1, "Observed", "richness (genus)", "seroconv", "seroconversion", exposure=FALSE) + ylim(0,30) 
-p4 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Observed", "richness (genus)", "seroconv", "seroconversion", exposure=FALSE) + ylim(0,30)  + facet_grid(.~country_exposure) 
-plot_grid(p1,p2,p3,p4, ncol=2, align="vh", axis = "l", rel_widths = c(1.4,1))
+sero_fig_A = alpha_longitudinal(t_plot, "Shannon", "Shannon", "seroconv", "seroconversion", exposure=FALSE) + ylim(0,3) + 
+  ggtitle("alpha diversity") + theme(plot.title = element_text(size=16, hjust=0.5))
+sero_fig_A
 ```
 
-#### Statistics
+#### Longitudinal plots - richness
+```{r, fig.width=10, fig.height=3.5}
+# generate plots
+sero_fig_A = alpha_longitudinal(t_plot, "Observed", "richness", "seroconv", "seroconversion", exposure=FALSE) + ylim(0,30) + 
+  ggtitle("alpha diversity") + theme(plot.title = element_text(size=16, hjust=0.5))
+sero_fig_A
+```
+
+Blue = seroconversion+, Orange = seroconversion-.
+
+#### N by country
 ```{r}
-# calculate p values using longitudinal_results function
+table(t_plot$seroconv, t_plot$sample_type, t_plot$country)
+```
+
+#### P values, cross-sectional analayses
+See *Module 5* for full univariate and multivariate analyses.
+
+#### P values, longitudinal mixed-effects models
+```{r}
 longitudinal_results(t1, alpha1="Shannon", alpha2="log(Observed)", outcome="seroconv", with_UK=TRUE)
 ```
 
-#### Post-ORV IgA
-#### Dose 1 alpha diversity (week 6/8)
+
+#### Sensitivity - exclusively breastfed
+
+```{r, fig.width=5, fig.height=3.5}
+t_s = subset(t, !is.na(seroconv) & sample_type!="MS1" & country_exposure=="IND (neo-)" & breastfed_child=="exclusive") %>% droplevels()
+t_s$country = "IND (neo-), exclusively breastfed"
+# generate plots
+sero_fig_A_bf = alpha_longitudinal(t_s, "Shannon", "Shannon", "seroconv", "seroconversion", exposure=FALSE) #+ ylim(0,30)
+sero_fig_A_bf
+```
+
+Blue = seroconversion+, Orange = seroconversion-.
+
+#### N by country
+```{r}
+table(t_s$seroconv, t_s$sample_type, t_s$country)
+```
+
+#### P values, longitudinal mixed-effects models
+```{r}
+lme_alpha_ORV(subset(t_s, country_exposure=="IND (neo-)"), "Shannon", "seroconv")
+```
+
+#### P values, cross-sectional models
+```{r}
+p_1 = summary(glm(seroconv ~ Shannon, data = subset(t_s, sample_type=="BS1"), family = binomial))$coefficients[2,4]
+p_2 = summary(glm(seroconv ~ Shannon, data = subset(t_s, sample_type=="BS2"), family = binomial))$coefficients[2,4]
+p_3 = summary(glm(seroconv ~ Shannon, data = subset(t_s, sample_type=="BS3"), family = binomial))$coefficients[2,4]
+p_4 = summary(glm(seroconv ~ Shannon, data = subset(t_s, sample_type=="BS5"), family = binomial))$coefficients[2,4]
+data.frame(week = c(1,4,6,10), p = round(c(p_1, p_2, p_3, p_4), 4))
+```
+
+#### Sensitivity - vaginal delivery
+
+```{r, fig.width=5, fig.height=3.5}
+t_s = subset(t, !is.na(seroconv) & sample_type!="MS1" & country_exposure=="IND (neo-)" & mode_delivery=="vaginal") %>% droplevels()
+t_s$country = "IND (neo-), vaginal delivery"
+# generate plots
+sero_fig_A_vd = alpha_longitudinal(t_s, "Shannon", "Shannon", "seroconv", "seroconversion", exposure=FALSE)
+sero_fig_A_vd
+```
+
+Blue = seroconversion+, Orange = seroconversion-.
+
+#### N by country
+```{r}
+table(t_s$seroconv, t_s$sample_type, t_s$country)
+```
+
+#### P values, longitudinal mixed-effects models
+```{r}
+lme_alpha_ORV(subset(t_s, country_exposure=="IND (neo-)"), "Shannon", "seroconv")
+```
+
+#### P values, cross-sectional models
+```{r}
+p_1 = summary(glm(seroconv ~ Shannon, data = subset(t_s, sample_type=="BS1"), family = binomial))$coefficients[2,4]
+p_2 = summary(glm(seroconv ~ Shannon, data = subset(t_s, sample_type=="BS2"), family = binomial))$coefficients[2,4]
+p_3 = summary(glm(seroconv ~ Shannon, data = subset(t_s, sample_type=="BS3"), family = binomial))$coefficients[2,4]
+p_4 = summary(glm(seroconv ~ Shannon, data = subset(t_s, sample_type=="BS5"), family = binomial))$coefficients[2,4]
+data.frame(week = c(1,4,6,10), p = round(c(p_1, p_2, p_3, p_4), 4))
+```
+
+#### Combined plot
+```{r, fig.width=8, fig.height=3.5}
+plot_grid(sero_fig_A_bf, sero_fig_A_vd)
+```
+
+
+### Post-ORV RV-IgA
+
+#### Week of life 1
 ```{r, fig.width=2.5, fig.height=2}
 # collate Pearson correlation coefficients: alpha vs post-ORV RV-IgA
 results = data.frame(
-  India = corr_by_country_alpha(t1, "BB2_IgA", "India", sample_subset="BS3", "corr"),
-  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "India (exposed)", sample_subset="BS3", "corr"),
-  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "India (unexposed)", sample_subset="BS3", "corr"),
-  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "Malawi", sample_subset="BS3", "corr"),
+  India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS1", "corr"),
+  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS1", "corr"),
+  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS1", "corr"),
+  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS1", "corr"),
+  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS1", "corr")
+  )
+results = mutate_all(results, function(x) as.numeric(as.character(x)))
+
+# collate corresponding p values
+pvals = data.frame(
+  India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS1", "p"),
+  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS1", "p"),
+  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS1", "p"),
+  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS1", "p"),
+  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS1", "p"))
+pvals = mutate_all(pvals, function(x) as.numeric(as.character(x)))
+
+# collate n
+cor_n = data.frame(India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS1", "n"),
+   India_neo_pos = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS1", "n"),
+   India_neo_neg = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS1","n"),
+   Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS1","n"),
+   UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS1", "n"))
+cor_n = mutate_all(cor_n, function(x) as.numeric(as.character(x)))
+
+# plot heatmap of results
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+rownames(results) = rownames(pvals) = c("Shannon", "log(richness)")
+pheatmap(results, cluster_rows = F, cluster_cols = F,  color = col2(200), breaks = seq(-1, 1, by = 0.01))
+```
+
+##### Correlation coefficients values
+```{r}
+data.frame(results)
+```
+
+##### P values
+```{r}
+data.frame(pvals)
+```
+
+##### N
+```{r}
+data.frame(cor_n)
+```
+
+#### Week of life 4
+```{r, fig.width=2.5, fig.height=2}
+# collate Pearson correlation coefficients: alpha vs post-ORV RV-IgA
+results = data.frame(
+  India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS2", "corr"),
+  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS2", "corr"),
+  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS2", "corr"),
+  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS2", "corr"),
+  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS2", "corr")
+  )
+results = mutate_all(results, function(x) as.numeric(as.character(x)))
+
+# collate corresponding p values
+pvals =data.frame(
+  India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS2", "p"),
+  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS2", "p"),
+  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS2", "p"),
+  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS2", "p"),
+  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS2", "p"))
+pvals = mutate_all(pvals, function(x) as.numeric(as.character(x)))
+
+# collate n
+cor_n = data.frame(India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS2", "n"),
+  India_neo_pos = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS2", "n"),
+  India_neo_neg = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS2","n"),
+  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS2","n"),
+  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS2", "n"))
+cor_n = mutate_all(cor_n, function(x) as.numeric(as.character(x)))
+
+# plot heatmap of results
+rownames(results) = rownames(pvals) = c("Shannon", "log(richness)")
+pheatmap(results, cluster_rows = F, cluster_cols = F,  color = col2(200), breaks = seq(-1, 1, by = 0.01))
+```
+
+##### Correlation coefficients values
+```{r}
+data.frame(results)
+```
+
+##### P values
+```{r}
+data.frame(pvals)
+```
+
+##### N
+```{r}
+data.frame(cor_n)
+```
+
+#### Week of life 6
+```{r, fig.width=2.5, fig.height=2}
+# collate Pearson correlation coefficients: alpha vs post-ORV RV-IgA
+results = data.frame(
+  India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS3", "corr"),
+  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS3", "corr"),
+  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS3", "corr"),
+  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS3", "corr"),
   UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS3", "corr")
   )
 results = mutate_all(results, function(x) as.numeric(as.character(x)))
 
 # collate corresponding p values
-pvals = data.frame(
-  India = corr_by_country_alpha(t1, "BB2_IgA", "India", sample_subset="BS3", "p"),
-  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "India (exposed)", sample_subset="BS3", "p"),
-  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "India (unexposed)", sample_subset="BS3", "p"),
-  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "Malawi", sample_subset="BS3", "p"),
-  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS3", "p")
-  )
+pvals =data.frame(
+  India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS3", "p"),
+  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS3", "p"),
+  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS3", "p"),
+  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS3", "p"),
+  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS3", "p"))
 pvals = mutate_all(pvals, function(x) as.numeric(as.character(x)))
 
+# collate n
+cor_n = data.frame(India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS3", "n"),
+  India_neo_pos = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS3", "n"),
+  India_neo_neg = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS3","n"),
+  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS3","n"),
+  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS3", "n"))
+cor_n = mutate_all(cor_n, function(x) as.numeric(as.character(x)))
+
 # plot heatmap of results
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
 rownames(results) = rownames(pvals) = c("Shannon", "log(richness)")
-pheatmap(results, cluster_rows = F, cluster_cols = F,  color = colorRampPalette(brewer.pal(n = 6, name = "RdBu"))(100), breaks = seq(-0.5, 0.5, by = 0.01))
+pheatmap(results, cluster_rows = F, cluster_cols = F,  color = col2(200), breaks = seq(-1, 1, by = 0.01))
 ```
 
 ##### Correlation coefficients values
@@ -143,31 +369,44 @@ data.frame(results)
 data.frame(pvals)
 ```
 
-#### Dose 2 alpha diversity (week 10/12)
+##### N
+```{r}
+data.frame(cor_n)
+```
+
+#### Week of life 10
 ```{r, fig.width=2.5, fig.height=2}
 # collate Pearson correlation coefficients: alpha vs post-ORV RV-IgA
 results = data.frame(
-  India = corr_by_country_alpha(t1, "BB2_IgA", "India", sample_subset="BS5", "corr"),
-  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "India (exposed)", sample_subset="BS5", "corr"),
-  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "India (unexposed)", sample_subset="BS5", "corr"),
-  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "Malawi", sample_subset="BS5", "corr"),
+  India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS5", "corr"),
+  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS5", "corr"),
+  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS5", "corr"),
+  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS5", "corr"),
   UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS5", "corr")
   )
 results = mutate_all(results, function(x) as.numeric(as.character(x)))
 
 # collate corresponding p values
-pvals = data.frame(
-  India = corr_by_country_alpha(t1, "BB2_IgA", "India", sample_subset="BS5", "p"),
-  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "India (exposed)", sample_subset="BS5", "p"),
-  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "India (unexposed)", sample_subset="BS5", "p"),
-  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "Malawi", sample_subset="BS5", "p"),
+pvals =data.frame(
+  India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS5", "p"),
+  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS5", "p"),
+  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS5", "p"),
+  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS5", "p"),
   UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS5", "p")
   )
 pvals = mutate_all(pvals, function(x) as.numeric(as.character(x)))
 
+# collate n
+cor_n = data.frame(India = corr_by_country_alpha(t1, "BB2_IgA", "IND", sample_subset="BS5", "n"),
+  India_neo_pos = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo+)", sample_subset="BS5", "n"),
+  India_neo_neg = corr_by_country_alpha(t1, "BB2_IgA", "IND (neo-)", sample_subset="BS5","n"),
+  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "MLW", sample_subset="BS5","n"),
+  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS5", "n"))
+cor_n = mutate_all(cor_n, function(x) as.numeric(as.character(x)))
+
 # plot heatmap of results
 rownames(results) = rownames(pvals) = c("Shannon", "log(richness)")
-pheatmap(results, cluster_rows = F, cluster_cols = F,  color = colorRampPalette(brewer.pal(n = 6, name = "RdBu"))(100), breaks = seq(-0.5, 0.5, by = 0.01))
+pheatmap(results, cluster_rows = F, cluster_cols = F,  color = col2(200), breaks = seq(-1, 1, by = 0.01))
 ```
 
 ##### Correlation coefficients values
@@ -180,229 +419,48 @@ data.frame(results)
 data.frame(pvals)
 ```
 
-#### Dose 1 shedding
-#### Longitudinal plots
-```{r, fig.width=8, fig.height=6}
+##### N
+```{r}
+data.frame(cor_n)
+```
+
+### Dose 1 shedding
+
+#### Longitudinal plots - Shannon
+```{r, fig.width=8, fig.height=3.5}
 t1 = subset(t, !is.na(dose1_shedding) & country!="UK" & sample_type!="MS1" & sample_type!="BS5")
-t1$week_fig = factor(t1$week_fig, levels = c("week 1","week 4","week 6/8"))
+
+# collate dataframes for plot
+t2 = subset(t1, country_exposure=="IND (neo+)" | country_exposure=="IND (neo-)")
+t2$country = t2$country_exposure
+t_plot = rbind(t1,t2)
+t_plot$country = factor(t_plot$country, levels = c("IND", "MLW", "UK", "IND (neo+)", "IND (neo-)"))
 
 # generate plots
-p1 = alpha_longitudinal(t1, "Shannon", "Shannon (genus)", "dose1_shedding", "dose 1 shedding", exposure=FALSE) + ylim(0,3) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-p2 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Shannon", "Shannon (genus)", "dose1_shedding", "dose 1 shedding", exposure=TRUE) + ylim(0,3) +  facet_grid(.~country_exposure) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-p3 = alpha_longitudinal(t1, "Observed", "richness (genus)", "dose1_shedding", "dose 1 shedding", exposure=FALSE) + ylim(0,30) +
-  scale_x_discrete(labels=c("1", "4", "6"))  
-p4 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Observed", "richness (genus)", "dose1_shedding", "dose 1 shedding", exposure=FALSE) + ylim(0,30)  + facet_grid(.~country_exposure) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-plot_grid(p1,p2,p3,p4, ncol=2, align="vh", axis = "l", rel_widths = c(1,1))
+dose1_fig_A = alpha_longitudinal(t_plot, "Shannon", "Shannon", "dose1_shedding", "dose 1 shedding", exposure=FALSE) + ylim(0,3.5) + 
+  ggtitle("alpha diversity") + theme(plot.title = element_text(size=16, hjust=0.5))
+dose1_fig_A
 ```
 
-#### Statistics
-```{r}
-longitudinal_results(t1, alpha1="Shannon", alpha2="log(Observed)", outcome="dose1_shedding")
-```
-
-#### Shedding after either dose
-#### Longitudinal plots
-```{r, fig.width=8, fig.height=6}
-t1 = subset(t, !is.na(either_shedding) & country!="UK" & sample_type!="MS1" & sample_type!="BS5")
-t1$week_fig = factor(t1$week_fig, levels = c("week 1","week 4","week 6/8"))
-
+#### Longitudinal plots - richness
+```{r, fig.width=8, fig.height=3.5}
 # generate plots
-p1 = alpha_longitudinal(t1, "Shannon", "Shannon (genus)", "either_shedding", "shedding, either", exposure=FALSE) + ylim(0,3) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-p2 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Shannon", "Shannon (genus)", "either_shedding", "shedding, either", exposure=TRUE) + ylim(0,3) +  facet_grid(.~country_exposure) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-p3 = alpha_longitudinal(t1, "Observed", "richness (genus)", "either_shedding", "shedding, either", exposure=FALSE) + ylim(0,30) +
-  scale_x_discrete(labels=c("1", "4", "6"))  
-p4 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Observed", "richness (genus)", "either_shedding", "shedding, either", exposure=FALSE) + ylim(0,30)  + facet_grid(.~country_exposure) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-plot_grid(p1,p2,p3,p4, ncol=2, align="vh", axis = "l", rel_widths = c(1,1))
+dose1_fig_A = alpha_longitudinal(t_plot, "Observed", "richness", "dose1_shedding", "dose 1 shedding", exposure=FALSE) + ylim(0,30)  + 
+  ggtitle("alpha diversity") + theme(plot.title = element_text(size=16, hjust=0.5))
+dose1_fig_A
 ```
 
-#### Statistics
+#### N by country
 ```{r}
-longitudinal_results(t1, alpha1="Shannon", alpha2="log(Observed)", outcome="either_shedding")
+table(t_plot$dose1_shedding, t_plot$sample_type, t_plot$country)
 ```
 
-#### Neonatal infection
-#### Longitudinal plots
-```{r, fig.width=5, fig.height=3}
-t1 = subset(t, !is.na(pre_exposed) & country=="India" & sample_type!="MS1")
-t1$week_fig = factor(t1$week_fig, levels = c("week 1","week 4","week 6/8", "week 10/12"))
-
-# generate plots
-p1 = alpha_longitudinal(t1, "Shannon", "Shannon (genus)", "pre_exposed", "neonatal exposure") + ylim(0,3) + scale_x_discrete(labels=c("1", "4", "6", "10")) + ylab("Shannon (genus)")
-p2 = alpha_longitudinal(t1, "Observed", "richness (genus)", "pre_exposed", "neonatal exposure") + ylim(0,30) + scale_x_discrete(labels=c("1", "4", "6", "10")) + ylab("richness (genus)")
-plot_grid(p1,p2, ncol=2, align="vh")
-```
-
-#### Statistics
-```{r}
-longitudinal_results_neo(t1, alpha1="Shannon", alpha2="log(Observed)", outcome="pre_exposed")
-```
-
-#### Cross-sectional comparisons
-
+#### P values, cross-sectional analayses
 See *Module 5* for full univariate and multivariate analyses.
 
-### RSV-level
-
-#### Seroconversion
-#### Longitudinal plots
-```{r, fig.width=8, fig.height=6}
-t1 = subset(t, !is.na(seroconv) & sample_type!="MS1")
-t1$week_fig = factor(t1$week_fig, levels = c("week 1","week 4","week 6/8","week 10/12"))
-
-# generate plots
-p1 = alpha_longitudinal(t1, "Shannon_rsv", "Shannon (variant)", "seroconv", "seroconversion", exposure=FALSE) + ylim(0,4)
-p2 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Shannon_rsv", "Shannon (variant)", "seroconv", "seroconversion", exposure=TRUE) + ylim(0,4) +  facet_grid(.~country_exposure) 
-p3 = alpha_longitudinal(t1, "Observed_rsv", "richness (variant)", "seroconv", "seroconversion", exposure=FALSE) + ylim(0,60) 
-p4 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Observed_rsv", "richness (variant)", "seroconv", "seroconversion", exposure=FALSE) + ylim(0,60)  + facet_grid(.~country_exposure) 
-plot_grid(p1,p2,p3,p4, ncol=2, align="vh", axis = "l", rel_widths = c(1.4,1))
-```
-
-#### Statistics
+#### P values, longitudinal mixed-effects models
 ```{r}
-longitudinal_results(t1, alpha1="Shannon_rsv", alpha2="log(Observed_rsv)", outcome="seroconv", with_UK=TRUE)
-```
-
-#### Post-ORV IgA
-#### Dose 1 alpha diversity (week 6/8)
-```{r, fig.width=2.5, fig.height=2}
-# collate Pearson correlation coefficients: alpha vs post-ORV RV-IgA
-results = data.frame(
-  India = corr_by_country_alpha(t1, "BB2_IgA", "India", sample_subset="BS3", "corr", rsv=TRUE),
-  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "India (exposed)", sample_subset="BS3", "corr", rsv=TRUE),
-  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "India (unexposed)", sample_subset="BS3", "corr", rsv=TRUE),
-  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "Malawi", sample_subset="BS3", "corr", rsv=TRUE),
-  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS3", "corr", rsv=TRUE)
-  )
-results = mutate_all(results, function(x) as.numeric(as.character(x)))
-
-# collate corresponding p values
-pvals =data.frame(
-  India = corr_by_country_alpha(t1, "BB2_IgA", "India", sample_subset="BS3", "p", rsv=TRUE),
-  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "India (exposed)", sample_subset="BS3", "p", rsv=TRUE),
-  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "India (unexposed)", sample_subset="BS3", "p", rsv=TRUE),
-  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "Malawi", sample_subset="BS3", "p", rsv=TRUE),
-  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS3", "p", rsv=TRUE))
-pvals = mutate_all(pvals, function(x) as.numeric(as.character(x)))
-
-# plot heatmap of results
-rownames(results) = rownames(pvals) = c("Shannon", "log(richness)")
-pheatmap(results, cluster_rows = F, cluster_cols = F,  color = colorRampPalette(brewer.pal(n = 6, name = "RdBu"))(100), breaks = seq(-0.5, 0.5, by = 0.01))
-```
-
-##### Correlation coefficients values
-```{r}
-data.frame(results)
-```
-
-##### P values
-```{r}
-data.frame(pvals)
-```
-
-#### Dose 2 alpha diversity (week 10/12)
-```{r, fig.width=2.5, fig.height=2}
-# collate Pearson correlation coefficients: alpha vs post-ORV RV-IgA
-results = data.frame(
-  India = corr_by_country_alpha(t1, "BB2_IgA", "India", sample_subset="BS5", "corr", rsv=TRUE),
-  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "India (exposed)", sample_subset="BS5", "corr", rsv=TRUE),
-  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "India (unexposed)", sample_subset="BS5", "corr", rsv=TRUE),
-  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "Malawi", sample_subset="BS5", "corr", rsv=TRUE),
-  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS5", "corr", rsv=TRUE)
-  )
-results = mutate_all(results, function(x) as.numeric(as.character(x)))
-
-# collate corresponding p values
-pvals =data.frame(
-  India = corr_by_country_alpha(t1, "BB2_IgA", "India", sample_subset="BS5", "p", rsv=TRUE),
-  India_exposed = corr_by_country_alpha(t1, "BB2_IgA", "India (exposed)", sample_subset="BS5", "p", rsv=TRUE),
-  India_unexposed = corr_by_country_alpha(t1, "BB2_IgA", "India (unexposed)", sample_subset="BS5", "p", rsv=TRUE),
-  Malawi = corr_by_country_alpha(t1, "BB2_IgA", "Malawi", sample_subset="BS5", "p", rsv=TRUE),
-  UK = corr_by_country_alpha(t1, "BB2_IgA", "UK", sample_subset="BS5", "p", rsv=TRUE)
-  )
-pvals = mutate_all(pvals, function(x) as.numeric(as.character(x)))
-
-# plot heatmap of results
-rownames(results) = rownames(pvals) = c("Shannon", "log(richness)")
-pheatmap(results, cluster_rows = F, cluster_cols = F,  color = colorRampPalette(brewer.pal(n = 6, name = "RdBu"))(100), breaks = seq(-0.5, 0.5, by = 0.01))
-```
-
-##### Correlation coefficients values
-```{r}
-data.frame(results)
-```
-
-##### P values
-```{r}
-data.frame(pvals)
-```
-
-#### Dose 1 shedding
-#### Longitudinal plots
-```{r, fig.width=8, fig.height=6}
-t1 = subset(t, !is.na(dose1_shedding) & country!="UK" & sample_type!="MS1" & sample_type!="BS5")
-t1$week_fig = factor(t1$week_fig, levels = c("week 1","week 4","week 6/8"))
-
-# generate plots
-p1 = alpha_longitudinal(t1, "Shannon_rsv", "Shannon (variant)", "dose1_shedding", "dose 1 shedding", exposure=FALSE) + ylim(0,4) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-p2 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Shannon_rsv", "Shannon (variant)", "dose1_shedding", "dose 1 shedding", exposure=TRUE) + ylim(0,4) +  facet_grid(.~country_exposure) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-p3 = alpha_longitudinal(t1, "Observed_rsv", "richness (variant)", "dose1_shedding", "dose 1 shedding", exposure=FALSE) + ylim(0,60) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-p4 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Observed_rsv", "richness (variant)", "dose1_shedding", "dose 1 shedding", exposure=FALSE) + ylim(0,60)  + facet_grid(.~country_exposure) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-plot_grid(p1,p2,p3,p4, ncol=2, align="vh", axis = "l", rel_widths = c(1,1))
-```
-
-#### Statistics
-```{r}
-longitudinal_results(t1, alpha1="Shannon_rsv", alpha2="log(Observed_rsv)", outcome="dose1_shedding")
-```
-
-#### Shedding after either dose
-#### Longitudinal plots
-```{r, fig.width=8, fig.height=6}
-t1 = subset(t, !is.na(either_shedding) & country!="UK" & sample_type!="MS1" & sample_type!="BS5")
-t1$week_fig = factor(t1$week_fig, levels = c("week 1","week 4","week 6/8"))
-
-# generate plots
-p1 = alpha_longitudinal(t1, "Shannon_rsv", "Shannon (variant)", "either_shedding", "shedding, either", exposure=FALSE) + ylim(0,3) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-p2 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Shannon_rsv", "Shannon (variant)", "either_shedding", "shedding, either", exposure=TRUE) + ylim(0,3) +  facet_grid(.~country_exposure) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-p3 = alpha_longitudinal(t1, "Observed_rsv", "richness (variant)", "either_shedding", "shedding, either", exposure=FALSE) + ylim(0,30) +
-  scale_x_discrete(labels=c("1", "4", "6"))  
-p4 = alpha_longitudinal(subset(t1, country_exposure=="India (exposed)" | country_exposure=="India (unexposed)"), "Observed_rsv", "richness (variant)", "either_shedding", "shedding, either", exposure=FALSE) + ylim(0,30)  + facet_grid(.~country_exposure) +
-  scale_x_discrete(labels=c("1", "4", "6")) 
-plot_grid(p1,p2,p3,p4, ncol=2, align="vh", axis = "l", rel_widths = c(1,1))
-```
-
-#### Statistics
-```{r}
-longitudinal_results(t1, alpha1="Shannon_rsv", alpha2="log(Observed_rsv)", outcome="either_shedding")
-```
-
-
-#### Neonatal infection
-#### Longitudinal plots
-```{r, fig.width=5, fig.height=3}
-t1 = subset(t, !is.na(pre_exposed) & country=="India" & sample_type!="MS1")
-t1$week_fig = factor(t1$week_fig, levels = c("week 1","week 4","week 6/8", "week 10/12"))
-
-p1 = alpha_longitudinal(t1, "Shannon_rsv", "Shannon (variant)", "pre_exposed", "neonatal exposure") + ylim(0,4) + scale_x_discrete(labels=c("1", "4", "6", "10")) 
-p2 = alpha_longitudinal(t1, "Observed_rsv", "richness (variant)", "pre_exposed", "neonatal exposure") + ylim(0,60) + scale_x_discrete(labels=c("1", "4", "6", "10")) 
-plot_grid(p1,p2, ncol=2, align="vh")
-```
-
-#### Statistics
-```{r}
-longitudinal_results_neo(t1, alpha1="Shannon_rsv", alpha2="log(Observed_rsv)", outcome="pre_exposed")
+longitudinal_results(t1, alpha1="Shannon", alpha2="log(Observed)", outcome="dose1_shedding")
 ```
 
 
@@ -414,109 +472,85 @@ Beta diversity {.hidden}
 Column {.tabset .tabset-fade}
 -------------------------------------
   
-### Genus-level 
-#### Seroconversion
-#### Bray-Curtis distances (weighted)
-```{r, fig.width=12, fig.height=5}
-p1 = beta_plot_ORV(rps8_genus, subset="BS3", plot_title="week 6, India", 
-                   method="Bray-Curtis (weighted)", country_subset="India", outcome="seroconv")
-p2 = beta_plot_ORV(rps8_genus, subset="BS3", plot_title="week 6, India (exposed)", 
-                   method="Bray-Curtis (weighted)", country_subset="India (exposed)", outcome="seroconv")
-p3 = beta_plot_ORV(rps8_genus, subset="BS3", plot_title="week 6, India (unexposed)", 
-                   method="Bray-Curtis (weighted)", country_subset="India (unexposed)", outcome="seroconv")
-p4 = beta_plot_ORV(rps8_genus, subset="BS3", plot_title="week 6, Malawi", 
-                   method="Bray-Curtis (weighted)", country_subset="Malawi", outcome="seroconv")
-p5 = beta_plot_ORV(rps8_genus, subset="BS3", plot_title="week 8, UK", 
-                   method="Bray-Curtis (weighted)", country_subset="UK", outcome="seroconv")
-p6 = beta_plot_ORV(rps8_genus, subset="BS5", plot_title="week 10, India", 
-                   method="Bray-Curtis (weighted)", country_subset="India", outcome="seroconv")
-p7 = beta_plot_ORV(rps8_genus, subset="BS5", plot_title="week 10, India (exposed)", 
-                   method="Bray-Curtis (weighted)", country_subset="India (exposed)", outcome="seroconv")
-p8 = beta_plot_ORV(rps8_genus, subset="BS5", plot_title="week 10, India (unexposed)", 
-                   method="Bray-Curtis (weighted)", country_subset="India (unexposed)", outcome="seroconv")
-p9 = beta_plot_ORV(rps8_genus, subset="BS5", plot_title="week 10, Malawi", 
-                   method="Bray-Curtis (weighted)", country_subset="Malawi", outcome="seroconv")
-p10 = beta_plot_ORV(rps8_genus, subset="BS5", plot_title="week 12, UK", 
-                    method="Bray-Curtis (weighted)", country_subset="UK", outcome="seroconv")
-grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10, ncol=5)
-```
-
-#### Bray-Curtis distances (unweighted)
-```{r, fig.width=12, fig.height=5}
-p1 = beta_plot_ORV(rps8_genus, subset="BS3", plot_title="week 6, India", 
-                   method="Bray-Curtis (unweighted)", country_subset="India", outcome="seroconv")
-p2 = beta_plot_ORV(rps8_genus, subset="BS3", plot_title="week 6, India (exposed)", 
-                   method="Bray-Curtis (unweighted)", country_subset="India (exposed)", outcome="seroconv")
-p3 = beta_plot_ORV(rps8_genus, subset="BS3", plot_title="week 6, India (unexposed)", 
-                   method="Bray-Curtis (unweighted)", country_subset="India (unexposed)", outcome="seroconv")
-p4 = beta_plot_ORV(rps8_genus, subset="BS3", plot_title="week 6, Malawi",
-                   method="Bray-Curtis (unweighted)", country_subset="Malawi", outcome="seroconv")
-p5 = beta_plot_ORV(rps8_genus, subset="BS3", plot_title="week 8, UK", 
-                   method="Bray-Curtis (unweighted)", country_subset="UK", outcome="seroconv")
-p6 = beta_plot_ORV(rps8_genus, subset="BS5", plot_title="week 10, India", 
-                   method="Bray-Curtis (unweighted)", country_subset="India", outcome="seroconv")
-p7 = beta_plot_ORV(rps8_genus, subset="BS5", plot_title="week 10, India (exposed)", 
-                   method="Bray-Curtis (unweighted)", country_subset="India (exposed)", outcome="seroconv")
-p8 = beta_plot_ORV(rps8_genus, subset="BS5", plot_title="week 10, India (unexposed)", 
-               method="Bray-Curtis (unweighted)", country_subset="India (unexposed)", outcome="seroconv")
-p9 = beta_plot_ORV(rps8_genus, subset="BS5", plot_title="week 10, Malawi", 
-               method="Bray-Curtis (unweighted)", country_subset="Malawi", outcome="seroconv")
-p10 = beta_plot_ORV(rps8_genus, subset="BS5", plot_title="week 12, UK", 
-                method="Bray-Curtis (unweighted)", country_subset="UK", outcome="seroconv")
-grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10, ncol=5)
-```
-
-### RSV-level 
+### Unweighted
 
 #### Seroconversion
-#### Bray-Curtis distances (weighted)
-```{r, fig.width=12, fig.height=5}
-p1 = beta_plot_ORV(rps8, subset="BS3", plot_title="week 6, India", 
-               method="Bray-Curtis (weighted)", country_subset="India", outcome="seroconv")
-p2 = beta_plot_ORV(rps8, subset="BS3", plot_title="week 6, India (exposed)", 
-               method="Bray-Curtis (weighted)", country_subset="India (exposed)", outcome="seroconv")
-p3 = beta_plot_ORV(rps8, subset="BS3", plot_title="week 6, India (unexposed)", 
-               method="Bray-Curtis (weighted)", country_subset="India (unexposed)", outcome="seroconv")
-p4 = beta_plot_ORV(rps8, subset="BS3", plot_title="week 6, Malawi", 
-               method="Bray-Curtis (weighted)", country_subset="Malawi", outcome="seroconv")
-p5 = beta_plot_ORV(rps8, subset="BS3", plot_title="week 8, UK", 
-               method="Bray-Curtis (weighted)", country_subset="UK", outcome="seroconv")
-p6 = beta_plot_ORV(rps8, subset="BS5", plot_title="week 10, India", 
-               method="Bray-Curtis (weighted)", country_subset="India", outcome="seroconv")
-p7 = beta_plot_ORV(rps8, subset="BS5", plot_title="week 10, India (exposed)", 
-               method="Bray-Curtis (weighted)", country_subset="India (exposed)", outcome="seroconv")
-p8 = beta_plot_ORV(rps8, subset="BS5", plot_title="week 10, India (unexposed)",
-               method="Bray-Curtis (weighted)", country_subset="India (unexposed)", outcome="seroconv")
-p9 = beta_plot_ORV(rps8, subset="BS5", plot_title="week 10, Malawi", 
-               method="Bray-Curtis (weighted)", country_subset="Malawi", outcome="seroconv")
-p10 = beta_plot_ORV(rps8, subset="BS5", plot_title="week 12, UK", 
-                method="Bray-Curtis (weighted)", country_subset="UK", outcome="seroconv")
-grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10, ncol=5)
+```{r, fig.height=3, fig.width=8}
+collated_beta_seroconv = collated_beta_function("seroconv", unweighted_logical=TRUE)
+collated_beta_seroconv$outcome = "seroconversion"
+collated_beta_seroconv
 ```
 
-#### Bray-Curtis distances (unweighted)
-```{r, fig.width=12, fig.height=5}
-p1 = beta_plot_ORV(rps8, subset="BS3", plot_title="week 6, India", 
-               method="Bray-Curtis (unweighted)", country_subset="India", outcome="seroconv")
-p2 = beta_plot_ORV(rps8, subset="BS3", plot_title="week 6, India (exposed)", 
-               method="Bray-Curtis (unweighted)", country_subset="India (exposed)", outcome="seroconv")
-p3 = beta_plot_ORV(rps8, subset="BS3", plot_title="week 6, India (unexposed)", 
-               method="Bray-Curtis (unweighted)", country_subset="India (unexposed)", outcome="seroconv")
-p4 = beta_plot_ORV(rps8, subset="BS3", plot_title="week 6, Malawi", 
-               method="Bray-Curtis (unweighted)", country_subset="Malawi", outcome="seroconv")
-p5 = beta_plot_ORV(rps8, subset="BS3", plot_title="week 8, UK", 
-               method="Bray-Curtis (unweighted)", country_subset="UK", outcome="seroconv")
-p6 = beta_plot_ORV(rps8, subset="BS5", plot_title="week 10, India", 
-               method="Bray-Curtis (unweighted)", country_subset="India", outcome="seroconv")
-p7 = beta_plot_ORV(rps8, subset="BS5", plot_title="week 10, India (exposed)", 
-               method="Bray-Curtis (unweighted)", country_subset="India (exposed)", outcome="seroconv")
-p8 = beta_plot_ORV(rps8, subset="BS5", plot_title="week 10, India (unexposed)",
-               method="Bray-Curtis (unweighted)", country_subset="India (unexposed)", outcome="seroconv")
-p9 = beta_plot_ORV(rps8, subset="BS5", plot_title="week 10, Malawi", 
-               method="Bray-Curtis (unweighted)", country_subset="Malawi", outcome="seroconv")
-p10 = beta_plot_ORV(rps8, subset="BS5", plot_title="week 12, UK", 
-                method="Bray-Curtis (unweighted)", country_subset="UK", outcome="seroconv")
-grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10, ncol=5)
+```{r, fig.width=10, fig.height=3.5}
+sero_fig_B = ggplot(collated_beta_seroconv, aes(x = R2, y=week, fill = country)) + geom_bar(stat = "identity") +
+  ylab("week of life") + xlab(bquote(R^2~"(%)")) +
+  scale_x_continuous(limits=c(0,10), breaks=c(0,4,8)) + facet_grid(.~country)+
+  ggtitle("Bray-Curtis PERMANOVA") +
+  coord_flip() + theme(legend.position = "none") + scale_fill_manual(values = c(IND=India_col,MLW=Malawi_col,UK=UK_col,"IND (neo+)"=India_col, "IND (neo-)"=India_col)) +
+  theme(plot.title = element_text(size=16, hjust=0.5), axis.text = element_text(size=16), axis.title = element_text(size=16), strip.text = element_text(size=16)) + 
+  theme(strip.background = element_blank())
+sero_fig_B
+```
+
+#### RV-IgA
+```{r}
+collated_beta_IgA = collated_beta_function("BB2_IgA", unweighted_logical=TRUE)
+collated_beta_IgA$outcome = "RV-IgA (post-ORV)"
+collated_beta_IgA
+```
+
+```{r, fig.width=10, fig.height=3.5}
+IgA_fig_B = ggplot(collated_beta_IgA, aes(x = R2, y=week, fill = country)) + geom_bar(stat = "identity") +
+  ylab("week of life") + xlab(bquote(R^2~"(%)")) +
+  scale_x_continuous(limits=c(0,10), breaks=c(0,4,8)) + facet_grid(.~country)+
+  ggtitle("Bray-Curtis PERMANOVA") +
+  coord_flip() + theme(legend.position = "none") + scale_fill_manual(values = c(IND=India_col,MLW=Malawi_col,UK=UK_col,"IND (neo+)"=India_col, "IND (neo-)"=India_col)) +
+  theme(plot.title = element_text(size=16, hjust=0.5), axis.text = element_text(size=16), axis.title = element_text(size=16), strip.text = element_text(size=16)) + 
+  theme(strip.background = element_blank())
+IgA_fig_B
+```
+
+#### Dose 1 shedding
+```{r}
+collated_beta_dose1 = collated_beta_function("dose1_shedding", unweighted_logical=TRUE)
+collated_beta_dose1$outcome = "dose 1 shedding"
+collated_beta_dose1 = subset(collated_beta_dose1, country!="UK" & week!=10)
+collated_beta_dose1
+```
+
+```{r, fig.height=3, fig.width=8}
+dose1_fig_B = ggplot(collated_beta_dose1, aes(x = R2, y=week, fill = country)) + geom_bar(stat = "identity") +
+  ylab("week of life") + xlab(bquote(R^2~"(%)")) +
+  scale_x_continuous(limits=c(0,10), breaks=c(0,4,8)) + facet_grid(.~country)+
+  ggtitle("Bray-Curtis PERMANOVA") +
+  coord_flip() + theme(legend.position = "none") + scale_fill_manual(values = c(IND=India_col,MLW=Malawi_col,UK=UK_col,"IND (neo+)"=India_col, "IND (neo-)"=India_col)) +
+  theme(plot.title = element_text(size=16, hjust=0.5), axis.text = element_text(size=16), axis.title = element_text(size=16), strip.text = element_text(size=16)) + 
+  theme(strip.background = element_blank())
+dose1_fig_B
+```
+
+### Weighted
+
+#### Seroconversion
+```{r, fig.height=3, fig.width=8}
+collated_beta_seroconv = collated_beta_function("seroconv", unweighted_logical=FALSE)
+collated_beta_seroconv$outcome = "seroconversion"
+collated_beta_seroconv
+```
+
+#### RV-IgA
+```{r}
+collated_beta_IgA = collated_beta_function("BB2_IgA", unweighted_logical=FALSE)
+collated_beta_IgA$outcome = "RV-IgA (post-ORV)"
+collated_beta_IgA
+```
+
+#### Dose 1 shedding
+```{r}
+collated_beta_dose1 = collated_beta_function("dose1_shedding", unweighted_logical=FALSE)
+collated_beta_dose1$outcome = "dose 1 shedding"
+collated_beta_dose1 = subset(collated_beta_dose1, country!="UK" & week!=10)
+collated_beta_dose1
 ```
 
 
@@ -528,12 +562,16 @@ Differential taxa {.hidden}
 Column {.tabset .tabset-fade}
 -------------------------------------
 
-### Genus-level
-#### Seroconversion
-```{r, fig.width=8, fig.height=2.5}
+### Seroconversion
+
+#### Genus- and RSV-level models
+```{r}
+### Genus level
 set.seed(12345)
+
 # select input data
 rps = rps8_genus
+ps = ps7_genus
 input_m = data.frame(sample_data(rps))
 
 # specify sample types and country subsets to include in analysis
@@ -546,103 +584,18 @@ if (run_rf_full) { collate_rf_binary("crossval_collated_genus_seroconv.csv") }
 collated_rf = read.csv("output_module4/crossval_collated_genus_seroconv.csv", row.names=1)
 
 # remove MLW samples from BS5 owing to insufficient responders (n <10)
-collated_rf = subset(collated_rf, !(country=="Malawi" & sample_subset=="BS5"))
-
-# plot summary figures
-p1 = summary_rf_plot_binary(subset(collated_rf, country=="India" | country=="Malawi" | country=="UK"), "seroconversion")
-p2 = summary_rf_plot_binary(subset(collated_rf, country=="India (exposed)" | country=="India (unexposed)"), "seroconversion")
-plot_grid(p1,p2, ncol=2, align="vh", rel_widths=c(3,2.2))
+collated_rf = subset(collated_rf, !(country=="Malawi" & sample_subset=="BS5") & sample_subset!="MS1") %>% droplevels()
+collated_rf$country = factor(collated_rf$country, levels=c("India", "Malawi", "UK", "India (exposed)", "India (unexposed)"))
+collated_rf$level = "genus"
 ```
 
-#### Post-ORV IgA concentration
-```{r, fig.width=8, fig.height=2.5}
-set.seed(23456)
-# specify country subsets to include in analysis
-country_list = c("India", "India (exposed)", "India (unexposed)", "Malawi", "UK")
-outcome = "BB2_IgA"
-level = "genus"
-
-# run RF using collate_rf_IgA function
-if (run_rf_full) { collate_rf_IgA("crossval_collated_genus_IgA.csv") }
-collated_rf = read.csv("output_module4/crossval_collated_genus_IgA.csv", row.names=1)
-
-# recode week
-collated_rf$week = revalue(as.factor(collated_rf$sample_subset), c("BS1" = "week 1", "BS2" = "week 4", "BS3" = "week 6/8", "BS5" = "week 10/12", "MS1" = "mother"))
-
-# create plot for 3 separate countries
-collated_rf_sub = droplevels(subset(collated_rf, country=="India" | country=="Malawi" | country=="UK"))
-p1 = ggplot(collated_rf_sub, aes(factor(week), y=mean_tst_lm_R2, colour=factor(country))) + 
-  geom_point(size =2 , alpha = 0.8) + 
-  scale_x_discrete(limits = rev(levels(collated_rf_sub$week))) +
-  geom_errorbar(aes(ymin=mean_tst_lm_R2-sd_tst_lm_R2, ymax=mean_tst_lm_R2+sd_tst_lm_R2), width=0) + 
-  geom_hline(yintercept=0, linetype="dotted") + xlab("") +
-  ylab(bquote("cross-validation"~R^2)) + 
-  scale_colour_manual(values = c(India = India_col, "India (exposed)" = India_col_2, 
-                                 "India (unexposed)" = India_col_2, Malawi = Malawi_col, UK = UK_col)) + 
-  ylim(-0.1,0.6) +
-  theme_bw() + theme(legend.position = "", strip.background = element_blank()) +
-  coord_flip() + ggtitle("infant RV-IgA (post-ORV)") + 
-  theme(plot.title = element_text(size=10, hjust = 0.5)) + facet_grid(.~country, drop=TRUE)
-
-# create plot for Indian infants stratified by neonatal exposure status
-collated_rf_sub = droplevels(subset(collated_rf, country=="India (exposed)" |  country=="India (unexposed)"))
-p2 = ggplot(collated_rf_sub, aes(factor(week), y=mean_tst_lm_R2, colour=factor(country))) + 
-  geom_point(size =2 , alpha = 0.8) + 
-  scale_x_discrete(limits = rev(levels(collated_rf_sub$week))) +
-  geom_errorbar(aes(ymin=mean_tst_lm_R2-sd_tst_lm_R2, ymax=mean_tst_lm_R2+sd_tst_lm_R2), width=0) + 
-  geom_hline(yintercept=0, linetype="dotted") + xlab("") +
-  ylab(bquote("cross-validation"~R^2)) + 
-  scale_colour_manual(values = c(India = India_col, "India (exposed)" = India_col_2, 
-                                 "India (unexposed)" = India_col_2, Malawi = Malawi_col, UK = UK_col)) + 
-  ylim(-0.1,0.6) +
-  theme_bw() + theme(legend.position = "", strip.background = element_blank()) +
-  coord_flip() + ggtitle("infant RV-IgA (post-ORV)") + 
-  theme(plot.title = element_text(size=10, hjust = 0.5)) + facet_grid(.~country, drop=TRUE)
-
-# generate multi-panel plot
-plot_grid(p1,p2, ncol=2, align="h", rel_widths=c(3,2.2))
-```
-
-#### Dose 1 shedding
-```{r, fig.width=7, fig.height=2.5}
-set.seed(34567)
-country_list = c("India", "India (exposed)", "India (unexposed)", "Malawi")
-outcome = "dose1_shedding"
-if (run_rf_full) { collate_rf_binary("crossval_collated_genus_dose1_shedding.csv") }
-collated_rf = read.csv("output_module4/crossval_collated_genus_dose1_shedding.csv", row.names=1)
-p1 = summary_rf_plot_binary(subset(collated_rf, country=="India" | country=="Malawi" | country=="UK"), "dose 1 shedding")
-p2 = summary_rf_plot_binary(subset(collated_rf, country=="India (exposed)" | country=="India (unexposed)"), "dose 1 shedding")
-plot_grid(p1,p2, ncol=2, align="vh", rel_widths=c(1,1))
-```
-
-#### Shedding after either dose
-```{r, fig.width=7, fig.height=2.5}
-set.seed(45678)
-country_list = c("India", "India (exposed)", "India (unexposed)", "Malawi")
-outcome = "either_shedding"
-if (run_rf_full) { collate_rf_binary("crossval_collated_genus_either_shedding.csv") }
-collated_rf = read.csv("output_module4/crossval_collated_genus_either_shedding.csv", row.names=1)
-p1 = summary_rf_plot_binary(subset(collated_rf, country=="India" | country=="Malawi" | country=="UK"), "shedding, either") + ylim(0.1,0.9)
-p2 = summary_rf_plot_binary(subset(collated_rf, country=="India (exposed)" | country=="India (unexposed)"), "shedding, either") + ylim(0.1,0.9)
-plot_grid(p1,p2, ncol=2, align="vh", rel_widths=c(1,1))
-```
-
-#### Neonatal exposure
-```{r, fig.width=2.4, fig.height=2.5}
-set.seed(56789)
-country_list = c("India")
-outcome = "pre_exposed"
-if (run_rf_full) { collate_rf_binary("crossval_collated_genus_pre_exposed.csv") }
-collated_rf = read.csv("output_module4/crossval_collated_genus_pre_exposed.csv", row.names=1)
-summary_rf_plot_binary(collated_rf, "pre-ORV exposure")
-```
-
-### RSV-level
-#### Seroconversion
-```{r, fig.width=8, fig.height=2.5}
+```{r}
+### RSV level
 set.seed(12345)
+
 # select input data
 rps = rps8
+ps = ps7
 input_m = data.frame(sample_data(rps))
 
 # specify sample types and country subsets to include in analysis
@@ -652,20 +605,106 @@ country_list = c("India", "India (exposed)", "India (unexposed)", "Malawi", "UK"
 # select outcome, then run RF using collate_rf_binary function
 outcome = "seroconv"
 if (run_rf_full) { collate_rf_binary("crossval_collated_rsv_seroconv.csv") }
-collated_rf = read.csv("output_module4/crossval_collated_rsv_seroconv.csv", row.names=1)
+collated_rf_rsv = read.csv("output_module4/crossval_collated_rsv_seroconv.csv", row.names=1)
 
 # remove MLW samples from BS5 owing to insufficient responders (n <10)
-collated_rf = subset(collated_rf, !(country=="Malawi" & sample_subset=="BS5"))
-
-# plot summary figures
-p1 = summary_rf_plot_binary(subset(collated_rf, country=="India" | country=="Malawi" | country=="UK"), "seroconversion")
-p2 = summary_rf_plot_binary(subset(collated_rf, country=="India (exposed)" | country=="India (unexposed)"), "seroconversion")
-plot_grid(p1,p2, ncol=2, align="vh", rel_widths=c(3,2.2))
+collated_rf_rsv = subset(collated_rf_rsv, !(country=="Malawi" & sample_subset=="BS5") & sample_subset!="MS1") %>% droplevels()
+collated_rf_rsv$country = factor(collated_rf_rsv$country, levels=c("India", "Malawi", "UK", "India (exposed)", "India (unexposed)"))
+collated_rf_rsv$level = "RSV"
 ```
 
-#### Post-ORV IgA concentration
-```{r, fig.width=8, fig.height=2.5}
+#### Summary plot
+```{r, fig.width=10, fig.height=3.5}
+# collate and plot
+full = rbind(collated_rf, collated_rf_rsv)
+# plot summary figures
+sero_fig_C = summary_rf_plot_binary(full, "Random Forests") + scale_y_continuous(limits = c(0.3,1), breaks = c(0.4,0.6,0.8,1)) + xlab("week of life")
+sero_fig_C
+```
+
+#### Differential genera - Fisher's test or Aldex2 (FDR p <0.05)
+```{r, fig.width=10, fig.height=6}
+summary = rbind(
+  summary_abund_plot_ORV("seroconv", "India", "IND", "genus"),
+  summary_abund_plot_ORV("seroconv", "Malawi", "MLW", "genus"),
+  summary_abund_plot_ORV("seroconv", "UK", "UK", "genus"),
+  summary_abund_plot_ORV("seroconv", "India (exposed)", "IND (neo+)", "genus"),
+  summary_abund_plot_ORV("seroconv", "India (unexposed)", "IND (neo-)", "genus")
+)
+
+# generate plot
+ggplot(summary, aes(x=week, y=count, label=count, colour=enriched, group=enriched)) + 
+    geom_point(size=3, alpha=0.8) + geom_line(alpha=0.5, show.legend = FALSE) + 
+    geom_text(vjust = 0, nudge_y = 2, show.legend = FALSE, size=5) +
+   # geom_text(aes(y = rep(ymax,8), label=total), colour="grey", show.legend = FALSE, fontface = "italic", size=5) +
+    xlab("week of life") + facet_grid(enriched~country) + #ylim(0,100) + 
+    scale_colour_manual(values=c(nr_col, r_col, "grey")) + 
+    theme(legend.position="none", strip.background = element_blank()) +
+    ylab("number of genera") + labs(colour='enriched country') +
+    theme(axis.text = element_text(size=16), axis.title = element_text(size=16), plot.title = element_text(size=16, hjust = 0.5), strip.text = element_text(size=16),
+          legend.text = element_text(size=16), legend.title = element_text(size=16))
+```
+
+#### Differential RSVs - Fisher's test or Aldex2 (FDR p <0.05)
+```{r, fig.width=10, fig.height=6}
+summary = rbind(
+  summary_abund_plot_ORV("seroconv", "India", "IND", "rsv"),
+  summary_abund_plot_ORV("seroconv", "Malawi", "MLW", "rsv"),
+  summary_abund_plot_ORV("seroconv", "UK", "UK", "rsv"),
+  summary_abund_plot_ORV("seroconv", "India (exposed)", "IND (neo+)", "rsv"),
+  summary_abund_plot_ORV("seroconv", "India (unexposed)", "IND (neo-)", "rsv")
+)
+
+# generate plot
+ggplot(summary, aes(x=week, y=count, label=count, colour=enriched, group=enriched)) + 
+    geom_point(size=3, alpha=0.8) + geom_line(alpha=0.5, show.legend = FALSE) + 
+    geom_text(vjust = 0, nudge_y = 2, show.legend = FALSE, size=5) +
+   # geom_text(aes(y = rep(ymax,8), label=total), colour="grey", show.legend = FALSE, fontface = "italic", size=5) +
+     xlab("week of life") + facet_grid(enriched~country) + #ylim(0,350) +
+    scale_colour_manual(values=c(nr_col, r_col, "grey")) + 
+    theme(legend.position="none", strip.background = element_blank()) +
+    ylab("number of RSVs") + labs(colour='enriched country') +
+    theme(axis.text = element_text(size=16), axis.title = element_text(size=16), plot.title = element_text(size=16, hjust = 0.5), strip.text = element_text(size=16),
+          legend.text = element_text(size=16), legend.title = element_text(size=16))
+```
+
+
+#### RV-IgA
+
+#### Genus- and RSV-level models
+```{r}
+### Genus level
 set.seed(23456)
+
+# select input data
+rps = rps8_genus
+ps = ps7_genus
+input_m = data.frame(sample_data(rps))
+
+# specify country subsets to include in analysis
+country_list = c("India", "India (exposed)", "India (unexposed)", "Malawi", "UK")
+outcome = "BB2_IgA"
+level = "genus"
+
+# run RF using collate_rf_IgA function
+if (run_rf_full) { collate_rf_IgA("crossval_collated_genus_IgA.csv") }
+collated_rf = read.csv("output_module4/crossval_collated_genus_IgA.csv", row.names=1)
+
+# remove MS1 samples
+collated_rf = subset(collated_rf, sample_subset!="MS1") %>% droplevels()
+collated_rf$country = factor(collated_rf$country, levels=c("India", "Malawi", "UK", "India (exposed)", "India (unexposed)"))
+collated_rf$level = "genus"
+```
+
+```{r}
+### RSV level
+set.seed(23456)
+
+# select input data
+rps = rps8
+ps = ps7
+input_m = data.frame(sample_data(rps))
+
 # specify country subsets to include in analysis
 country_list = c("India", "India (exposed)", "India (unexposed)", "Malawi", "UK")
 outcome = "BB2_IgA"
@@ -673,80 +712,204 @@ level = "rsv"
 
 # run RF using collate_rf_IgA function
 if (run_rf_full) { collate_rf_IgA("crossval_collated_rsv_IgA.csv") }
-collated_rf = read.csv("output_module4/crossval_collated_rsv_IgA.csv", row.names=1)
+collated_rf_rsv = read.csv("output_module4/crossval_collated_rsv_IgA.csv", row.names=1)
 
-# recode week
-collated_rf$week = revalue(as.factor(collated_rf$sample_subset), c("BS1" = "week 1", "BS2" = "week 4", "BS3" = "week 6/8", "BS5" = "week 10/12", "MS1" = "mother"))
+# remove MS1 samples
+collated_rf_rsv = subset(collated_rf_rsv, sample_subset!="MS1") %>% droplevels()
+collated_rf_rsv$country = factor(collated_rf_rsv$country, levels=c("India", "Malawi", "UK", "India (exposed)", "India (unexposed)"))
+collated_rf_rsv$level = "RSV"
+```
 
-# create plot for 3 separate countries
-collated_rf_sub = droplevels(subset(collated_rf, country=="India" | country=="Malawi" | country=="UK"))
-p1 = ggplot(collated_rf_sub, aes(factor(week), y=mean_tst_lm_R2, colour=factor(country))) + 
-  geom_point(size =2 , alpha = 0.8) + 
-  scale_x_discrete(limits = rev(levels(collated_rf_sub$week))) +
-  geom_errorbar(aes(ymin=mean_tst_lm_R2-sd_tst_lm_R2, ymax=mean_tst_lm_R2+sd_tst_lm_R2), width=0) + 
-  geom_hline(yintercept=0, linetype="dotted") + xlab("") +
-  ylab(bquote("cross-validation"~R^2)) + 
-  scale_colour_manual(values = c(India = India_col, "India (exposed)" = India_col_2, 
-                                 "India (unexposed)" = India_col_2, Malawi = Malawi_col, UK = UK_col)) + 
-  ylim(-0.1,0.6) +
+#### Summary plot
+```{r, fig.width=10, fig.height=5}
+# collate and plot
+full = rbind(collated_rf, collated_rf_rsv)
+
+full$week = revalue(as.factor(full$sample_subset), c("BS1" = "1", "BS2" = "4", "BS3" = "6", "BS5" = "10"))
+full$country = revalue(as.factor(full$country), c("Malawi" = "MLW", "India" = "IND", "India (exposed)" = "IND (neo+)", "India (unexposed)" = "IND (neo-)"))
+
+# plot summary figures
+IgA_fig_C = ggplot(full, aes(y = median_tst_lm_R2*100, x = factor(week), colour=factor(country))) + 
+  geom_point(size = 5, alpha=0.8) +
+  geom_errorbar(aes(ymin=q1_tst_lm_R2*100, ymax=q3_tst_lm_R2*100), width=0) + 
+  geom_hline(yintercept=0, linetype="dotted") + xlab("week of life") +
+  ylab(bquote("CV"~R^2~"(%)")) + 
+  scale_y_continuous(limits=c(-10, 50), oob=rescale_none, breaks=c(0,25,50)) + 
+  scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col, UK = UK_col)) +
   theme_bw() + theme(legend.position = "", strip.background = element_blank()) +
-  coord_flip() + ggtitle("infant RV-IgA (post-ORV)") + 
-  theme(plot.title = element_text(size=10, hjust = 0.5)) + facet_grid(.~country, drop=TRUE)
+  ggtitle("Random Forests") + facet_grid(level~country) +
+  theme(axis.text = element_text(size = 16), axis.title = element_text(size = 16), plot.title = element_text(size = 16, hjust = 0.5), strip.text = element_text(size = 16))
+IgA_fig_C
+```
 
-# create plot for Indian infants stratified by neonatal exposure status
-collated_rf_sub = droplevels(subset(collated_rf, country=="India (exposed)" |  country=="India (unexposed)"))
-p2 = ggplot(collated_rf_sub, aes(factor(week), y=mean_tst_lm_R2, colour=factor(country))) + 
-  geom_point(size =2 , alpha = 0.8) + 
-  scale_x_discrete(limits = rev(levels(collated_rf_sub$week))) +
-  geom_errorbar(aes(ymin=mean_tst_lm_R2-sd_tst_lm_R2, ymax=mean_tst_lm_R2+sd_tst_lm_R2), width=0) + 
-  geom_hline(yintercept=0, linetype="dotted") + xlab("") +
-  ylab(bquote("cross-validation"~R^2)) + 
-  scale_colour_manual(values = c(India = India_col, "India (exposed)" = India_col_2, 
-                                 "India (unexposed)" = India_col_2, Malawi = Malawi_col, UK = UK_col)) + 
-  ylim(-0.1,0.6) +
-  theme_bw() + theme(legend.position = "", strip.background = element_blank()) +
-  coord_flip() + ggtitle("infant RV-IgA (post-ORV)") + 
-  theme(plot.title = element_text(size=10, hjust = 0.5)) + facet_grid(.~country, drop=TRUE)
+#### Differential genera - Fisher's test or Aldex2 (FDR p <0.05)
+```{r, fig.width=10, fig.height=6}
+summary = rbind(
+  summary_abund_plot_IgA("India", "IND", "genus"),
+  summary_abund_plot_IgA("Malawi", "MLW", "genus"),
+  summary_abund_plot_IgA("UK", "UK", "genus"),
+  summary_abund_plot_IgA("India (exposed)", "IND (neo+)", "genus"),
+  summary_abund_plot_IgA("India (unexposed)", "IND (neo-)", "genus")
+)
 
-# generate multi-panel plot
-plot_grid(p1,p2, ncol=2, align="h", rel_widths=c(3,2.2))
+# generate plot
+ggplot(summary, aes(x=week, y=count, label=count, colour=enriched, group=enriched)) + 
+    geom_point(size=3, alpha=0.8) + geom_line(alpha=0.5, show.legend = FALSE) + 
+    geom_text(vjust = 0, nudge_y = 2, show.legend = FALSE, size=5) +
+   # geom_text(aes(y = rep(ymax,8), label=total), colour="grey", show.legend = FALSE, fontface = "italic", size=5) +
+    ylim(0,100) + xlab("week of life") + facet_grid(enriched~country) +
+    scale_colour_manual(values=c(nr_col, r_col, "grey")) + 
+    theme(legend.position="none", strip.background = element_blank()) +
+    ylab("number of genera") + labs(colour='enriched country') +
+    theme(axis.text = element_text(size=16), axis.title = element_text(size=16), plot.title = element_text(size=16, hjust = 0.5), strip.text = element_text(size=16),
+          legend.text = element_text(size=16), legend.title = element_text(size=16))
+```
+
+#### Differential RSVs - Fisher's test or Aldex2 (FDR p <0.05)
+```{r, fig.width=10, fig.height=6}
+summary = rbind(
+  summary_abund_plot_IgA("India", "IND", "rsv"),
+  summary_abund_plot_IgA("Malawi", "MLW", "rsv"),
+  summary_abund_plot_IgA("UK", "UK", "rsv"),
+  summary_abund_plot_IgA("India (exposed)", "IND (neo+)", "rsv"),
+  summary_abund_plot_IgA("India (unexposed)", "IND (neo-)", "rsv")
+)
+
+# generate plot
+ggplot(summary, aes(x=week, y=count, label=count, colour=enriched, group=enriched)) + 
+    geom_point(size=3, alpha=0.8) + geom_line(alpha=0.5, show.legend = FALSE) + 
+    geom_text(vjust = 0, nudge_y = 2, show.legend = FALSE, size=5) +
+   # geom_text(aes(y = rep(ymax,8), label=total), colour="grey", show.legend = FALSE, fontface = "italic", size=5) +
+    ylim(0,200) + xlab("week of life") + facet_grid(enriched~country) +
+    scale_colour_manual(values=c(nr_col, r_col, "grey")) + 
+    theme(legend.position="none", strip.background = element_blank()) +
+    ylab("number of RSVs") + labs(colour='enriched country') +
+    theme(axis.text = element_text(size=16), axis.title = element_text(size=16), plot.title = element_text(size=16, hjust = 0.5), strip.text = element_text(size=16),
+          legend.text = element_text(size=16), legend.title = element_text(size=16))
+```
+
+### Dose 1 shedding
+
+#### Genus- and RSV-level models
+```{r}
+### Genus level
+set.seed(34567)
+
+# select input data
+rps = rps8_genus
+ps = ps7_genus
+input_m = data.frame(sample_data(rps))
+
+# specify sample types and country subsets to include in analysis
+country_list = c("India", "India (exposed)", "India (unexposed)", "Malawi")
+
+# select outcome, then run RF using collate_rf_binary function
+outcome = "dose1_shedding"
+if (run_rf_full) { collate_rf_binary("crossval_collated_genus_dose1_shedding.csv") }
+collated_rf = read.csv("output_module4/crossval_collated_genus_dose1_shedding.csv", row.names=1)
+
+# remove MS1
+collated_rf = subset(collated_rf, sample_subset!="MS1" & sample_subset!="BS5") %>% droplevels()
+collated_rf$country = factor(collated_rf$country, levels=c("India", "Malawi", "UK", "India (exposed)", "India (unexposed)"))
+collated_rf$level = "genus"
+```
+
+```{r}
+### RSV level
+set.seed(34567)
+
+# select input data
+rps = rps8
+ps = ps7
+input_m = data.frame(sample_data(rps))
+
+# specify sample types and country subsets to include in analysis
+country_list = c("India", "India (exposed)", "India (unexposed)", "Malawi")
+
+# select outcome, then run RF using collate_rf_binary function
+outcome = "dose1_shedding"
+if (run_rf_full) { collate_rf_binary("crossval_collated_rsv_dose1_shedding.csv") }
+collated_rf_rsv = read.csv("output_module4/crossval_collated_rsv_dose1_shedding.csv", row.names=1)
+
+# remove MS1
+collated_rf_rsv = subset(collated_rf, sample_subset!="MS1" & sample_subset!="BS5") %>% droplevels()
+collated_rf_rsv$country = factor(collated_rf_rsv$country, levels=c("India", "Malawi", "UK", "India (exposed)", "India (unexposed)"))
+collated_rf_rsv$level = "RSV"
+```
+
+#### Summary plot
+```{r, fig.width=8, fig.height=3.5}
+# collate and plot
+full = rbind(collated_rf, collated_rf_rsv)
+# plot summary figures
+dose1_fig_C = summary_rf_plot_binary(full, "Random Forests") + scale_y_continuous(limits = c(0.3,1), breaks = c(0.4,0.6,0.8,1)) + xlab("week of life")
+dose1_fig_C
+```
+
+#### Differential genera - Fisher's test or Aldex2 (FDR p <0.05)
+```{r, fig.width=10, fig.height=6}
+summary = rbind(
+  summary_abund_plot_ORV("dose1_shedding", "India", "IND", "genus"),
+  summary_abund_plot_ORV("dose1_shedding", "Malawi", "MLW", "genus"),
+  summary_abund_plot_ORV("dose1_shedding", "India (exposed)", "IND (neo+)", "genus"),
+  summary_abund_plot_ORV("dose1_shedding", "India (unexposed)", "IND (neo-)", "genus")
+)
+
+# generate plot
+ggplot(summary, aes(x=week, y=count, label=count, colour=enriched, group=enriched)) + 
+  geom_point(size=3, alpha=0.8) + geom_line(alpha=0.5, show.legend = FALSE) + 
+  geom_text(vjust = 0, nudge_y = 2, show.legend = FALSE, size=5) +
+  # geom_text(aes(y = rep(ymax,8), label=total), colour="grey", show.legend = FALSE, fontface = "italic", size=5) +
+  ylim(0,100) + xlab("week of life") + facet_grid(enriched~country) +
+  scale_colour_manual(values=c(nr_col, r_col, "grey")) + 
+  theme(legend.position="none", strip.background = element_blank()) +
+  ylab("number of genera") + labs(colour='enriched country') +
+  theme(axis.text = element_text(size=16), axis.title = element_text(size=16), plot.title = element_text(size=16, hjust = 0.5), strip.text = element_text(size=16),
+        legend.text = element_text(size=16), legend.title = element_text(size=16))
+```
+
+#### Differential RSVs - Fisher's test or Aldex2 (FDR p <0.05)
+```{r, fig.width=10, fig.height=6}
+summary = rbind(
+  summary_abund_plot_ORV("dose1_shedding", "India", "IND", "rsv"),
+  summary_abund_plot_ORV("dose1_shedding", "Malawi", "MLW", "rsv"),
+  summary_abund_plot_ORV("dose1_shedding", "India (exposed)", "IND (neo+)", "rsv"),
+  summary_abund_plot_ORV("dose1_shedding", "India (unexposed)", "IND (neo-)", "rsv")
+)
+
+# generate plot
+ggplot(summary, aes(x=week, y=count, label=count, colour=enriched, group=enriched)) + 
+  geom_point(size=3, alpha=0.8) + geom_line(alpha=0.5, show.legend = FALSE) + 
+  geom_text(vjust = 0, nudge_y = 2, show.legend = FALSE, size=5) +
+  # geom_text(aes(y = rep(ymax,8), label=total), colour="grey", show.legend = FALSE, fontface = "italic", size=5) +
+  ylim(0,350) + xlab("week of life") + facet_grid(enriched~country) +
+  scale_colour_manual(values=c(nr_col, r_col, "grey")) + 
+  theme(legend.position="none", strip.background = element_blank()) +
+  ylab("number of RSVs") + labs(colour='enriched country') +
+  theme(axis.text = element_text(size=16), axis.title = element_text(size=16), plot.title = element_text(size=16, hjust = 0.5), strip.text = element_text(size=16),
+        legend.text = element_text(size=16), legend.title = element_text(size=16))
+```
+
+
+
+
+Summary figures {.hidden}
+=====================================
+
+#### Seroconversion
+```{r, fig.width=10, fig.height=11}
+plot_grid(sero_fig_A,sero_fig_B,sero_fig_C, ncol=1, align = "v", axis="lr", rel_heights=c(1,1,1.5))
+```
+
+#### RV-IgA
+```{r, fig.width=10, fig.height=8}
+plot_grid(IgA_fig_B,IgA_fig_C, ncol=1, align = "v", axis="lr", rel_heights=c(1,1.5))
 ```
 
 #### Dose 1 shedding
-```{r, fig.width=7, fig.height=2.5}
-set.seed(34567)
-country_list = c("India", "India (exposed)", "India (unexposed)", "Malawi")
-outcome = "dose1_shedding"
-if (run_rf_full) { collate_rf_binary("crossval_collated_rsv_dose1_shedding.csv") }
-collated_rf = read.csv("output_module4/crossval_collated_rsv_dose1_shedding.csv", row.names=1)
-p1 = summary_rf_plot_binary(subset(collated_rf, country=="India" | country=="Malawi" | country=="UK"), "dose 1 shedding")
-p2 = summary_rf_plot_binary(subset(collated_rf, country=="India (exposed)" | country=="India (unexposed)"), "dose 1 shedding")
-plot_grid(p1,p2, ncol=2, align="vh", rel_widths=c(1,1))
+```{r, fig.width=8.25, fig.height=11}
+plot_grid(dose1_fig_A,dose1_fig_B, dose1_fig_C, ncol=1, align = "v", axis="lr", rel_heights=c(1,1,1.5))
 ```
-
-#### Shedding after either dose
-```{r, fig.width=7, fig.height=2.5}
-set.seed(45678)
-country_list = c("India", "India (exposed)", "India (unexposed)", "Malawi")
-outcome = "either_shedding"
-if (run_rf_full) { collate_rf_binary("crossval_collated_rsv_either_shedding.csv") }
-collated_rf = read.csv("output_module4/crossval_collated_rsv_either_shedding.csv", row.names=1)
-p1 = summary_rf_plot_binary(subset(collated_rf, country=="India" | country=="Malawi" | country=="UK"), "shedding, either") + ylim(0.1,0.9)
-p2 = summary_rf_plot_binary(subset(collated_rf, country=="India (exposed)" | country=="India (unexposed)"), "shedding, either")
-plot_grid(p1,p2, ncol=2, align="vh", rel_widths=c(1,1))
-```
-
-#### Neonatal exposure
-```{r, fig.width=2.4, fig.height=2.5}
-set.seed(56789)
-country_list = c("India")
-outcome = "pre_exposed"
-if (run_rf_full) { collate_rf_binary("crossval_collated_rsv_pre_exposed.csv") }
-collated_rf = read.csv("output_module4/crossval_collated_rsv_pre_exposed.csv", row.names=1)
-summary_rf_plot_binary(collated_rf, "pre-ORV exposure")
-```
-
-
 
 
 
@@ -810,6 +973,7 @@ if (run_nb_full) {
   res = read.csv("output_module4/zinb_ORV_India_immunogenicity.csv", header=TRUE, stringsAsFactors=FALSE)[,-1]
 }
 table(res$comparison, res$signif)
+res[res$signif!="ns", c("taxon", "Estimate", "Std.Error", "padj", "comparison")]
 ```
 
 #### Summary statistics
@@ -838,6 +1002,7 @@ if (run_nb_full) {
   res = read.csv("output_module4/zinb_ORV_India_exposed_immunogenicity.csv", header=TRUE, stringsAsFactors=FALSE)[,-1]
 }
 table(res$comparison, res$signif)
+res[res$signif!="ns", c("taxon", "Estimate", "Std.Error", "padj", "comparison")]
 ```
 
 #### Summary statistics
@@ -866,6 +1031,7 @@ if (run_nb_full) {
   res = read.csv("output_module4/zinb_ORV_India_unexposed_immunogenicity.csv", header=TRUE, stringsAsFactors=FALSE)[,-1]
 }
 table(res$comparison, res$signif)
+res[res$signif!="ns", c("taxon", "Estimate", "Std.Error", "padj", "comparison")]
 ```
 
 #### Summary statistics
@@ -894,6 +1060,7 @@ if (run_nb_full) {
   res = read.csv("output_module4/zinb_ORV_Malawi_immunogenicity.csv", header=TRUE, stringsAsFactors=FALSE)[,-1]
 }
 table(res$comparison, res$signif)
+res[res$signif!="ns", c("taxon", "Estimate", "Std.Error", "padj", "comparison")]
 ```
 
 #### Summary statistics
@@ -1045,123 +1212,13 @@ table(res$comparison, res$signif)
 ```{r}
 zinb_summary(res, ps_t)
 ```
+.
 
-#### Shedding after either dose
 
-#### Number of infants/taxa included in longitudinal models:
+Session info {.hidden}
+===================================== 
+
 ```{r}
-# pick out analysis subsets
-ps7_I = subset_samples(ps7_genus, sample_type!="MS1" & sample_type!="BS5" & country=="India" & 
-                         !is.na(either_shedding)) %>% prune_taxa(rowSums(otu_table(.)>0)/nsamples(.)>=0.20, .)
-ps7_Ie = subset_samples(ps7_genus, sample_type!="MS1" & sample_type!="BS5" & country_exposure=="India (exposed)" &
-                          !is.na(either_shedding)) %>% prune_taxa(rowSums(otu_table(.)>0)/nsamples(.)>=0.20, .)
-ps7_Iu = subset_samples(ps7_genus, sample_type!="MS1" & sample_type!="BS5" & country_exposure=="India (unexposed)" &
-                          !is.na(either_shedding)) %>% prune_taxa(rowSums(otu_table(.)>0)/nsamples(.)>=0.20, .)
-ps7_M = subset_samples(ps7_genus, sample_type!="MS1" & sample_type!="BS5" & country_arm=="Malawi" &
-                         !is.na(either_shedding) ) %>% prune_taxa(rowSums(otu_table(.)>0)/nsamples(.)>=0.20, .)
-ps7_U = subset_samples(ps7_genus, sample_type!="MS1" & sample_type!="BS5" & country_arm=="UK" & 
-                         !is.na(either_shedding) ) %>% prune_taxa(rowSums(otu_table(.)>0)/nsamples(.)>=0.20, .)
-```
-
-* India (full), n infants: `r length(unique(sample_data(ps7_I)$family_ID))`; n samples: `r nsamples(ps7_I)`; n taxa: `r ntaxa(ps7_I)`    
-* India (exposed), n infants: `r length(unique(sample_data(ps7_Ie)$family_ID))`; n samples: `r nsamples(ps7_Ie)`; n taxa: `r ntaxa(ps7_Ie)`    
-* India (unexposed), n infants: `r length(unique(sample_data(ps7_Iu)$family_ID))`; n samples: `r nsamples(ps7_Iu)`; n taxa: `r ntaxa(ps7_Iu)`    
-* Malawi, n infants: `r length(unique(sample_data(ps7_M)$family_ID))`; n samples: `r nsamples(ps7_M)`; n taxa: `r ntaxa(ps7_M)`    
-* UK, n infants: `r length(unique(sample_data(ps7_U)$family_ID))`; n samples: `r nsamples(ps7_U)`; n taxa: `r ntaxa(ps7_U)`    
-
-#### India
-```{r}
-ps_t = ps7_I
-if (run_nb_full) { 
-  features = data.frame(t(as(otu_table(ps_t), "matrix")))
-  colnames(features) = data.frame(as(tax_table(ps_t), "matrix"))$Genus
-  meta = data.frame(sample_data(ps_t))
-  N = meta$count_ps7     
-  week = meta$week
-  subject = meta$family_ID
-  either = meta$either_shedding
-  res= zinb_ORV_function("either")
-  write.csv(res, "output_module4/zinb_ORV_India_either.csv")
-} else { 
-  res = read.csv("output_module4/zinb_ORV_India_either.csv", header=TRUE, stringsAsFactors=FALSE)[,-1]
-}
-table(res$comparison, res$signif)
-```
-
-#### Summary statistics
-```{r}
-zinb_summary(res, ps_t)
-```
-
-#### India (exposed)
-```{r}
-ps_t = ps7_Ie
-if (run_nb_full) { 
-  features = data.frame(t(as(otu_table(ps_t), "matrix")))
-  colnames(features) = data.frame(as(tax_table(ps_t), "matrix"))$Genus
-  meta = data.frame(sample_data(ps_t))
-  N = meta$count_ps7     
-  week = meta$week
-  subject = meta$family_ID
-  either = meta$either_shedding
-  res= zinb_ORV_function("either")
-  write.csv(res, "output_module4/zinb_ORV_India_exposed_either.csv")
-} else { 
-  res = read.csv("output_module4/zinb_ORV_India_exposed_either.csv", header=TRUE, stringsAsFactors=FALSE)[,-1]
-}
-table(res$comparison, res$signif)
-```
-
-#### Summary statistics
-```{r}
-zinb_summary(res, ps_t)
-```
-
-#### India (unexposed)
-```{r}
-ps_t = ps7_Iu
-if (run_nb_full) { 
-  features = data.frame(t(as(otu_table(ps_t), "matrix")))
-  colnames(features) = data.frame(as(tax_table(ps_t), "matrix"))$Genus
-  meta = data.frame(sample_data(ps_t))
-  N = meta$count_ps7     
-  week = meta$week
-  subject = meta$family_ID
-  either = meta$either_shedding
-  res= zinb_ORV_function("either")
-  write.csv(res, "output_module4/zinb_ORV_India_unexposed_either.csv")
-} else { 
-  res = read.csv("output_module4/zinb_ORV_India_unexposed_either.csv", header=TRUE, stringsAsFactors=FALSE)[,-1]
-}
-table(res$comparison, res$signif)
-```
-
-#### Summary statistics
-```{r}
-zinb_summary(res, ps_t)
-```
-
-#### Malawi
-```{r}
-ps_t = ps7_M
-if (run_nb_full) { 
-  features = data.frame(t(as(otu_table(ps_t), "matrix")))
-  colnames(features) = data.frame(as(tax_table(ps_t), "matrix"))$Genus
-  meta = data.frame(sample_data(ps_t))
-  N = meta$count_ps7     
-  week = meta$week
-  subject = meta$family_ID
-  either = meta$either_shedding
-  res = zinb_ORV_function("either")
-  write.csv(res, "output_module4/zinb_ORV_Malawi_either.csv")
-} else { 
-  res = read.csv("output_module4/zinb_ORV_Malawi_either.csv", header=TRUE, stringsAsFactors=FALSE)[,-1]
-}
-table(res$comparison, res$signif)
-```
-
-#### Summary statistics
-```{r}
-zinb_summary(res, ps_t)
+print(sessionInfo())
 ```
 .

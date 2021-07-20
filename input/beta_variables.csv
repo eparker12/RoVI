@@ -1,0 +1,30 @@
+﻿clean_name,MS1,BS1,BS2,BS3,BS5,group
+maternal age,age_mother,age_mother,age_mother,age_mother,age_mother,maternal
+maternal weight,mother_weight,mother_weight,mother_weight,mother_weight,mother_weight,maternal
+maternal education,maternal_education,maternal_education,maternal_education,maternal_education,maternal_education,maternal
+parity,parity,parity,parity,parity,parity,maternal
+income,household_income,household_income,household_income,household_income,household_income,household
+house type,type_house,type_house,type_house,type_house,type_house,household
+treated water,water_treat_wami,water_treat_wami,water_treat_wami,water_treat_wami,water_treat_wami,household
+kitchen,kitchen,kitchen,kitchen,kitchen,kitchen,household
+refrigerator,refrigerator,refrigerator,refrigerator,refrigerator,refrigerator,household
+sanitation,sanitation,sanitation,sanitation,sanitation,sanitation,household
+crowding,crowding_wami,crowding_wami,crowding_wami,crowding_wami,crowding_wami,household
+birth weight,birth_weight,birth_weight,birth_weight,birth_weight,birth_weight,infant
+place of delivery,place_delivery,place_delivery,place_delivery,place_delivery,place_delivery,infant
+mode of delivery,mode_delivery,mode_delivery,mode_delivery,mode_delivery,mode_delivery,infant
+sex,sex_baby,sex_baby,sex_baby,sex_baby,sex_baby,infant
+breastfeeding practice,breastfed_child,breastfed_child,breastfed_child,breastfed_child,breastfed_child,infant
+antibiotics,antibiotic_exposure,antibiotic_exposure,antibiotic_exposure,antibiotic_exposure,antibiotic_exposure,infant
+neonatal RV,pre_exposed,pre_exposed,pre_exposed,pre_exposed,pre_exposed,infant
+A1AT at 6w,A1AT_BS3_Concugml,A1AT_BS3_Concugml,A1AT_BS3_Concugml,A1AT_BS3_Concugml,A1AT_BS3_Concugml,infant
+A1AT at 10w,A1AT_BS5_Concugml,A1AT_BS5_Concugml,A1AT_BS5_Concugml,A1AT_BS5_Concugml,A1AT_BS5_Concugml,infant
+MPO at 6w,MPO_BS3_Concngml,MPO_BS3_Concngml,MPO_BS3_Concngml,MPO_BS3_Concngml,MPO_BS3_Concngml,infant
+MPO at 10w,MPO_BS5_Concngml,MPO_BS5_Concngml,MPO_BS5_Concngml,MPO_BS5_Concngml,MPO_BS5_Concngml,infant
+A1AG at 6w,AG_Concugml,AG_Concugml,AG_Concugml,AG_Concugml,AG_Concugml,infant
+current HAZ,NA,NA,NA,HAZ_week6,HAZ_week10,infant
+delta HAZ,NA,NA,NA,delta_HAZ_week6,delta_HAZ_week10,infant
+HAZ at 1y,HAZ_1year,HAZ_1year,HAZ_1year,HAZ_1year,HAZ_1year,infant
+current WAZ,WAZ_week1,WAZ_week1,NA,WAZ_week6,WAZ_week10,infant
+delta WAZ,delta_WAZ_week1,delta_WAZ_week1,NA,delta_WAZ_week6,delta_WAZ_week10,infant
+WAZ at 1y,WAZ_1year,WAZ_1year,WAZ_1year,WAZ_1year,WAZ_1year,infant

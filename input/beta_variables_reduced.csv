@@ -1,0 +1,27 @@
+﻿clean_name,BS3,group,IND,MLW,UK
+maternal age (years),age_mother,maternal,1,1,0
+maternal weight (kg),mother_weight,maternal,1,0,0
+years of education completed by mother,maternal_education,maternal,1,0,0
+parity,parity,maternal,1,0,0
+highest income in household (rupees),household_income,household,1,0,0
+house made of permanent materials,type_house,household,1,0,0
+access to treated water,water_treat_wami,household,1,0,0
+kitchen in home,kitchen,household,1,0,0
+refrigerator in home,refrigerator,household,1,0,0
+access to sanitation facility,sanitation,household,1,0,0
+>4 people per room,crowding_wami,household,1,0,0
+female,sex_baby,infant,1,1,1
+delivered by caesarean section,mode_delivery,infant,1,0,0
+delivered in tertiary care facility,place_delivery,infant,1,0,0
+exclusively breastfed,breastfed_child,infant,1,0,1
+age at first ORV dose (days),age_at_first_dose,infant,1,1,1
+birth weight (kg),birth_weight,infant,1,1,1
+HIV-exposed,HIV_status,infant,0,1,0
+exposed to antibiotics during study,antibiotic_exposure,infant,1,1,0
+height-for-age Z score at 6w,HAZ_6_8w,infant,1,1,0
+A1AT at 6w (μg/ml),A1AT_BS3_Concugml,infant,1,1,1
+MPO at 6w (ng/ml),MPO_BS3_Concngml,infant,1,1,1
+A1AG at 6w (μg/ml),AG_Concugml,infant,1,1,0
+maternal RV-IgA (IU/ml),MB1_IgA,rotavirus,1,1,1
+breastmilk RV-IgA (IU/ml),BM1_IgA,rotavirus,1,1,1
+infected with RV neonatally,pre_exposed,rotavirus,1,0,0
