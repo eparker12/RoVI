@@ -4,6 +4,9 @@ This github page contains the code and input data associated with the [RoVI stud
 
 <p align="center" width="100%" height="50%" width="50%"><img width="33%" src="RoVI_logo.png"> </p>
 
+## DOI
+10.5281/zenodo.5528337
+
 ## Primary outcome paper
 
 The primary outcome paper of the RoVI study is now available on [*medRxiv*](https://www.medrxiv.org/content/10.1101/2020.11.02.20224576v2) . All figures and statsical analyses from this paper can be recreated using the code and data in this github repository.
