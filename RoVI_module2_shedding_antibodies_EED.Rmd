@@ -983,11 +983,14 @@ rm(s_sub, p.mat, m)
 
 #### Pearson correlation coefficients: maternal antibodies vs pre-vaccination RV-IgA
 ```{r, fig.width=2.5, fig.height=4}
-results = data.frame(India_exposed = corr_by_country("BB1_IgA", "IND (neo+)", "corr"))
+results = data.frame(India_neo_pos = corr_by_country("BB1_IgA", "IND (neo+)", "corr"))
 results = mutate_all(results, function(x) as.numeric(as.character(x)))
 
-pvals = data.frame(India_exposed = corr_by_country("BB1_IgA", "IND (neo+)", "p"))
+pvals = data.frame(India_neo_pos = corr_by_country("BB1_IgA", "IND (neo+)", "p"))
 pvals = mutate_all(pvals, function(x) as.numeric(as.character(x)))
+
+cor_n = data.frame(India_neo_pos = corr_by_country("BB2_IgA", "IND (neo+)", "n"))
+cor_n = mutate_all(cor_n, function(x) as.numeric(as.character(x)))
 
 rownames(results) = rownames(pvals) = c("MB1 RV-IgA", "BM1 RV-IgA", "BB1 RV-IgA", "MB1 RV-IgG", "CB1 RV-IgG", "BB1 RV-IgG")
 pheatmap(results, cluster_rows = F, cluster_cols = F,  color = col2(200), breaks = seq(-1, 1, by = 0.01))
@@ -1001,6 +1004,11 @@ data.frame(results)
 ##### P values
 ```{r}
 data.frame(pvals)
+```
+
+##### N
+```{r}
+data.frame(cor_n)
 ```
 
 #### Pearson correlation coefficients: maternal antibodies vs post-vaccination RV-IgA
