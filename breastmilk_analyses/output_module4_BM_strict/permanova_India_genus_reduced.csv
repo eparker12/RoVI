@@ -1,0 +1,26 @@
+"","age_group","clean_age_group","variable","clean_variable","group","R2_u","p_u","n_samples","fdr_p_u"
+"1","BM2","week of life 7","age_mother","maternal age (years)","maternal",0.002,0.994,247,0.994
+"2","BM2","week of life 7","mother_weight","maternal weight (kg)","maternal",0.003,0.898,247,0.935
+"3","BM2","week of life 7","maternal_education","years of education completed by mother","maternal",0.006,0.043,247,0.537
+"4","BM2","week of life 7","parity","parity","maternal",0.003,0.75,247,0.872
+"5","BM2","week of life 7","household_income","highest income in household (rupees)","household",0.004,0.438,247,0.872
+"6","BM2","week of life 7","type_house","house made of permanent materials","household",0.005,0.297,247,0.742
+"7","BM2","week of life 7","water_treat_wami","access to treated water","household",0.004,0.712,234,0.872
+"8","BM2","week of life 7","kitchen","kitchen in home","household",0.003,0.767,247,0.872
+"9","BM2","week of life 7","refrigerator","refrigerator in home","household",0.004,0.687,247,0.872
+"10","BM2","week of life 7","sanitation","access to sanitation facility","household",0.004,0.63,247,0.872
+"11","BM2","week of life 7","crowding_wami",">4 people per room","household",0.003,0.685,247,0.872
+"12","BM2","week of life 7","sex_baby","female","infant",0.004,0.333,247,0.757
+"13","BM2","week of life 7","mode_delivery","delivered by caesarean section","infant",0.004,0.505,247,0.872
+"14","BM2","week of life 7","place_delivery","delivered in tertiary care facility","infant",0.004,0.488,247,0.872
+"15","BM2","week of life 7","breastfed_child","exclusively breastfed","infant",0.005,0.113,247,0.583
+"16","BM2","week of life 7","age_at_first_dose","age at first ORV dose (days)","infant",0.005,0.215,247,0.617
+"17","BM2","week of life 7","birth_weight","birth weight (kg)","infant",0.004,0.561,247,0.872
+"18","BM2","week of life 7","antibiotic_exposure","exposed to antibiotics during study","infant",0.006,0.022,247,0.537
+"19","BM2","week of life 7","HAZ_6_8w","height-for-age Z score at 6w","infant",0.005,0.125,246,0.583
+"20","BM2","week of life 7","A1AT_BS3_Concugml","A1AT at 6w (μg/ml)","infant",0.005,0.14,243,0.583
+"21","BM2","week of life 7","MPO_BS3_Concngml","MPO at 6w (ng/ml)","infant",0.006,0.085,243,0.583
+"22","BM2","week of life 7","AG_Concugml","A1AG at 6w (μg/ml)","infant",0.005,0.195,244,0.617
+"23","BM2","week of life 7","MB1_IgA","maternal RV-IgA (IU/ml)","rotavirus",0.004,0.529,245,0.872
+"24","BM2","week of life 7","BM1_IgA","breastmilk RV-IgA (IU/ml)","rotavirus",0.005,0.222,244,0.617
+"25","BM2","week of life 7","pre_exposed","infected with RV neonatally","rotavirus",0.003,0.832,244,0.904

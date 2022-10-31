@@ -55,10 +55,10 @@ load("phyloseq_files/ps8_genus.RData")
 load("phyloseq_files/ps8_l_t_pr_d_dd_25k_rarefied.RData")
 
 # select BS1, BS2, BS3, BS5 and MS1 samples within each phyloseq object
-ps7_genus = subset_samples(ps7_genus, sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1") %>% prune_taxa(taxa_sums(.) > 0, .)
-ps7 = subset_samples(ps7_l_t_pr_d_dd_25k, sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1") %>% prune_taxa(taxa_sums(.) > 0, .)
-ps8_genus = subset_samples(ps8_genus, sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1") %>% prune_taxa(taxa_sums(.) > 0, .)
-ps8 = subset_samples(ps8_l_t_pr_d_dd_25k_rarefied, sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1") %>% prune_taxa(taxa_sums(.) > 0, .)
+ps7_genus = subset_samples(ps7_genus, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1")) %>% prune_taxa(taxa_sums(.) > 0, .)
+ps7 = subset_samples(ps7_l_t_pr_d_dd_25k, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1")) %>% prune_taxa(taxa_sums(.) > 0, .)
+ps8_genus = subset_samples(ps8_genus, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1")) %>% prune_taxa(taxa_sums(.) > 0, .)
+ps8 = subset_samples(ps8_l_t_pr_d_dd_25k_rarefied, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BS1" | sample_type=="BS2" | sample_type=="BS3" | sample_type=="BS5" | sample_type=="MS1")) %>% prune_taxa(taxa_sums(.) > 0, .)
 #all(sample_names(ps7_genus)==sample_names(ps8_genus))
 
 # amend taxa names to be consistent across ps7 and ps8 levels
@@ -72,6 +72,24 @@ rps7_genus = transform_sample_counts(ps7_genus, function(x) {x/sum(x)})
 rps7 = transform_sample_counts(ps7, function(x) {x/sum(x)})
 rps8_genus = transform_sample_counts(ps8_genus, function(x) {x/sum(x)})
 rps8 = transform_sample_counts(ps8, function(x) {x/sum(x)})
+
+# add log E/B ratio
+rps8_family = tax_glom(rps8, "Family", NArm = TRUE)
+t = data.frame(sample_data(rps8_family))
+df_family = data.frame(t(otu_table(rps8_family)))
+
+if (all(colnames(df_family)==rownames(tax_table(rps8_family)))) { colnames(df_family) = as(tax_table(rps8_family), "matrix")[,"Family"] } else { print("error: rownames do not match")}
+
+if (all(t$sample_ID_full==rownames(df_family))) {
+  t$Bacteroidaceae = df_family$Bacteroidaceae
+  t$Enterobacteriaceae = df_family$Enterobacteriaceae
+}
+t$log_Entero_Bac_ratio =  log((t$Enterobacteriaceae+0.001)/(t$Bacteroidaceae+0.001))
+
+if (all(sample_data(rps8)$sample_ID_full == t$sample_ID_full)) {
+  sample_data(rps8) = sample_data(rps8_genus) = sample_data(rps7) = sample_data(rps7_genus) = t
+  sample_data(ps8) = sample_data(ps8_genus) = sample_data(ps7) = sample_data(ps7_genus) = t
+}
 ```
 
 #### Input data: infant stools (BS1, BS2, BS3, and BS5) and maternal stool (MS1) 
@@ -97,6 +115,7 @@ Column {.tabset .tabset-fade}
 #### Longitudinal plots - Shannon
 ```{r, fig.width=10, fig.height=3.5}
 t = data.frame(sample_data(rps8_genus))
+write.csv(t, "final_analysis_set_metadata.csv")
 
 # updated coding for week
 t$week_fig[t$week_fig=="week 1"] = "week of life 1"
@@ -134,12 +153,52 @@ sero_fig_A
 #### Longitudinal plots - richness
 ```{r, fig.width=10, fig.height=3.5}
 # generate plots
-sero_fig_A = alpha_longitudinal(t_plot, "Observed", "richness", "seroconv", "seroconversion", exposure=FALSE) + ylim(0,30) + 
+sero_fig_A_alt = alpha_longitudinal(t_plot, "Observed", "richness", "seroconv", "seroconversion", exposure=FALSE) + ylim(0,30) + 
   ggtitle("alpha diversity") + theme(plot.title = element_text(size=16, hjust=0.5))
-sero_fig_A
+sero_fig_A_alt
+```
+
+#### Longitudinal plots - E/B ratio
+```{r, fig.width=10, fig.height=3.5}
+# generate plots
+sero_fig_A_alt = alpha_longitudinal(t_plot, "log_Entero_Bac_ratio", "log(Ent/Bac)", "seroconv", "seroconversion", exposure=FALSE) + 
+  ggtitle("alpha diversity") + theme(plot.title = element_text(size=16, hjust=0.5))
+sero_fig_A_alt
 ```
 
 Blue = seroconversion+, Orange = seroconversion-.
+
+#### P values - E/B ratio
+##### IND
+```{r}
+t2 = subset(t1, country=="IND" & sample_type=="BS3")
+wilcox.test(log_Entero_Bac_ratio ~ seroconv, data = t2)
+```
+
+##### MLW
+```{r}
+t2 = subset(t1, country=="MLW" & sample_type=="BS3")
+wilcox.test(log_Entero_Bac_ratio ~ seroconv, data = t2)
+```
+
+##### UK
+```{r}
+t2 = subset(t1, country=="UK" & sample_type=="BS3")
+wilcox.test(log_Entero_Bac_ratio ~ seroconv, data = t2)
+```
+
+##### IND neo+
+```{r}
+t2 = subset(t1, country_exposure=="IND (neo+)" & sample_type=="BS3")
+wilcox.test(log_Entero_Bac_ratio ~ seroconv, data = t2)
+```
+
+##### IND neo-
+```{r}
+t2 = subset(t1, country_exposure=="IND (neo-)" & sample_type=="BS3")
+wilcox.test(log_Entero_Bac_ratio ~ seroconv, data = t2)
+```
+
 
 #### N by country
 ```{r}
@@ -445,9 +504,9 @@ dose1_fig_A
 #### Longitudinal plots - richness
 ```{r, fig.width=8, fig.height=3.5}
 # generate plots
-dose1_fig_A = alpha_longitudinal(t_plot, "Observed", "richness", "dose1_shedding", "dose 1 shedding", exposure=FALSE) + ylim(0,30)  + 
+dose1_fig_A_alt = alpha_longitudinal(t_plot, "Observed", "richness", "dose1_shedding", "dose 1 shedding", exposure=FALSE) + ylim(0,30)  + 
   ggtitle("alpha diversity") + theme(plot.title = element_text(size=16, hjust=0.5))
-dose1_fig_A
+dose1_fig_A_alt
 ```
 
 #### N by country
@@ -614,7 +673,7 @@ collated_rf_rsv$level = "RSV"
 ```
 
 #### Summary plot
-```{r, fig.width=10, fig.height=3.5}
+```{r, fig.width=10, fig.height=4.75}
 # collate and plot
 full = rbind(collated_rf, collated_rf_rsv)
 # plot summary figures
@@ -721,7 +780,7 @@ collated_rf_rsv$level = "RSV"
 ```
 
 #### Summary plot
-```{r, fig.width=10, fig.height=5}
+```{r, fig.width=10, fig.height=4.75}
 # collate and plot
 full = rbind(collated_rf, collated_rf_rsv)
 
@@ -757,7 +816,7 @@ ggplot(summary, aes(x=week, y=count, label=count, colour=enriched, group=enriche
     geom_point(size=3, alpha=0.8) + geom_line(alpha=0.5, show.legend = FALSE) + 
     geom_text(vjust = 0, nudge_y = 2, show.legend = FALSE, size=5) +
    # geom_text(aes(y = rep(ymax,8), label=total), colour="grey", show.legend = FALSE, fontface = "italic", size=5) +
-    ylim(0,100) + xlab("week of life") + facet_grid(enriched~country) +
+    xlab("week of life") + facet_grid(enriched~country) + #ylim(0,100) + 
     scale_colour_manual(values=c(nr_col, r_col, "grey")) + 
     theme(legend.position="none", strip.background = element_blank()) +
     ylab("number of genera") + labs(colour='enriched country') +
@@ -780,7 +839,7 @@ ggplot(summary, aes(x=week, y=count, label=count, colour=enriched, group=enriche
     geom_point(size=3, alpha=0.8) + geom_line(alpha=0.5, show.legend = FALSE) + 
     geom_text(vjust = 0, nudge_y = 2, show.legend = FALSE, size=5) +
    # geom_text(aes(y = rep(ymax,8), label=total), colour="grey", show.legend = FALSE, fontface = "italic", size=5) +
-    ylim(0,200) + xlab("week of life") + facet_grid(enriched~country) +
+    xlab("week of life") + facet_grid(enriched~country) + #ylim(0,200) +
     scale_colour_manual(values=c(nr_col, r_col, "grey")) + 
     theme(legend.position="none", strip.background = element_blank()) +
     ylab("number of RSVs") + labs(colour='enriched country') +
@@ -838,7 +897,7 @@ collated_rf_rsv$level = "RSV"
 ```
 
 #### Summary plot
-```{r, fig.width=8, fig.height=3.5}
+```{r, fig.width=8, fig.height=4.75}
 # collate and plot
 full = rbind(collated_rf, collated_rf_rsv)
 # plot summary figures
@@ -860,7 +919,7 @@ ggplot(summary, aes(x=week, y=count, label=count, colour=enriched, group=enriche
   geom_point(size=3, alpha=0.8) + geom_line(alpha=0.5, show.legend = FALSE) + 
   geom_text(vjust = 0, nudge_y = 2, show.legend = FALSE, size=5) +
   # geom_text(aes(y = rep(ymax,8), label=total), colour="grey", show.legend = FALSE, fontface = "italic", size=5) +
-  ylim(0,100) + xlab("week of life") + facet_grid(enriched~country) +
+   xlab("week of life") + facet_grid(enriched~country) + #ylim(0,100) +
   scale_colour_manual(values=c(nr_col, r_col, "grey")) + 
   theme(legend.position="none", strip.background = element_blank()) +
   ylab("number of genera") + labs(colour='enriched country') +
@@ -882,7 +941,7 @@ ggplot(summary, aes(x=week, y=count, label=count, colour=enriched, group=enriche
   geom_point(size=3, alpha=0.8) + geom_line(alpha=0.5, show.legend = FALSE) + 
   geom_text(vjust = 0, nudge_y = 2, show.legend = FALSE, size=5) +
   # geom_text(aes(y = rep(ymax,8), label=total), colour="grey", show.legend = FALSE, fontface = "italic", size=5) +
-  ylim(0,350) + xlab("week of life") + facet_grid(enriched~country) +
+  xlab("week of life") + facet_grid(enriched~country) + #ylim(0,350) + 
   scale_colour_manual(values=c(nr_col, r_col, "grey")) + 
   theme(legend.position="none", strip.background = element_blank()) +
   ylab("number of RSVs") + labs(colour='enriched country') +

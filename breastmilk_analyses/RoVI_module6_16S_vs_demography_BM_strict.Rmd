@@ -1,0 +1,425 @@
+---
+title: "Analysis module 6: 16S microbiota composition vs demography, growth and birthmode (BM samples with strict filtering)"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+Sidebar {.sidebar} 
+===================================== 
+[Sample summary]    
+
+[India]    
+
+[Malawi]
+
+[UK]    
+
+[Plot - all countries]    
+
+[Alpha diversity vs neonatal RV]    
+
+[Session info]
+
+
+
+Sample summary {.hidden}
+=====================================
+
+```{r, message=FALSE}
+# variable to define whether to run analyses in full (TRUE) or not (FALSE)
+run_beta_full = TRUE # set as TRUE to run beta diversity analyses in full
+
+# load packages and functions
+source("input/packages_and_functions.R")
+source("input/RF_functions.R")
+#source("input/functions_module6.R")
+
+# load genus/rsv-level data - full and rarefied
+load("phyloseq_files_strict/ps7_genus.RData")
+load("phyloseq_files_strict/ps7_l_t_pr_d_dd_15k.RData")
+load("phyloseq_files_strict/ps8_genus.RData")
+load("phyloseq_files_strict/ps8_l_t_pr_d_dd_15k_rarefied.RData")
+
+# select BM1, BM2, and BM3 samples within each phyloseq object
+ps7_genus = subset_samples(ps7_genus, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BM1" | sample_type=="BM2" | sample_type=="BM3")) %>% prune_taxa(taxa_sums(.) > 0, .)
+ps7 = subset_samples(ps7_l_t_pr_d_dd_15k, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BM1" | sample_type=="BM2" | sample_type=="BM3")) %>% prune_taxa(taxa_sums(.) > 0, .)
+ps8_genus = subset_samples(ps8_genus, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BM1" | sample_type=="BM2" | sample_type=="BM3")) %>% prune_taxa(taxa_sums(.) > 0, .)
+ps8 = subset_samples(ps8_l_t_pr_d_dd_15k_rarefied, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BM1" | sample_type=="BM2" | sample_type=="BM3")) %>% prune_taxa(taxa_sums(.) > 0, .)
+#all(sample_names(ps7_genus)==sample_names(ps8_genus))
+
+# transform to relative abundances
+rps7_genus = transform_sample_counts(ps7_genus, function(x) {x/sum(x)})
+rps7 = transform_sample_counts(ps7, function(x) {x/sum(x)})
+rps8_genus = transform_sample_counts(ps8_genus, function(x) {x/sum(x)})
+rps8 = transform_sample_counts(ps8, function(x) {x/sum(x)})
+
+# load RoVI metadata and recode factors
+a = read.csv("input/RoVI_metadata_by_family_03112020.csv", header=T, stringsAsFactors = TRUE)
+a$family_ID = as.character(a$family_ID)
+a$BS1_VP6_cat[!is.na(a$BS1_VP6_cat)] = factor(a$BS1_VP6_cat)[!is.na(a$BS1_VP6_cat)]
+a$sex_baby = factor(a$sex_baby, levels=c("male", "female"))
+a$crowding_wami = factor(a$crowding_wami, levels=c("up_to_4", "over_4"))
+a$mode_delivery = factor(a$mode_delivery, levels=c("vaginal", "caesarean"))
+a$breastfed_child = factor(a$breastfed_child, levels=c("nonexclusive", "exclusive"))
+a$pre_exposed = factor(a$pre_exposed)
+levels(a$pre_exposed) <- c("no", "yes")
+
+# recode 'unknown' as NA for water treatment status and HIV status
+a$water_treat_wami[a$water_treat_wami=="unknown"] = NA
+a$water_treat_wami = factor(a$water_treat_wami)
+a$water_treat_wami = droplevels(a$water_treat_wami)
+sample_data(rps8_genus)$water_treat_wami[sample_data(rps8_genus)$water_treat_wami=="unknown"] = NA
+a$HIV_status[a$HIV_status=="unknown"] = NA
+a$HIV_status = factor(a$HIV_status)
+a$HIV_status = droplevels(a$HIV_status)
+sample_data(rps8_genus)$HIV_status[sample_data(rps8_genus)$HIV_status=="unknown"] = NA
+
+# append pre-vaccination diversity metrics
+t = data.frame(sample_data(rps8_genus))
+t_6w = subset(t, sample_type=="BM2")
+a = merge(a, t_6w[,c("family_ID", "Shannon", "Observed")], by = "family_ID")
+```
+
+#### Input data: infant stools (BM1, BM2, and BM3)
+* n samples = `r nsamples(ps7_genus)`    
+* n taxa: genera = `r ntaxa(ps7_genus)`; variants = `r sum(taxa_sums(ps7)>0)` 
+* n taxa (rarefied): genera = `r ntaxa(ps8_genus)`; variants = `r sum(taxa_sums(ps8)>0)`  
+* mean read count = `r round(mean(sample_sums(ps7_genus)),0)`, s.d. = `r round(sd(sample_sums(ps7_genus)),0)`
+
+
+
+India {.hidden}
+=====================================
+
+#### Beta diversity - unweighted Bray-Curtis distances
+```{r, fig.width=10, fig.height=8}
+### run beta diversity analyses
+beta_vars = read.csv("input/beta_variables_reduced.csv", stringsAsFactors = FALSE)
+names(beta_vars)[2] = "BM2"
+beta_vars = subset(beta_vars, IND==1)
+
+if (run_beta_full) {
+  rps_t = subset_samples(rps8_genus, country=="India")
+  t = data.frame(sample_data(rps_t))
+  ncomp = nrow(beta_vars)
+  beta_collated = data.frame(
+    age_group = rep("BM2",ncomp), clean_age_group = rep("week of life 7",ncomp),
+    variable = beta_vars$BM2, clean_variable = beta_vars$clean_name,
+    group = beta_vars$group, R2_u = NA, p_u = NA, n_samples = NA
+  )
+  for (i in 1:nrow(beta_collated)) {
+    if (!is.na(beta_collated$variable[i])) {
+      t$outcome = t[,as.character(beta_collated$variable[i])]
+      sample_list = as.character(t$sample_ID_full[t$sample_type==beta_collated$age_group[i] & !is.na(t$outcome)])
+      
+      rps8_sub = prune_samples(sample_list, rps_t) %>% prune_taxa(taxa_sums(.) > 0, .)
+      beta = data.frame(sample_data(rps8_sub))
+      beta$outcome = beta[,as.character(beta_collated$variable[i])]
+      beta_collated$n_samples[i] = length(sample_list)
+      
+      # unweighted adonis
+      otu_table(rps8_sub)[otu_table(rps8_sub)<0.001] = 0
+      bray_dist_u = phyloseq::distance(rps8_sub, method = "bray", binary = TRUE)
+      adon = adonis(unname(bray_dist_u) ~ outcome, data = beta, permutations = 999)
+      beta_collated$R2_u[i] = round(adon$aov.tab$R2[1],3)
+      beta_collated$p_u[i] = round(adon$aov.tab$`Pr(>F)`[1],3)
+    }
+  }
+  beta_collated$fdr_p_u = round(p.adjust(beta_collated$p_u, method="fdr"),3)
+  write.csv(beta_collated, "output_module4_BM_strict/permanova_India_genus_reduced.csv")
+} else { 
+  beta_collated = read.csv("output_module4_BM_strict/permanova_India_genus_reduced.csv") 
+  }
+
+beta_collated$clean_variable = factor(beta_collated$clean_variable, levels = beta_vars$clean_name)
+beta_collated$clean_variable = revalue(beta_collated$clean_variable, c("A1AT at 6w (μg/ml)"="α1AT at 6w (μg/ml)","A1AG at 6w (μg/ml)"="α1AG at 6w (μg/ml)"))
+beta_collated$group = factor(beta_collated$group, levels = c("maternal", "household", "infant", "rotavirus"))
+beta_collated$group = as.character(beta_collated$group)
+
+### run alpha diversity analyses
+a$outcome = a$Shannon
+a1 = subset(a, country=="India")
+alpha_collated = baseline_summary_alpha(a1)
+alpha_collated$fdr_alpha_p = round(p.adjust(alpha_collated$p, method="fdr"),3)
+write.csv(alpha_collated, "output_module4_BM_strict/India_full_Shannon.csv")
+
+### merge results
+summary = merge(alpha_collated, beta_collated, by = "variable")
+summary$R2_u[summary$variable=="HIV_status"] = NA
+summary$p_u[summary$variable=="HIV_status"] = NA
+summary$fdr_p_u[summary$variable=="HIV_status"] = NA
+
+### beta plot
+g1 = ggplot(summary, aes(y = R2_u*100, x=clean_variable, fill = group)) + 
+  geom_bar(stat = "identity") + 
+  scale_x_discrete(limits = rev(levels(summary$clean_variable))) + xlab("") + 
+  ylab("R2 (%)") + scale_y_continuous(limits = c(0,8), breaks=c(0,4,8)) + 
+  coord_flip() + theme(legend.position="none") +
+ scale_fill_manual(values=c(household = "#CC79A7", infant = "#009E73", maternal = "#56B4E9", rotavirus = "#661100")) + ggtitle("PERMANOVA,\nunweighted Bray-Curtis") + 
+ # facet_grid(group~., scales = "free", space='free') +
+  theme(axis.text.y = element_text(size=17), axis.text.x = element_text(size=18), axis.title = element_text(size=18), 
+        legend.text = element_text(size=18), legend.title = element_text(size=18), plot.title = element_text(size=18)) 
+
+### alpha plot
+g2 = ggplot(summary, aes(y = as.numeric(beta), x=clean_variable, colour = group)) + 
+  geom_point(size = 3) + geom_errorbar(aes(ymin=as.numeric(`lower CI`), ymax=as.numeric(`upper CI`)), width=0, size=0.8, alpha=0.5) +
+  scale_x_discrete(limits = rev(levels(summary$clean_variable))) + xlab("") + 
+  ylab("beta") + ggtitle("regression,\nShannon") + 
+  coord_flip() + scale_y_continuous(trans = 'log10', limits = c(0.5,2), breaks=c(0.5,1,2)) +
+  scale_colour_manual(values=c(household = "#CC79A7", infant = "#009E73", maternal = "#56B4E9", rotavirus = "#661100")) + 
+ # facet_grid(group~., scales = "free", space='free') +
+  theme(axis.text.y = element_blank(), axis.text.x = element_text(size=18), axis.title = element_text(size=18), 
+        legend.text = element_text(size=18), legend.title = element_text(size=18), plot.title = element_text(size=18))
+```
+
+##### Significant assocations - Bray-Curtis (fdr p <0.05)
+```{r}
+subset(summary, fdr_p_u<0.05)[,c("clean_variable", "R2_u", "p_u", "fdr_p_u", "n_samples")]
+```
+
+##### Significant assocations - Shannon (fdr p <0.05)
+```{r}
+subset(summary, fdr_alpha_p<0.05)[,c("clean_variable", "beta", "p", "fdr_alpha_p", "n")]
+```
+
+##### Full beta results
+```{r}
+formattable(beta_collated)
+```
+
+##### Full alpha results
+```{r}
+formattable(alpha_collated)
+```
+
+
+
+
+Malawi {.hidden}
+=====================================
+
+#### Beta diversity - unweighted Bray-Curtis distances
+```{r, fig.width=10, fig.heaight=5}
+### run beta diversity analyses
+beta_vars = read.csv("input/beta_variables_reduced.csv", stringsAsFactors = FALSE)
+names(beta_vars)[2] = "BM2"
+beta_vars = subset(beta_vars, MLW==1)
+
+if (run_beta_full) {
+  rps_t = subset_samples(rps8_genus, country=="Malawi")
+  t = data.frame(sample_data(rps_t))
+  ncomp = nrow(beta_vars)
+  beta_collated = data.frame(
+    age_group = rep("BM2",ncomp), clean_age_group = rep("week of life 7",ncomp),
+    variable = beta_vars$BM2, clean_variable = beta_vars$clean_name,
+    group = beta_vars$group, R2_u = NA, p_u = NA, n_samples = NA
+  )
+  for (i in 1:nrow(beta_collated)) {
+    if (!is.na(beta_collated$variable[i])) {
+      t$outcome = t[,as.character(beta_collated$variable[i])]
+      sample_list = as.character(t$sample_ID_full[t$sample_type==beta_collated$age_group[i] & !is.na(t$outcome)])
+      
+      rps8_sub = prune_samples(sample_list, rps_t) %>% prune_taxa(taxa_sums(.) > 0, .)
+      beta = data.frame(sample_data(rps8_sub))
+      beta$outcome = beta[,as.character(beta_collated$variable[i])]
+      beta_collated$n_samples[i] = length(sample_list)
+      
+      # unweighted adonis
+      otu_table(rps8_sub)[otu_table(rps8_sub)<0.001] = 0
+      bray_dist_u = phyloseq::distance(rps8_sub, method = "bray", binary = TRUE)
+      adon = adonis(unname(bray_dist_u) ~ outcome, data = beta, permutations = 999)
+      beta_collated$R2_u[i] = round(adon$aov.tab$R2[1],3)
+      beta_collated$p_u[i] = round(adon$aov.tab$`Pr(>F)`[1],3)
+    }
+  }
+  beta_collated$fdr_p_u = round(p.adjust(beta_collated$p_u, method="fdr"),3)
+  write.csv(beta_collated, "output_module4_BM_strict/permanova_MLW_genus_reduced.csv")
+} else { beta_collated = read.csv("output_module4_BM_strict/permanova_MLW_genus_reduced.csv") }
+
+beta_collated$clean_variable = factor(beta_collated$clean_variable, levels = beta_vars$clean_name)
+beta_collated$clean_variable = revalue(beta_collated$clean_variable, c("A1AT at 6w (μg/ml)"="α1AT at 6w (μg/ml)","A1AG at 6w (μg/ml)"="α1AG at 6w (μg/ml)"))
+beta_collated$group = factor(beta_collated$group, levels = c("maternal", "household", "infant", "rotavirus"))
+beta_collated$group = as.character(beta_collated$group)
+
+### run alpha diversity analyses
+a$outcome = a$Shannon
+a1 = subset(a, country=="Malawi")
+alpha_collated = baseline_summary_alpha(a1)
+alpha_collated = subset(alpha_collated, n>0)
+alpha_collated$fdr_alpha_p[!is.na(alpha_collated$p)] = round(p.adjust(alpha_collated$p[!is.na(alpha_collated$p)], method="fdr"),3)
+write.csv(alpha_collated, "output_module4_BM_strict/Malawi_Shannon.csv")
+
+### merge results
+summary = merge(alpha_collated, beta_collated, by = "variable")
+summary = subset(summary, !is.na(fdr_alpha_p)) %>% droplevels()
+
+### beta plot
+g3 = ggplot(summary, aes(y = R2_u*100, x=clean_variable, fill = group)) + 
+  geom_bar(stat = "identity") + 
+  scale_x_discrete(limits = rev(levels(summary$clean_variable))) + xlab("") + 
+  ylab("R2 (%)") + scale_y_continuous(limits = c(0,8), breaks=c(0,4,8)) + 
+  coord_flip() + theme(legend.position="none") +
+  scale_fill_manual(values=c(household = "#CC79A7", infant = "#009E73", maternal = "#56B4E9", rotavirus = "#661100")) + ggtitle("PERMANOVA,\nunweighted Bray-Curtis") + 
+  theme(axis.text.y = element_text(size=17), axis.text.x = element_text(size=18), axis.title = element_text(size=18), 
+        legend.text = element_text(size=18), legend.title = element_text(size=18), plot.title = element_text(size=18)) 
+
+### alpha plot
+g4 = ggplot(summary, aes(y = as.numeric(beta), x=clean_variable, colour = group)) + 
+  geom_point(size = 3) + geom_errorbar(aes(ymin=as.numeric(`lower CI`), ymax=as.numeric(`upper CI`)), width=0, size=0.8, alpha=0.5) +
+  scale_x_discrete(limits = rev(levels(summary$clean_variable))) + xlab("") + 
+  ylab("beta") + ggtitle("regression,\nShannon") + 
+  coord_flip() + scale_y_continuous(trans = 'log10', limits = c(0.33,3), breaks=c(0.5,1,2)) +
+  scale_colour_manual(values=c(household = "#CC79A7", infant = "#009E73", maternal = "#56B4E9", rotavirus = "#661100")) + 
+  theme(axis.text.y = element_blank(), axis.text.x = element_text(size=18), axis.title = element_text(size=18), 
+        legend.text = element_text(size=18), legend.title = element_text(size=18), plot.title = element_text(size=18))
+```
+
+##### Significant assocations - Bray-Curtis (fdr p <0.05)
+```{r}
+subset(summary, fdr_p_u<0.05)[,c("clean_variable", "R2_u", "p_u", "fdr_p_u", "n_samples")]
+```
+
+##### Significant assocations - Shannon (fdr p <0.05)
+```{r}
+subset(summary, fdr_alpha_p<0.05)[,c("clean_variable", "beta", "p", "fdr_alpha_p", "n")]
+```
+
+##### Full beta results
+```{r}
+formattable(beta_collated)
+```
+
+##### Full alpha results
+```{r}
+formattable(alpha_collated)
+```
+
+
+
+
+UK {.hidden}
+=====================================
+
+#### Beta diversity - unweighted Bray-Curtis distances
+```{r, fig.width=10, fig.heaight=5}
+### run beta diversity analyses
+beta_vars = read.csv("input/beta_variables_reduced.csv", stringsAsFactors = FALSE)
+names(beta_vars)[2] = "BM2"
+beta_vars = subset(beta_vars, UK==1)
+
+if (run_beta_full) {
+  rps_t = subset_samples(rps8_genus, country=="UK")
+  t = data.frame(sample_data(rps_t))
+  ncomp = nrow(beta_vars)
+  beta_collated = data.frame(
+    age_group = rep("BM2",ncomp), clean_age_group = rep("week of life 9",ncomp),
+    variable = beta_vars$BM2, clean_variable = beta_vars$clean_name,
+    group = beta_vars$group, R2_u = NA, p_u = NA, n_samples = NA
+  )
+  for (i in 1:nrow(beta_collated)) {
+    if (!is.na(beta_collated$variable[i])) {
+      t$outcome = t[,as.character(beta_collated$variable[i])]
+      sample_list = as.character(t$sample_ID_full[t$sample_type==beta_collated$age_group[i] & !is.na(t$outcome)])
+      
+      rps8_sub = prune_samples(sample_list, rps_t) %>% prune_taxa(taxa_sums(.) > 0, .)
+      beta = data.frame(sample_data(rps8_sub))
+      beta$outcome = beta[,as.character(beta_collated$variable[i])]
+      beta_collated$n_samples[i] = length(sample_list)
+      
+      # unweighted adonis
+      otu_table(rps8_sub)[otu_table(rps8_sub)<0.001] = 0
+      bray_dist_u = phyloseq::distance(rps8_sub, method = "bray", binary = TRUE)
+      adon = adonis(unname(bray_dist_u) ~ outcome, data = beta, permutations = 999)
+      beta_collated$R2_u[i] = round(adon$aov.tab$R2[1],3)
+      beta_collated$p_u[i] = round(adon$aov.tab$`Pr(>F)`[1],3)
+    }
+  }
+  beta_collated$fdr_p_u = round(p.adjust(beta_collated$p_u, method="fdr"),3)
+  write.csv(beta_collated, "output_module4_BM_strict/permanova_UK_genus_reduced.csv")
+} else { beta_collated = read.csv("output_module4_BM_strict/permanova_UK_genus_reduced.csv") }
+
+beta_collated$clean_variable = factor(beta_collated$clean_variable, levels = beta_vars$clean_name)
+beta_collated$clean_variable = revalue(beta_collated$clean_variable, c("A1AT at 6w (μg/ml)"="α1AT at 8w (μg/ml)"))
+beta_collated$group = factor(beta_collated$group, levels = c("maternal", "household", "infant", "rotavirus"))
+beta_collated$group = as.character(beta_collated$group)
+
+### run alpha diversity analyses
+a$outcome = a$Shannon
+a1 = subset(a, country=="UK")
+alpha_collated = baseline_summary_alpha(a1)
+alpha_collated = subset(alpha_collated, n>0)
+alpha_collated$fdr_alpha_p[!is.na(alpha_collated$p)] = round(p.adjust(alpha_collated$p[!is.na(alpha_collated$p)], method="fdr"),3)
+write.csv(alpha_collated, "output_module4_BM_strict/UK_Shannon.csv")
+
+### merge results
+summary = merge(alpha_collated, beta_collated, by = "variable")
+summary = subset(summary, !is.na(fdr_alpha_p)) %>% droplevels()
+
+### beta plot
+g5 = ggplot(summary, aes(y = R2_u*100, x=clean_variable, fill = group)) + 
+  geom_bar(stat = "identity") + 
+  scale_x_discrete(limits = rev(levels(summary$clean_variable))) + xlab("") + 
+  ylab("R2 (%)") + scale_y_continuous(limits = c(0,8), breaks=c(0,4,8)) + 
+  coord_flip() + theme(legend.position="none") +
+  scale_fill_manual(values=c(household = "#CC79A7", infant = "#009E73", maternal = "#56B4E9", rotavirus = "#661100")) +  ggtitle("PERMANOVA,\nunweighted Bray-Curtis") + 
+  theme(axis.text.y = element_text(size=17), axis.text.x = element_text(size=18), axis.title = element_text(size=18), 
+        legend.text = element_text(size=18), legend.title = element_text(size=18), plot.title = element_text(size=18)) 
+
+### alpha plot
+g6 = ggplot(summary, aes(y = as.numeric(beta), x=clean_variable, colour = group)) + 
+  geom_point(size = 3) + geom_errorbar(aes(ymin=as.numeric(`lower CI`), ymax=as.numeric(`upper CI`)), width=0, size=0.8, alpha=0.5) +
+  scale_x_discrete(limits = rev(levels(summary$clean_variable))) + xlab("") + 
+  ylab("beta") + ggtitle("regression,\nShannon") + 
+  coord_flip() + scale_y_continuous(trans = 'log10', limits = c(0.33,3), breaks=c(0.5,1,2)) +
+  scale_colour_manual(values=c(household = "#CC79A7", infant = "#009E73", maternal = "#56B4E9", rotavirus = "#661100")) + 
+  theme(axis.text.y = element_blank(), axis.text.x = element_text(size=18), axis.title = element_text(size=18), 
+        legend.text = element_text(size=18), legend.title = element_text(size=18), plot.title = element_text(size=18))
+```
+
+##### Significant assocations - Bray-Curtis (fdr p <0.05)
+```{r}
+subset(summary, fdr_p_u<0.05)[,c("clean_variable", "R2_u", "p_u", "fdr_p_u", "n_samples")]
+```
+
+##### Significant assocations - Shannon (fdr p <0.05)
+```{r}
+subset(summary, fdr_alpha_p<0.05)[,c("clean_variable", "beta", "p", "fdr_alpha_p", "n")]
+```
+
+##### Full beta results
+```{r}
+formattable(beta_collated)
+```
+
+##### Full alpha results
+```{r}
+formattable(alpha_collated)
+```
+
+
+
+Plot - all countries {.hidden}
+=====================================
+
+```{r, fig.width=12, fig.height=18}
+plot_grid(
+  plot_grid(g1, g3, g5, ncol=1, align = "v", rel_heights = c(3,1.6,1.2)),
+  plot_grid(g2, g4, g6, ncol=1, align = "v", rel_heights = c(3,1.6,1.2)),
+  rel_widths = c(1.6,1))
+```
+
+
+
+
+
+Session info {.hidden}
+===================================== 
+
+```{r}
+print(sessionInfo())
+```
+.

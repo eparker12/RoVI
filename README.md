@@ -9,7 +9,7 @@ This github page contains the code and input data associated with the [RoVI stud
 
 ## Primary outcome paper
 
-The primary outcome paper of the RoVI study is now available on [*medRxiv*](https://www.medrxiv.org/content/10.1101/2020.11.02.20224576v2) . All figures and statsical analyses from this paper can be recreated using the code and data in this github repository.
+The primary outcome paper of the RoVI study is now published in [*Nature Communications*](https://www.nature.com/articles/s41467-021-27074-1). All figures and statsical analyses from this paper can be recreated using the code and data in this github repository.
 
 ## Bioinformatics code
 
@@ -34,6 +34,10 @@ Current analyses include the following 5  modules:
 - **RoVI_module5_multivariate_models:** integrated analysis of infant and maternal cofactors associated with ORV outcome, including statistical learning results (Random Forests), and univariate and multivariate regression analyses.
 - **RoVI_module6_16S_vs_demography:** an exploratory analysis of variables associated with microbiota composition (alpha and beta diversity) at the time of the first dose of ORV in each cohort.
 Additional information is contained in the annotations of each **Rmd** file.
+
+## Breastmilk 16S analyses
+
+The folder **breastmilk_analyses** was added on 31 October 2022. This contains an adaptation of analysis modules 1, 3, 4, and 6 above for breastmilk 16S microbiota composition.
 
 ## Contact
 edward.parker@lshtm.ac.uk

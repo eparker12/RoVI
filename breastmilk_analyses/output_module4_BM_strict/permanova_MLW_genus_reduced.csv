@@ -1,0 +1,13 @@
+"","age_group","clean_age_group","variable","clean_variable","group","R2_u","p_u","n_samples","fdr_p_u"
+"1","BM2","week of life 7","age_mother","maternal age (years)","maternal",0.013,0.408,79,0.639
+"2","BM2","week of life 7","sex_baby","female","infant",0.018,0.109,79,0.327
+"3","BM2","week of life 7","age_at_first_dose","age at first ORV dose (days)","infant",0.016,0.25,74,0.6
+"4","BM2","week of life 7","birth_weight","birth weight (kg)","infant",0.011,0.634,79,0.761
+"5","BM2","week of life 7","HIV_status","HIV-exposed","infant",0.007,0.959,76,0.959
+"6","BM2","week of life 7","antibiotic_exposure","exposed to antibiotics during study","infant",0.007,0.955,79,0.959
+"7","BM2","week of life 7","HAZ_6_8w","height-for-age Z score at 6w","infant",0.02,0.079,74,0.316
+"8","BM2","week of life 7","A1AT_BS3_Concugml","A1AT at 6w (μg/ml)","infant",0.018,0.426,57,0.639
+"9","BM2","week of life 7","MPO_BS3_Concngml","MPO at 6w (ng/ml)","infant",0.017,0.488,57,0.651
+"10","BM2","week of life 7","AG_Concugml","A1AG at 6w (μg/ml)","infant",0.037,0.003,61,0.036
+"11","BM2","week of life 7","MB1_IgA","maternal RV-IgA (IU/ml)","rotavirus",0.023,0.057,70,0.316
+"12","BM2","week of life 7","BM1_IgA","breastmilk RV-IgA (IU/ml)","rotavirus",0.021,0.353,52,0.639

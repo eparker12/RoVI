@@ -1,0 +1,13 @@
+"","sample_subset","country","nonresponders","responders","crossval_median","crossval_q1","crossval_q3"
+"1","BM1","India","nonresponders","responders",0.5,0.45,0.6
+"2","BM1","India (exposed)","nonresponders","responders",0.5,0.4,0.545454545454545
+"3","BM1","India (unexposed)","nonresponders","responders",0.555555555555556,0.473684210526316,0.65
+"4","BM1","Malawi","nonresponders","responders",0.571428571428571,0.5,0.642857142857143
+"5","BM2","India","nonresponders","responders",0.5,0.45,0.6
+"6","BM2","India (exposed)","nonresponders","responders",0.6,0.444444444444444,0.666666666666667
+"7","BM2","India (unexposed)","nonresponders","responders",0.470588235294118,0.411764705882353,0.529411764705882
+"8","BM2","Malawi","nonresponders","responders",0.416666666666667,0.333333333333333,0.509615384615385
+"9","BM3","India","nonresponders","responders",0.5,0.45,0.6
+"10","BM3","India (exposed)","nonresponders","responders",0.5,0.428571428571429,0.625
+"11","BM3","India (unexposed)","nonresponders","responders",0.452083333333333,0.357142857142857,0.540625
+"12","BM3","Malawi","nonresponders","responders",0.5,0.408653846153846,0.583333333333333
