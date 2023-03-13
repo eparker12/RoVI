@@ -1,0 +1,117 @@
+---
+title: "Analysis module 7: analysis of paired BM vs stool samples"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+Sidebar {.sidebar} 
+===================================== 
+[Summary]    
+
+[Session info]
+
+
+
+Summary {.hidden}
+=====================================
+
+```{r, message=FALSE}
+# load packages and functions
+library(phyloseq)
+library(dplyr)
+library(tidyverse)
+
+# set country colours
+India_col = "#CC79A7"  #"#3f9d7f" #"#66c2a5"
+Malawi_col = "#E69F00"
+UK_col = "#0072B2"
+theme_set(theme_bw())
+
+# load genus/rsv-level data - full and rarefied
+load("phyloseq_files_strict/ps8_genus.RData")
+load("phyloseq_files_strict/ps8_l_t_pr_d_dd_15k_rarefied.RData")
+
+# select BM1, BM2, and BM3 samples within each phyloseq object
+ps8_genus = subset_samples(ps8_genus, (!is.na(dose1_shedding) | !is.na(seroconv)) & (sample_type=="BM1" | sample_type=="BM2" | sample_type=="BM3" | sample_type=="BS1" |  sample_type=="BS3" |  sample_type=="BS5")) %>% prune_taxa(taxa_sums(.) > 0, .)
+
+# append sample-specific data to deduplicated dataframe
+t = data.frame(sample_data(ps8_genus))
+write.csv(t, "final_analysis_set_BM_BS_metadata.csv")
+t_dd = t[!duplicated(t$family_ID), ]
+t_dd = merge(t_dd, subset(t, sample_type=="BM1")[,c("family_ID", "Shannon", "Observed")], by="family_ID", all.x=TRUE) %>% dplyr::rename(Shannon_BM1 = Shannon.y, Observed_BM1 = Observed.y, Shannon = Shannon.x, Observed = Observed.x)
+t_dd = merge(t_dd, subset(t, sample_type=="BM2")[,c("family_ID", "Shannon", "Observed")], by="family_ID", all.x=TRUE) %>% dplyr::rename(Shannon_BM2 = Shannon.y, Observed_BM2 = Observed.y, Shannon = Shannon.x, Observed = Observed.x)
+t_dd = merge(t_dd, subset(t, sample_type=="BM3")[,c("family_ID", "Shannon", "Observed")], by="family_ID", all.x=TRUE) %>% dplyr::rename(Shannon_BM3 = Shannon.y, Observed_BM3 = Observed.y, Shannon = Shannon.x, Observed = Observed.x)
+t_dd = merge(t_dd, subset(t, sample_type=="BS1")[,c("family_ID", "Shannon", "Observed")], by="family_ID", all.x=TRUE) %>% dplyr::rename(Shannon_BS1 = Shannon.y, Observed_BS1 = Observed.y, Shannon = Shannon.x, Observed = Observed.x)
+t_dd = merge(t_dd, subset(t, sample_type=="BS3")[,c("family_ID", "Shannon", "Observed")], by="family_ID", all.x=TRUE) %>% dplyr::rename(Shannon_BS3 = Shannon.y, Observed_BS3 = Observed.y, Shannon = Shannon.x, Observed = Observed.x)
+t_dd = merge(t_dd, subset(t, sample_type=="BS5")[,c("family_ID", "Shannon", "Observed")], by="family_ID", all.x=TRUE) %>% dplyr::rename(Shannon_BS5 = Shannon.y, Observed_BS5 = Observed.y, Shannon = Shannon.x, Observed = Observed.x)
+write.csv(t_dd, "pairwise_alpha.csv")
+
+# collate data
+collated = rbind(
+  data.frame(pair = "week of life 1", country=t_dd$country, Shannon_BM=t_dd$Shannon_BM1, Observed_BM=t_dd$Observed_BM1, Shannon_BS=t_dd$Shannon_BS1, Observed_BS=t_dd$Observed_BS1),
+  data.frame(pair = "week of ORV dose 1", country=t_dd$country, Shannon_BM=t_dd$Shannon_BM2, Observed_BM=t_dd$Observed_BM2, Shannon_BS=t_dd$Shannon_BS3, Observed_BS=t_dd$Observed_BS3),
+  data.frame(pair = "week of ORV dose 2", country=t_dd$country, Shannon_BM=t_dd$Shannon_BM3, Observed_BM=t_dd$Observed_BM3, Shannon_BS=t_dd$Shannon_BS5, Observed_BS=t_dd$Observed_BS5)
+)
+
+# Remove incomplete sample pairs
+collated = subset(collated, !is.na(Observed_BM) & !is.na(Observed_BS))
+collated$country = as.character(collated$country)
+collated$country[collated$country=="India"] = "IND"
+collated$country[collated$country=="Malawi"] = "MLW"
+collated$country[collated$country=="UK"] = "UK"
+```
+
+#### Shannon
+```{r, fig.width=10, fig.height=8}
+ggplot(collated, aes(x = Shannon_BM, y=Shannon_BS, colour = country, fill=country)) + 
+  geom_point(alpha=0.6) + facet_grid(country~pair) + geom_smooth(method = lm, size=1, alpha=0.2) +
+  xlab("Shannon (breastmilk)") + ylab("Shannon (infant stool)") +
+  scale_colour_manual(values = c("IND" = India_col, "MLW" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") +
+  scale_fill_manual(values = c("IND" = India_col, "MLW" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") +
+  theme(strip.background = element_blank(), strip.text = element_text(size=18), axis.text.y = element_text(size=18), axis.text.x = element_text(size=18), axis.title = element_text(size=18), 
+    legend.text = element_text(size=18), legend.title = element_text(size=18), plot.title = element_text(size=18))
+```
+
+#### Stats
+```{r}
+collated %>%
+    group_by(pair, country) %>% 
+    summarise(N = length(Shannon_BM),
+              Pearson_r = round(cor(Shannon_BM, Shannon_BS, method="pearson"),3),
+              `P` = cor.test(Shannon_BM, Shannon_BS, method="pearson")$p.value
+              )
+```
+
+
+#### Richness
+```{r, fig.width=10, fig.height=8}
+ggplot(collated, aes(x =  Observed_BM, y=Observed_BS, colour = country, fill=country)) + 
+  geom_point() + facet_grid(country~pair) + geom_smooth(method = lm, size=1, alpha=0.2) +
+  xlab("Richness (breastmilk)") + ylab("Richness (infant stool)") +
+  scale_colour_manual(values = c("IND" = India_col, "MLW" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") +
+  scale_fill_manual(values = c("IND" = India_col, "MLW" = Malawi_col, "UK" = UK_col)) + theme(legend.position = "none") +
+  theme(strip.background = element_blank(), strip.text = element_text(size=18), axis.text.y = element_text(size=18), axis.text.x = element_text(size=18), axis.title = element_text(size=18), 
+    legend.text = element_text(size=18), legend.title = element_text(size=18), plot.title = element_text(size=18))
+```
+
+#### Stats
+```{r}
+collated %>%
+    group_by(pair, country) %>% 
+    summarise(N = length(Observed_BM),
+              Pearson_r = round(cor(Observed_BM, Observed_BS, method="pearson"),3),
+              `P` = cor.test(Observed_BM, Observed_BS, method="pearson")$p.value
+              )
+```
+
+Session info {.hidden}
+===================================== 
+
+```{r}
+print(sessionInfo())
+```
+.
