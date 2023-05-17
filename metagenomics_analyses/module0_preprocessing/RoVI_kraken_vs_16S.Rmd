@@ -1,0 +1,376 @@
+---
+title: "Kraken vs 16S validation"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+Sidebar {.sidebar} 
+===================================== 
+[Genus abundance comparison]    
+
+[Genus abundances at country level]
+
+[Alpha diversity]
+
+[Session info]
+
+
+
+
+
+Genus abundance comparison {.hidden}
+=====================================
+
+```{r, message=FALSE}
+run_full = TRUE
+
+# load packages and functions
+source("../packages_functions.R")
+
+if (run_full) {
+  # load filtered, unrarefied kraken data (>1M sequences per sample) - select genera present in at least 10 samples
+  load("outputs_genus/final_ps_full.RData")
+  biom_kraken = filter_taxa(ps_full, function(x) { sum(x > 0) >= 10 }, TRUE) #%>%
+    #rarefy_even_depth(., sample.size = 25000, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+  save(biom_kraken, file="outputs_taxonomy/biom_kraken.RData")
+} else {
+  load("outputs_taxonomy/biom_kraken.RData")
+}
+
+# load filtered, rarefied 16S data at genus level (25,000 sequences per sample)
+load("inputs_taxonomy/ps8_genus.RData")
+
+# pick out samples with corresponding kraken data - select genera present in at least 10 samples
+biom_16S = subset_samples(ps8_genus, sample_code %in% sample_names(biom_kraken)) %>% 
+  filter_taxa(., function(x) { sum(x > 0) >= 10 }, TRUE)
+
+# write taxa tables to cross-compare genus names
+taxa_16S = data.frame(tax_table(biom_16S))                       
+taxa_kraken = data.frame(tax_table(biom_kraken))                       
+write.csv(taxa_16S, "outputs_taxonomy/taxa_16S.csv")
+write.csv(taxa_kraken, "outputs_taxonomy/taxa_kraken.csv")
+
+## based on manual cross-check, merge Prevotella-associated 16S reads
+biom_16S = biom_16S %>%
+  merge_taxa(., 
+             rownames(subset(taxa_16S, Genus %in% c("Prevotella", "Prevotella_6", "Prevotella_7", "Prevotella_9"))), 
+             rownames(subset(taxa_16S, Genus %in% c("Prevotella"))))
+
+# update names of 16S taxa to match kraken equivalents
+tax_16S = data.frame(tax_table(biom_16S)) %>%
+  mutate(
+    Genus = ifelse(is.na(Genus), "Prevotella", Genus),
+    Genus = ifelse(Genus=="Escherichia/Shigella", "Escherichia", Genus),
+    Genus = ifelse(Genus=="Clostridium_sensu_stricto_1", "Clostridium", Genus),
+    Genus = ifelse(Genus=="Corynebacterium_1", "Corynebacterium", Genus)
+  )
+tax_table(biom_16S) = as.matrix(tax_16S)
+
+# merge Escherichia/Shigella reads from kraken
+biom_kraken = biom_kraken %>%
+  merge_taxa(., 
+             rownames(subset(taxa_kraken, Genus %in% c("Escherichia", "Shigella"))), 
+             rownames(subset(taxa_kraken, Genus %in% c("Escherichia"))))
+
+## update names of kraken taxa to match 16S equivalents
+tax_kraken = data.frame(tax_table(biom_kraken)) %>%
+  mutate(
+    Genus = ifelse(is.na(Genus), "Escherichia", Genus)
+  )
+tax_table(biom_kraken) = as.matrix(tax_kraken)
+
+# transform to relative abundances
+rps_16S = transform_sample_counts(biom_16S, function(x) {x/sum(x)})
+rps_kraken = transform_sample_counts(biom_kraken, function(x) {x/sum(x)})
+
+## calculate alpha diversity
+alpha_16S = data.frame(sample_data(rps_16S))
+alpha_16S$Observed_genus = colSums(otu_table(rps_16S)>=0.001)
+alpha_16S$sample_ID = alpha_16S$sample_code
+alpha_16S = alpha_16S[order(alpha_16S$sample_ID), ]
+alpha_kraken = data.frame(sample_data(rps_kraken))
+alpha_kraken$Observed_genus = colSums(otu_table(rps_kraken)>=0.001)
+alpha_kraken = alpha_kraken[order(alpha_kraken$sample_ID), ]
+```
+
+#### Input data: infant stools (BS3) 
+* n samples: 16S = `r nsamples(rps_16S)`; kraken = `r nsamples(rps_kraken)`   
+* n genera present in at least 10 samples after merging: 16S = `r ntaxa(rps_16S)`; kraken = `r ntaxa(rps_kraken)`     
+* depth: both datasets rarefied to 25,000 sequences per sample  
+<br/><br/>
+
+```{r, message=FALSE}
+# convert 16S data into dataframe, then append genus names
+df_16S = data.frame(t(otu_table(rps_16S)))
+if (all(colnames(df_16S)==rownames(tax_table(rps_16S)))) { colnames(df_16S) = as(tax_table(rps_16S), "matrix")[,"Genus"] } else { print("error: rownames do not match")}
+
+# re-order columns by means
+df_16S = df_16S[,rev(order(colMeans(df_16S, na.rm=TRUE)))]
+tax_names_16S = names(df_16S)
+  
+# re-order by sample ID
+df_16S$sample_ID = substrRight(rownames(df_16S),7)
+df_16S = df_16S[order(df_16S$sample_ID),]
+
+# convert kraken data into dataframe, then append genus names
+df_kraken = data.frame(t(otu_table(rps_kraken)))
+if (all(colnames(df_kraken)==rownames(tax_table(rps_kraken)))) {
+  colnames(df_kraken) = as(tax_table(rps_kraken), "matrix")[,"Genus"] 
+} else { 
+    print("error: rownames do not match")
+  }
+
+# re-order columns by means
+df_kraken = df_kraken[,rev(order(colMeans(df_kraken, na.rm=TRUE)))]
+tax_names_kraken = names(df_kraken)
+
+# re-order by sample ID
+df_kraken$sample_ID = rownames(df_kraken)
+df_kraken = df_kraken[order(df_kraken$sample_ID),]
+#write.csv(df_kraken, "outputs_taxonomy/df_kraken.csv")
+
+# check that sample IDs match
+#all(df_16S$sample_ID==df_kraken$sample_ID)
+
+# check whether top 10 16S genera have equivalent in kraken
+#all(names(df_16S)[1:10] %in% names(df_kraken))
+
+# in loop, calculate R-sq correlation scores
+collated = data.frame(Genus = unique(c(tax_names_16S, tax_names_kraken)),
+                      prev_16S = 0, abund_16S = 0,
+                      prev_kraken = 0, abund_kraken = 0, 
+                      rho = NA, p = NA)
+
+for (i in 1:nrow(collated)) {
+  taxon = collated$Genus[i]
+  if (taxon %in% names(df_16S)) {
+    collated$prev_16S[i] = round(sum(df_16S[,taxon]>0)/nrow(df_16S)*100,1)
+    collated$abund_16S[i] = mean(df_16S[,taxon])*100
+  } 
+  if (taxon %in% names(df_kraken)) {
+    collated$prev_kraken[i] = round(sum(df_kraken[,taxon]>0)/nrow(df_kraken)*100,1)
+    collated$abund_kraken[i] = mean(df_kraken[,taxon])*100
+  } 
+  if ((taxon %in% names(df_16S)) & (taxon %in% names(df_kraken))) {
+    collated$rho[i] = round(cor.test(df_kraken[,taxon], df_16S[,taxon], method="spearman")$estimate,3)
+    collated$p[i] = round(cor.test(df_kraken[,taxon], df_16S[,taxon], method="spearman")$p.value,3)
+  }
+}
+
+# order by decreasing abundance
+collated_full = collated[order(-collated$abund_16S,-collated$abund_kraken),]
+
+# select genera present with 20% prevalence in at least one dataset
+collated = subset(collated, prev_16S>=20 | prev_kraken>=20) 
+collated_long = data.frame(
+  Genus = rep(collated$Genus, 2),
+  Platform = c(rep("16S", nrow(collated)), rep("Metagenome", nrow(collated))), 
+  Prevalence = c(collated$prev_16S, collated$prev_kraken),
+  Abundance = c(collated$abund_16S, collated$abund_kraken),
+  rho = c(collated$rho, rep(NA, nrow(collated))),
+  p = c(collated$p, rep(NA, nrow(collated)))
+)
+write.csv(collated_long, "outputs_taxonomy/collated_16S_vs_shotgun.csv")
+```
+
+#### Abundance comparison plot for 10 most abundant taxa (based on 16S mean abundance)
+```{r, fig.width=9, fig.height=7}
+## Plot for genus abundances
+filter_plot = function(taxon) {
+  df_16S$taxon = df_16S[,taxon]
+  df_16S$taxon.1 = df_kraken[,taxon]
+  r2 = collated$rho[collated$Genus==taxon]
+  ggplot(df_16S, aes(x=taxon, y=taxon.1)) + geom_abline(color = "black", linetype = "dotted") + 
+    geom_point(colour="#cc4c02", size = 2, alpha = 0.4) +
+    xlab("") +  ylab("") + theme_bw() + xlim(0,1) + ylim(0,1)+
+    theme(legend.position = "none") + ggtitle(paste0(taxon, ", rho = ", r2)) + 
+    theme(axis.text.x = element_blank(), axis.text.y = element_blank(), plot.title = element_text(size=12)) 
+}
+
+p1 = filter_plot(names(df_16S)[1]) + ylab("% (Metagenome)")
+p2 = filter_plot(names(df_16S)[2])
+p3 = filter_plot(names(df_16S)[3])
+p4 = filter_plot(names(df_16S)[4]) 
+p5 = filter_plot(names(df_16S)[5]) + ylab("% (Metagenome)")
+p6 = filter_plot(names(df_16S)[6])
+p7 = filter_plot(names(df_16S)[7]) + xlab("% (16S)")
+p8 = filter_plot(names(df_16S)[8]) + xlab("% (16S)")
+p9 = filter_plot(names(df_16S)[9]) + ylab("% (Metagenome)") + xlab("% (16S)")
+p10 = filter_plot(names(df_16S)[10]) + xlab("% (16S)")
+grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,ncol=4)
+```
+<br/> Y axis = Relative abundance (%), Kraken; X axis = Relative abundance (%), 16S. Major tick marks span 0-100%.
+<br/><br/>
+
+#### Prevalence and abundance comparison across major general present in 20% of samples in at least one platform
+```{r, fig.width=8, fig.height=16}
+# remove "_" in genus names 
+collated_long$Genus = stringr::str_replace_all(collated_long$Genus, "_", " ")
+collated$Genus = stringr::str_replace_all(collated$Genus, "_", " ")
+
+# reorder by decreasing abundance
+collated_long$Genus = factor(collated_long$Genus, levels = rev(collated$Genus))
+
+# generate plots
+g1 = ggplot(collated_long, aes(x=Genus, y=Prevalence, size=Abundance, colour=Platform)) + 
+    scale_colour_manual(values = c("#045a8d", "#ce1256")) + scale_size(range=c(2,6)) +
+    geom_point(alpha = 0.4) + coord_flip() + theme_bw() + theme(legend.position = "left") + xlab("") + ylab("Prevalence (%)") +
+  theme(axis.text = element_text(size = 12), legend.text = element_text(size = 12), 
+        axis.title = element_text(size = 12), legend.title = element_text(size = 12)) +
+    guides(size=guide_legend(title="Mean\nabundance (%)"))
+
+g2 = ggplot(collated_long, aes(x=Genus, y=rho)) + 
+    geom_point(size = 2, alpha = 0.8) + coord_flip() + theme_bw() +
+    theme(axis.text.y = element_blank()) + xlab("") + 
+    scale_y_continuous(limits=c(0,1), breaks=c(0,0.5,1)) +
+    theme(axis.text = element_text(size = 12), legend.text = element_text(size = 12), 
+        axis.title = element_text(size = 12), legend.title = element_text(size = 12))
+
+plot_grid(g1, g2, rel_widths=c(4,1), align="h", axis="tb")
+```
+<br/>Genera are order by decreasing mean abundance in 16S data (then decreasing abundance in metagenome data for genera absent in 16S data).
+<br/><br/>
+
+
+
+
+
+Genus abundances at country level {.hidden}
+=====================================
+
+#### Metagenome data
+```{r, fig.width=5, fig.height=5}
+taxa_names(rps_kraken) = data.frame(as(tax_table(rps_kraken), "matrix"))$Genus
+g = data.frame(t(otu_table(rps_kraken))) 
+
+# add metadata for sample type and country
+if (all(rownames(g)==sample_names(rps_kraken))) { 
+  g$country =  as.factor(sample_data(rps_kraken)$country)
+} else { print("error: rownames do not match")}
+
+# collate data
+BS3_I = colMeans(subset(g, country=="India")[,1:(ncol(g)-1)])
+BS3_M = colMeans(subset(g, country=="Malawi")[,1:(ncol(g)-1)])
+g_means = data.frame(BS3_I, BS3_M)
+
+# calculate means, pick genera present with mean abundance of 5% during at least one timepoint
+g_means$max = apply(g_means, 1, max)
+g_means$include = g_means$max>=0.01
+g_means$include[rownames(g_means) %in% c("Collinsella" , "Acinetobacter", "Clostridium")] = TRUE
+g_means_reduced = subset(g_means, include==TRUE)[,1:(ncol(g_means)-2)]
+taxa_list = rownames(g_means_reduced)
+g_means_reduced["Other",] = 1-colSums(g_means_reduced)
+g_means_reduced = data.frame(t(g_means_reduced))
+
+# collate data for each taxon in taxa_list
+g_collated = rbind(data.frame(Genus = rep("Other",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Other"]),
+                   data.frame(Genus = rep("Clostridium",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Clostridium"]),
+                   data.frame(Genus = rep("Acinetobacter",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Acinetobacter"]),
+                   data.frame(Genus = rep("Collinsella",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Collinsella"]),
+                   data.frame(Genus = rep("Prevotella",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Prevotella"]),
+                   data.frame(Genus = rep("Lactobacillus",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Lactobacillus"]),
+                   data.frame(Genus = rep("Enterococcus",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Enterococcus"]),
+                   data.frame(Genus = rep("Veillonella",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Veillonella"]),
+                   data.frame(Genus = rep("Phocaeicola",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Phocaeicola"]),
+                   data.frame(Genus = rep("Parabacteroides",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Parabacteroides"]),
+                   data.frame(Genus = rep("Streptococcus",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Streptococcus"]),
+                   data.frame(Genus = rep("Bacteroides",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Bacteroides"]),
+                   data.frame(Genus = rep("Klebsiella",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Klebsiella"]),
+                   data.frame(Genus = rep("Escherichia",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Escherichia"]),
+                   data.frame(Genus = rep("Bifidobacterium",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Bifidobacterium"]))
+
+# recode week
+names(g_collated)[1] = "Genus"
+g_collated$Genus = factor(g_collated$Genus, levels=unique(g_collated$Genus))
+
+# create plot
+ggplot(g_collated, aes(x=country, y=abundance, fill=Genus)) + geom_bar(stat = "identity") + xlab("") +
+  scale_fill_manual(values = c("light grey",as.vector(GetColors(14,"smooth rainbow")))) + 
+  ylab("Mean relative abundance") + ggtitle("Metagenome") +
+  scale_y_continuous(breaks=c(0,0.2,0.4,0.6,0.8,1)) +
+  theme(axis.text = element_text(size=13), strip.text = element_text(size=13), axis.title=element_text(size=13),
+        legend.title = element_text(size=13), legend.text = element_text(size=13))
+```
+
+#### 16S data
+```{r, fig.width=5, fig.height=5}
+taxa_names(rps_16S) = data.frame(as(tax_table(rps_16S), "matrix"))$Genus
+g = data.frame(t(otu_table(rps_16S))) 
+
+# add metadata for sample type and country
+if (all(rownames(g)==sample_names(rps_16S))) { 
+  g$country =  as.factor(sample_data(rps_16S)$country)
+} else { print("error: rownames do not match")}
+
+# collate data
+BS3_I = colMeans(subset(g, country=="India")[,1:(ncol(g)-1)])
+BS3_M = colMeans(subset(g, country=="Malawi")[,1:(ncol(g)-1)])
+g_means = data.frame(BS3_I, BS3_M)
+
+# calculate means, pick genera present with mean abundance of 5% during at least one timepoint
+g_means$max = apply(g_means, 1, max)
+g_means$include = g_means$max>=0.01
+g_means$include[rownames(g_means) %in% c("Phocaeicola")] = TRUE
+g_means_reduced = subset(g_means, include==TRUE)[,1:(ncol(g_means)-2)]
+taxa_list = rownames(g_means_reduced)
+g_means_reduced["Other",] = 1-colSums(g_means_reduced)
+g_means_reduced = data.frame(t(g_means_reduced))
+
+# collate data for each taxon in taxa_list
+g_collated = rbind(data.frame(Genus = rep("Other",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Other"]),
+                   data.frame(Genus = rep("Clostridium",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Clostridium"]),
+                   data.frame(Genus = rep("Acinetobacter",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Acinetobacter"]),
+                   data.frame(Genus = rep("Collinsella",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Collinsella"]),
+                   data.frame(Genus = rep("Prevotella",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Prevotella"]),
+                   data.frame(Genus = rep("Lactobacillus",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Lactobacillus"]),
+                   data.frame(Genus = rep("Enterococcus",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Enterococcus"]),
+                   data.frame(Genus = rep("Veillonella",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Veillonella"]),
+                   data.frame(Genus = rep("Phocaeicola",2), country = c("IND","MLW"), abundance = c(0,0)), # not in 16S list
+                   data.frame(Genus = rep("Parabacteroides",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Parabacteroides"]),
+                   data.frame(Genus = rep("Streptococcus",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Streptococcus"]),
+                   data.frame(Genus = rep("Bacteroides",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Bacteroides"]),
+                   data.frame(Genus = rep("Klebsiella",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Klebsiella"]),
+                   data.frame(Genus = rep("Escherichia",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Escherichia"]),
+                   data.frame(Genus = rep("Bifidobacterium",2), country = c("IND","MLW"), abundance = g_means_reduced[,"Bifidobacterium"]))
+
+# recode week
+names(g_collated)[1] = "Genus"
+g_collated$Genus = factor(g_collated$Genus, levels=unique(g_collated$Genus))
+
+# create plot
+ggplot(g_collated, aes(x=country, y=abundance, fill=Genus)) + geom_bar(stat = "identity") + xlab("") +
+  scale_fill_manual(values = c("light grey",as.vector(GetColors(14,"smooth rainbow")))) + 
+  ylab("Mean relative abundance") + ggtitle("16S") +
+  scale_y_continuous(breaks=c(0,0.2,0.4,0.6,0.8,1)) +
+  theme(axis.text = element_text(size=13), strip.text = element_text(size=13), axis.title=element_text(size=13),
+        legend.title = element_text(size=13), legend.text = element_text(size=13))
+```
+<br>Genera with a mean abundance of at least 1% in either country based on either metagenomic or 16S profile are displayed.
+
+
+Alpha diversity {.hidden}
+=====================================
+
+#### Genus-level richness
+```{r, fig.width=3, fig.height=3}
+alpha_16S$Observed_genus_kraken = alpha_kraken$Observed_genus
+Observed_r2 = round(cor.test(alpha_16S$Observed_genus, alpha_kraken$Observed_genus, method="spearman")$estimate,3)
+
+ggplot(alpha_16S, aes(x=Observed_genus, y=Observed_genus_kraken)) + geom_abline(color = "black", linetype = "dotted") + 
+    geom_point(colour="#cc4c02", size = 2, alpha = 0.4) +
+    xlab("Richness (16S)") +  ylab("Richness (Metagenome)") + theme_bw() + 
+    theme(legend.position = "none") + ggtitle(paste0("rho = ", Observed_r2)) + 
+    theme(axis.title = element_text(size=12), axis.text = element_text(size=12), plot.title = element_text(size=12)) 
+```
+
+Session info {.hidden}
+===================================== 
+
+```{r}
+print(sessionInfo())
+```
+.

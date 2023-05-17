@@ -1,0 +1,91 @@
+---
+title: "Table 1 for metagenomics subset"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+```{r, message=FALSE}
+# variable to define whether to run analyses in full (TRUE) or not (FALSE)
+run_beta_full = TRUE # set as TRUE to run beta diversity analyses in full
+
+# load packages and functions
+source("../packages_functions.R")
+
+# load feature data - rarefied data for genus/species modules; otherwise full data
+load("final_ps_rare.RData")
+ps = ps_rare
+a = data.frame(sample_data(ps))
+
+# country-specific subsets
+a_IND = subset(a, country=="India")
+a_MLW = subset(a, country=="Malawi")
+```
+
+N
+```{r}
+table(a$country)
+```
+
+Caesarean
+```{r}
+table(a$mode_delivery, a$country)
+```
+
+Birthweight
+```{r}
+a %>% group_by(country) %>%
+     summarise(mean = round(mean(birth_weight, na.rm = TRUE),2),
+               sd = round(sd(birth_weight, na.rm = TRUE),2))
+```
+
+Polio schedule
+```{r}
+table(a$OPV_IPV, a$country)
+```
+
+Breastfeeding
+```{r}
+table(a$breastfed_child, a$country)
+```
+
+Antibiotics
+```{r}
+table(a$antibiotic_exposure, a$country)
+```
+
+HIV
+```{r}
+table(a$HIV_status, a$country)
+```
+
+Neonatal RV
+```{r}
+table(a$pre_exposed, a$country)
+```
+
+Seroconv
+```{r}
+table(a$seroconv, a$country)
+```
+
+Dose 1 shedding
+```{r}
+table(a$dose1_shedding, a$country)
+```
+
+Geometric mean - IND
+```{r}
+round(Gmean(a_IND$BB2_IgA[!is.na(a_IND$BB2_IgA)], conf.level=0.95),1)
+```
+
+Geometric mean - MLW
+```{r}
+round(Gmean(a_MLW$BB2_IgA[!is.na(a_MLW$BB2_IgA)], conf.level=0.95),1)
+```
+
+
+

@@ -1,0 +1,1315 @@
+---
+title: "Metagenome vs ORV"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+Sidebar {.sidebar} 
+===================================== 
+[Sample summary]    
+
+[Alpha diversity]    
+
+[Beta diversity]    
+
+[Random Forests/MaAsLin2]     
+
+[Summary plots]    
+
+[Session info]
+
+
+
+
+
+Sample summary {.hidden}
+=====================================
+
+```{r, message=FALSE}
+# variable to define whether to run analyses in full (TRUE) or not (FALSE)
+run_rf_full = TRUE # set as TRUE to run Random Forests in full
+iter = 20 # number of cross-validation iterations to run
+
+# load packages and functions
+source("../packages_functions.R")
+
+# load feature data - rarefied data for genus/species modules; otherwise full data
+if (grepl("genus", getwd())) {
+  load("final_ps_rare.RData")
+  ps = ps_rare
+  ymin = 0
+  ymax = 90
+  module = "Genus"
+} else if (grepl("species", getwd())) {
+  load("final_ps_rare.RData")
+  ps = ps_rare
+  ymin = 0
+  ymax = 250
+  module = "Species"
+} else if (grepl("pathway", getwd())) {
+  load("final_ps_full.RData")
+  ps = ps_full
+  ymin = 100
+  ymax = 450
+  module = "Pathway"
+} else {
+  load("final_ps_full.RData")
+  ps = ps_full
+  ymin = 500
+  ymax = 2000
+  module = "EC"
+}
+
+# transform to relative abundances
+rps = transform_sample_counts(ps, function(x) {x/sum(x)})
+```
+
+#### Input data: infant stools
+* n samples = `r nsamples(ps)`    
+* n features: `r ntaxa(ps)`
+* mean read count: `r round(mean(sample_sums(ps)),0)`, s.d. = `r round(sd(sample_sums(ps)),0)`    
+<br><br>
+
+
+
+
+
+Alpha diversity {.hidden}
+=====================================
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Seroconversion
+```{r, fig.width=5.5, fig.height=3.5}
+t = data.frame(sample_data(rps)) 
+
+# updated coding for country
+t$country[t$country=="India"] = "IND"
+t$country[t$country=="Malawi"] = "MLW"
+t$country_exposure[t$country_exposure=="India (exposed)"] = "IND (neo+)"
+t$country_exposure[t$country_exposure=="India (unexposed)"] = "IND (neo-)"
+t$country_exposure[t$country_exposure=="Malawi"] = "MLW"
+
+# select individuals with complete outcome data
+t1 = subset(t, !is.na(seroconv))
+
+# collate dataframes for plot
+t2 = subset(t1, country_exposure=="IND (neo+)" | country_exposure=="IND (neo-)")
+t2$country = t2$country_exposure
+t_plot = rbind(t1,t2)
+t_plot$country = factor(t_plot$country, levels = c("IND", "IND (neo+)", "IND (neo-)", "MLW"))
+
+# generate plots
+sero_fig_A = alpha_longitudinal(t_plot, "seroconv", "seroconversion") + ggtitle("Alpha diversity") + ylim(ymin,ymax)
+sero_fig_A
+```
+<br>Blue = seroconversion+, Orange = seroconversion-.
+
+#### Seroconverion - N by country
+```{r}
+table(t_plot$seroconv, t_plot$country)
+```
+<br>
+
+#### Mean + s.d.
+```{r}
+rbind(
+  aggregate(Observed ~ seroconv, subset(t_plot, country=="IND"), 
+            function(x) c(mean = round(mean(x),2), sd = round(sd(x),2), country="IND")),
+  aggregate(Observed ~ seroconv, subset(t_plot, country=="IND (neo+)"), 
+            function(x) c(mean = round(mean(x),2), sd = round(sd(x),2), country="IND (neo+)")),
+  aggregate(Observed ~ seroconv, subset(t_plot, country=="IND (neo-)"), 
+            function(x) c(mean = round(mean(x),2), sd = round(sd(x),2), country="IND (neo-)")),
+  aggregate(Observed ~ seroconv, subset(t_plot, country=="MLW"), 
+            function(x) c(mean = round(mean(x),2), sd = round(sd(x),2), country="MLW"))
+)
+```
+
+#### Seroconverion - P values
+```{r, warning=FALSE}
+round(t(data.frame(
+  IND = wilcox.test(Observed~seroconv, data = subset(t_plot, country=="IND"))$p.value,
+  MLW = wilcox.test(Observed~seroconv, data = subset(t_plot, country=="MLW"))$p.value,
+  IND_exposed = wilcox.test(Observed~seroconv, data = subset(t_plot, country_exposure=="IND (neo+)"))$p.value,
+  IND_nonexposed = wilcox.test(Observed~seroconv, data = subset(t_plot, country_exposure=="IND (neo-)"))$p.value
+)),6)
+```
+
+### RV-IgA
+
+#### Correlation heatmap 
+```{r, fig.width=2.5, fig.height=3}
+t1 = subset(t, !is.na(BB2_IgA))
+
+# estimate correlation between covariate and specified outcome measure
+corr_function = function(df, country_exposure_subset, return_option=c("corr", "p", "n")) {
+  if (country_exposure_subset=="IND") { t = subset(df, country==country_exposure_subset) } else { t = subset(df, country_exposure==country_exposure_subset) }
+  cor = cor.test(t$BB2_IgA, t$Observed, method = "spearman")
+  if (return_option=="corr") { return(format(round(cor$estimate,4),nsmall=4)) }
+  if (return_option=="p") { return(format(round(cor$p.value,6),nsmall=6)) }
+  if (return_option=="n") { nrow(t) }
+}
+
+# collate Spearman's correlation coefficients: alpha vs post-ORV RV-IgA
+results = data.frame(t(data.frame(
+  IND = as.numeric(corr_function(t1, "IND", "corr")),
+  IND_exp = as.numeric(corr_function(t1, "IND (neo+)", "corr")),
+  IND_unexp = as.numeric(corr_function(t1, "IND (neo-)", "corr")),
+  MLW = as.numeric(corr_function(t1, "MLW", "corr"))
+)))
+names(results) = "rho"
+
+# collate corresponding p values
+pvals = data.frame(t(data.frame(
+  IND = as.numeric(corr_function(t1, "IND", "p")),
+  IND_exp = as.numeric(corr_function(t1, "IND (neo+)", "p")),
+  IND_unexp = as.numeric(corr_function(t1, "IND (neo-)", "p")),
+  MLW = as.numeric(corr_function(t1, "MLW", "p"))
+)))
+names(pvals) = "p"
+
+# collate n
+cor_n= data.frame(t(data.frame(
+  IND = as.numeric(corr_function(t1, "IND", "n")),
+  IND_exp = as.numeric(corr_function(t1, "IND (neo+)", "n")),
+  IND_unexp = as.numeric(corr_function(t1, "IND (neo-)", "n")),
+  MLW = as.numeric(corr_function(t1, "MLW", "n"))
+)))
+names(cor_n) = "n"
+
+# plot heatmap of results
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+rownames(results) = c("IND", "IND (neo+)", "IND (neo-)", "MLW")
+IgA_fig_A = pheatmap(results, cluster_rows = F, cluster_cols = F,  fontsize = 12,
+         color = col2(200), breaks = seq(-1, 1, by = 0.01))
+IgA_fig_A
+```
+
+##### Collated results
+```{r}
+cbind(results, pvals, cor_n)
+```
+
+### Dose 1 shedding
+```{r, fig.width=6, fig.height=3.5}
+t1 = subset(t, !is.na(dose1_shedding))
+
+# collate dataframes for plot
+t2 = subset(t1, country_exposure=="IND (neo+)" | country_exposure=="IND (neo-)")
+t2$country = t2$country_exposure
+t_plot = rbind(t1,t2)
+t_plot$country = factor(t_plot$country, levels = c("IND", "IND (neo+)", "IND (neo-)", "MLW"))
+
+# generate plots
+dose1_fig_A = alpha_longitudinal(t_plot, "dose1_shedding", "dose 1 shedding") + ggtitle("Alpha diversity") + ylim(ymin,ymax)
+dose1_fig_A
+```
+<br>Blue = shed+, Orange = shed-.
+
+
+#### Dose 1 shedding - N by country
+```{r}
+table(t_plot$dose1_shedding, t_plot$country)
+```
+
+#### Mean + s.d.
+```{r}
+rbind(
+  aggregate(Observed ~ dose1_shedding, subset(t_plot, country=="IND"), 
+            function(x) c(mean = round(mean(x),2), sd = round(sd(x),2), country="IND")),
+  aggregate(Observed ~ dose1_shedding, subset(t_plot, country=="IND (neo+)"), 
+            function(x) c(mean = round(mean(x),2), sd = round(sd(x),2), country="IND (neo+)")),
+  aggregate(Observed ~ dose1_shedding, subset(t_plot, country=="IND (neo-)"), 
+            function(x) c(mean = round(mean(x),2), sd = round(sd(x),2), country="IND (neo-)")),
+  aggregate(Observed ~ dose1_shedding, subset(t_plot, country=="MLW"), 
+            function(x) c(mean = round(mean(x),2), sd = round(sd(x),2), country="MLW"))
+)
+```
+
+#### Dose 1 shedding - P values
+```{r, warning=FALSE}
+round(t(data.frame(
+  IND = wilcox.test(Observed~dose1_shedding, data = subset(t_plot, country=="IND"))$p.value,
+  MLW = wilcox.test(Observed~dose1_shedding, data = subset(t_plot, country=="MLW"))$p.value,
+  IND_exposed = wilcox.test(Observed~dose1_shedding, data = subset(t_plot, country_exposure=="IND (neo+)"))$p.value,
+  IND_nonexposed = wilcox.test(Observed~dose1_shedding, data = subset(t_plot, country_exposure=="IND (neo-)"))$p.value
+)),6)
+```
+
+
+
+
+
+Beta diversity {.hidden}
+=====================================
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Seroconversion
+
+#### Summary
+```{r, fig.height=3, fig.width=8}
+collated_beta_seroconv = collated_beta_function(rps, "seroconv", unweighted_logical=TRUE)
+collated_beta_seroconv$outcome = "seroconversion"
+collated_beta_seroconv
+
+# Code to cross-check specific subsets
+# ps_t = subset_samples(rps, country=="Malawi" & !is.na(seroconv))
+# t3 = data.frame(sample_data(ps_t))
+# beta_dist = phyloseq::distance(ps_t, method = "bray", binary=TRUE) 
+# adonis(unname(beta_dist) ~ seroconv, data = t3, permutations = 999)$aov.tab
+```
+
+#### Summary plot
+```{r, fig.width=4, fig.height=3.5}
+sero_fig_B = ggplot(collated_beta_seroconv, aes(x = R2, y=country, fill = country)) + geom_bar(stat = "identity") +
+  xlab(bquote(R^2~"(%)")) + ylab("") +
+  scale_x_continuous(limits=c(0,10), breaks=c(0,4,8)) + #facet_grid(.~country)+
+  ggtitle("Beta (PERMANOVA)") + 
+  theme(legend.position = "none") + scale_fill_manual(values = c(IND=India_col,MLW=Malawi_col,"IND (neo+)"=India_col, "IND (neo-)"=India_col)) +
+  theme(plot.title = element_text(size=16, hjust=0.5), axis.text = element_text(size=16), axis.title = element_text(size=16), strip.text = element_text(size=16)) + 
+  theme(strip.background = element_blank())
+sero_fig_B
+```
+
+### RV-IgA
+
+#### Summary
+```{r}
+collated_beta_IgA = collated_beta_function(rps, "BB2_IgA", unweighted_logical=TRUE)
+collated_beta_IgA$outcome = "RV-IgA (post-ORV)"
+collated_beta_IgA
+```
+
+#### Summary plot
+```{r, fig.width=4, fig.height=3.5}
+IgA_fig_B = ggplot(collated_beta_IgA, aes(x = R2, y=country, fill = country)) + geom_bar(stat = "identity") +
+  ylab("") + xlab(bquote(R^2~"(%)")) +
+  scale_x_continuous(limits=c(0,10), breaks=c(0,4,8)) + 
+  ggtitle("Beta (PERMANOVA)") +
+  theme(legend.position = "none") + scale_fill_manual(values = c(IND=India_col,MLW=Malawi_col,UK=UK_col,"IND (neo+)"=India_col, "IND (neo-)"=India_col)) +
+  theme(plot.title = element_text(size=16, hjust=0.5), axis.text = element_text(size=16), axis.title = element_text(size=16), strip.text = element_text(size=16)) + 
+  theme(strip.background = element_blank())
+IgA_fig_B
+```
+
+### Dose 1 shedding
+
+#### Summary
+```{r}
+collated_beta_dose1 = collated_beta_function(rps, "dose1_shedding", unweighted_logical=TRUE)
+collated_beta_dose1$outcome = "dose 1 shedding"
+collated_beta_dose1
+```
+
+#### Summary plot
+```{r, fig.width=4, fig.height=3.5}
+dose1_fig_B = ggplot(collated_beta_dose1, aes(x = R2, y=country, fill = country)) + geom_bar(stat = "identity") +
+  ylab("") + xlab(bquote(R^2~"(%)")) +
+  scale_x_continuous(limits=c(0,10), breaks=c(0,4,8)) + 
+  ggtitle("Beta (PERMANOVA)") +
+  theme(legend.position = "none") + scale_fill_manual(values = c(IND=India_col,MLW=Malawi_col,UK=UK_col,"IND (neo+)"=India_col, "IND (neo-)"=India_col)) +
+  theme(plot.title = element_text(size=16, hjust=0.5), axis.text = element_text(size=16), axis.title = element_text(size=16), strip.text = element_text(size=16)) + 
+  theme(strip.background = element_blank())
+dose1_fig_B
+```
+
+
+
+
+
+Random Forests/MaAsLin2 {.hidden}
+=====================================
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+### Seroconversion
+```{r}
+system("mkdir maaslin_outputs")
+system("mkdir RF_outputs")
+set.seed(12345)
+
+# Set outcome variable types
+sample_data(rps)$country = factor(sample_data(rps)$country)
+sample_data(rps)$seroconv = factor(sample_data(rps)$seroconv)
+sample_data(rps)$dose1_shedding = factor(sample_data(rps)$dose1_shedding)
+sample_data(rps)$IgA = log(sample_data(rps)$BB2_IgA)
+
+# Set covariate types
+sample_data(rps)$mode_delivery = factor(sample_data(rps)$mode_delivery)
+sample_data(rps)$antibiotic_exposure = factor(sample_data(rps)$antibiotic_exposure)
+
+# Set subsets, outcomes, and covaritaes for RV analyses 
+maaslin_covariates = c("age_at_first_dose", "antibiotic_exposure", "birth_weight", "breastfed_child", "mode_delivery") 
+
+# specify sample types and country subsets to include in analysis
+country_list = c("India", "India (exposed)", "India (unexposed)", "Malawi")
+
+# select outcome, then run RF using collate_rf_binary function
+input_m = data.frame(sample_data(rps))
+outcome = "seroconv"
+if (run_rf_full) { collate_rf_binary("crossval_collated_seroconv.csv") } 
+collated_rf = read.csv("RF_outputs/crossval_collated_seroconv.csv", row.names=1) 
+collated_rf$country = factor(collated_rf$country, levels=c("Malawi", "India (unexposed)", "India (exposed)","India"))
+collated_rf$country = revalue(as.factor(collated_rf$country), c("Malawi" = "MLW", "India" = "IND", "India (exposed)" = "IND (neo+)", "India (unexposed)" = "IND (neo-)"))
+```
+
+#### Summary plot
+```{r, fig.width=4, fig.height=3.5}
+rf_sero = ggplot(collated_rf, aes(y = crossval_median, x = factor(country), colour=factor(country))) + 
+    geom_point(size = 5, alpha=0.8) +
+    geom_errorbar(aes(ymin=crossval_q1, ymax=crossval_q3), width=0) + 
+    geom_hline(yintercept=0.5, linetype="dotted") + xlab("") +
+    ylab("CV accuracy") +
+    coord_flip() +
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col)) +
+    theme_bw() + theme(legend.position = "", strip.background = element_blank()) +
+    ggtitle("Random Forests") + 
+    theme(axis.text = element_text(size = 16), axis.title = element_text(size = 16), 
+          plot.title = element_text(size = 16, hjust = 0.5), strip.text = element_text(size = 16)) +
+   scale_y_continuous(limits = c(0.2,1), breaks = c(0.2,0.4,0.6,0.8,1)) 
+rf_sero
+```
+
+#### Differential features - FDR p <0.2
+```{r}
+# Import RF results
+ind = read.csv("RF_outputs/crossval_gini_seroconv_India.csv", header=T, row.names=1)
+mlw = read.csv("RF_outputs/crossval_gini_seroconv_Malawi.csv", header=T, row.names=1)
+ind_exposed = read.csv("RF_outputs/crossval_gini_seroconv_India (exposed).csv", header=T, row.names=1) 
+ind_unexposed = read.csv("RF_outputs/crossval_gini_seroconv_India (unexposed).csv", header=T, row.names=1)
+
+# collate data
+threshold = 0.2
+collated = data.frame(
+  country = c("MLW", "IND (neo-)", "IND (neo+)", "IND"),
+  n_tested_fisher = c(sum(!is.na(mlw$fisher_padj)), sum(!is.na(ind_unexposed$fisher_padj)), 
+                      sum(!is.na(ind_exposed$fisher_padj)), sum(!is.na(ind$fisher_padj))),
+  n_signif_fisher = c(sum(mlw$fisher_padj<threshold, na.rm=T), sum(ind_unexposed$fisher_padj<threshold, na.rm=T), 
+                      sum(ind_exposed$fisher_padj<threshold, na.rm=T), sum(ind$fisher_padj<threshold, na.rm=T)),
+  n_nonsignif_fisher = c(sum(mlw$fisher_padj>=threshold, na.rm=T), sum(ind_unexposed$fisher_padj>=threshold, na.rm=T), 
+                         sum(ind_exposed$fisher_padj>=threshold, na.rm=T), sum(ind$fisher_padj>=threshold, na.rm=T)),
+  n_tested_lr = c(sum(!is.na(mlw$lr_adjusted_padj)), sum(!is.na(ind_unexposed$lr_adjusted_padj)), 
+                  sum(!is.na(ind_exposed$lr_adjusted_padj)), sum(!is.na(ind$lr_adjusted_padj))),
+  n_signif_lr = c(sum(mlw$lr_adjusted_padj<threshold, na.rm=T), sum(ind_unexposed$lr_adjusted_padj<threshold, na.rm=T), 
+                  sum(ind_exposed$lr_adjusted_padj<threshold, na.rm=T), sum(ind$lr_adjusted_padj<threshold, na.rm=T)),
+  n_nonsignif_lr = c(sum(mlw$lr_adjusted_padj>=threshold, na.rm=T), sum(ind_unexposed$lr_adjusted_padj>=threshold, na.rm=T), 
+                     sum(ind_exposed$lr_adjusted_padj>=threshold, na.rm=T), sum(ind$lr_adjusted_padj>=threshold, na.rm=T)),
+  n_tested_maaslin = c(nrow(mlw), nrow(ind_unexposed), nrow(ind_exposed), nrow(ind)),
+  n_signif_maaslin = c(sum(mlw$maaslin_qval_adjusted_filt<threshold), sum(ind_unexposed$maaslin_qval_adjusted_filt<threshold), 
+                       sum(ind_exposed$maaslin_qval_adjusted_filt<threshold), sum(ind$maaslin_qval_adjusted_filt<threshold)),
+  n_nonsignif_maaslin = c(sum(mlw$maaslin_qval_adjusted_filt>=threshold), sum(ind_unexposed$maaslin_qval_adjusted_filt>=threshold), 
+                          sum(ind_exposed$maaslin_qval_adjusted_filt>=threshold), sum(ind$maaslin_qval_adjusted_filt>=threshold))
+)
+collated %>% dplyr::select(-c(n_nonsignif_fisher, n_nonsignif_lr, n_nonsignif_maaslin))
+```
+
+```{r, fig.width=6.5, fig.height=3.5}
+# group results
+collated_grouped = data.frame(
+  country = rep(collated$country, 4),
+  test = c(rep("Prevalence",8), rep("Abundance",8)),
+  status = rep(c(rep("N tested",4), rep("FDR p<0.2",4)),2),
+  n = c(collated$n_nonsignif_fisher, collated$n_signif_fisher, collated$n_nonsignif_maaslin, collated$n_signif_maaslin)
+  )
+collated_grouped$country = factor(collated_grouped$country, levels = c("MLW", "IND (neo-)", "IND (neo+)", "IND"))
+collated_grouped$status = factor(collated_grouped$status, levels = c("N tested", "FDR p<0.2"))
+collated_grouped$test = factor(collated_grouped$test, levels = c("Prevalence", "Abundance"))
+collated_grouped$module = module
+
+# generate plot
+differential_sero = ggplot(collated_grouped, aes(y = n, x = factor(country), fill=factor(status))) + 
+    geom_bar(position="stack", stat = "identity") + 
+    ylab("N features") + xlab("") +
+    coord_flip() +
+    scale_fill_manual(values = c("#d0d1e6", "#08519c")) +
+    theme_bw() + facet_grid(module~test) +
+    ggtitle("Differential features") + 
+    theme(axis.text = element_text(size = 16), axis.title = element_text(size = 16), legend.text = element_text(size = 14), legend.title = element_blank(),
+          plot.title = element_text(size = 16, hjust = 0.5), strip.text = element_text(size = 16), strip.background = element_blank()) 
+if (grepl("genus", getwd())) { differential_sero = differential_sero + scale_y_continuous(breaks=c(0,40,80), limits=c(0,100)) }
+if (grepl("species", getwd())) { differential_sero = differential_sero + scale_y_continuous(breaks=c(0,100,200), limits=c(0,300)) }
+if (grepl("pathway", getwd())) { differential_sero = differential_sero + scale_y_continuous(breaks=c(0,200,400), limits=c(0,450)) }
+if (grepl("EC", getwd())) { differential_sero = differential_sero + scale_y_continuous(breaks=c(0,1000,2000), limits=c(0,2250)) }
+differential_sero
+```
+
+#### Summary of prevalence difference distribution
+```{r, fig.width=8, fig.height=3.5}
+collated_rf = rbind(ind, ind_exposed, ind_unexposed, mlw)
+write.csv(collated_rf, paste0("RF_outputs/crossval_gini_seroconv_collated_",module,".csv"))
+collated_rf$country_clean = factor(collated_rf$country_clean, levels = c("IND", "IND (neo+)", "IND (neo-)", "MLW"))
+collated_rf_sub = subset(collated_rf, !is.na(fisher_p))
+
+volcano_prev_sero = ggplot(collated_rf_sub, aes(x = prev_diff, y = fisher_padj, colour=factor(country_clean))) +
+    geom_point(size = 1, alpha = 0.8) +
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col)) +
+    ggtitle("") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + facet_grid(.~country_clean) +
+    theme_bw() + theme(legend.position = "none") +
+    scale_y_continuous(trans=reverselog_trans(10)) + ylab("FDR P (Fisher's)") +
+    geom_hline(yintercept=0.2, linetype="dotted") +
+    xlab("Difference in prevalence (sero+ vs sero-)\n\n<- Enriched in non-responders / Enriched in responders ->") +
+    theme(strip.background = element_blank()) + geom_vline(xintercept=0, linetype="dotted") +
+    theme(axis.text = element_text(size=14), strip.text=element_text(size=16), axis.title = element_text(size=14), plot.title = element_text(size=16, hjust=0.5))
+volcano_prev_sero
+```
+
+#### Proportion of features more prevalent in non-responders vs responders
+```{r, warning=FALSE}
+n_neg = as.vector(table(collated_rf_sub$prev_diff<0, collated_rf_sub$country_clean)[2,])
+if (sum(collated_rf_sub$prev_diff==0)>0) {
+  n_equal = as.vector(table(collated_rf_sub$prev_diff==0, collated_rf_sub$country_clean)[2,])
+} else {
+  n_equal = 0
+}
+n_pos = as.vector(table(collated_rf_sub$prev_diff>0, collated_rf_sub$country_clean)[2,])
+total = as.vector(table(collated_rf_sub$country_clean))
+prop = paste0(round(n_neg/total*100,1),"%")
+data.frame(
+  country = c("IND", "IND (neo+)", "IND (neo-)", "MLW"),
+  n_neg = n_neg,
+  n_equal = n_equal,
+  n_pos = n_pos,
+  total = total,
+  proportion_neg = prop
+)
+```
+n = prevalence difference <0 (vs >=0).
+<br>
+
+#### P values (Wilcoxon test, mean of difference distribution = 0)
+```{r, warning=FALSE}
+t(data.frame(
+  IND = wilcox.test(ind$prev_diff[!is.na(ind$fisher_p)])$p.value,
+  MLW = wilcox.test(mlw$prev_diff[!is.na(mlw$fisher_p)])$p.value,
+  IND_exposed = wilcox.test(ind_exposed$prev_diff[!is.na(ind_exposed$fisher_p)])$p.value,
+  IND_nonexposed = wilcox.test(ind_unexposed$prev_diff[!is.na(ind_unexposed$fisher_p)])$p.value
+))
+```
+
+#### Summary of adundance difference distribution
+```{r, fig.width=8, fig.height=3.5}
+volcano_abund_sero = ggplot(collated_rf, aes(x = maaslin_coef_adjusted, y = maaslin_qval_adjusted_filt, colour=factor(country_clean))) +
+    geom_point(size = 1, alpha = 0.8) +
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col)) +
+    ggtitle("") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + facet_grid(.~country_clean, scales = "free") +
+    theme_bw() + theme(legend.position = "none") + 
+    scale_y_continuous(trans=reverselog_trans(10)) + ylab("FDR P (MaAsLin2)") + 
+    xlab("Coefficient (MaAsLin2)\n\n<- Enriched in non-responders / Enriched in responders ->") +
+    theme(strip.background = element_blank()) + 
+    geom_vline(xintercept=0, linetype="dotted") +
+    geom_hline(yintercept=0.2, linetype="dotted") +
+    theme(axis.text = element_text(size=14), strip.text=element_text(size=16), axis.text.x = element_text(angle=45, vjust=1, hjust=1),
+          axis.title = element_text(size=14), plot.title = element_text(size=16, hjust=0.5))
+volcano_abund_sero
+```
+<br>
+
+#### P values (Wilcoxon test, mean of difference distribution = 0)
+```{r, warning=FALSE}
+t(data.frame(
+  IND = wilcox.test(ind$maaslin_coef_adjusted)$p.value,
+  MLW = wilcox.test(mlw$maaslin_coef_adjusted)$p.value,
+  IND_exposed = wilcox.test(ind_exposed$maaslin_coef_adjusted)$p.value,
+  IND_nonexposed = wilcox.test(ind_unexposed$maaslin_coef_adjusted)$p.value
+))
+```
+
+#### Proportion of features more abundant in non-responders vs responders
+```{r, warning=FALSE}
+n_neg = as.vector(table(collated_rf$maaslin_coef_adjusted<0, collated_rf$country_clean)[2,])
+if (sum(collated_rf$maaslin_coef_adjusted==0)>0) {
+  n_equal = as.vector(table(collated_rf$maaslin_coef_adjusted==0, collated_rf$country_clean)[2,])
+} else {
+  n_equal = 0
+}
+n_pos = as.vector(table(collated_rf$maaslin_coef_adjusted>0, collated_rf$country_clean)[2,])
+total = as.vector(table(collated_rf$country_clean))
+prop = paste0(round(n_neg/total*100,1),"%")
+data.frame(
+  country = c("IND", "IND (neo+)", "IND (neo-)", "MLW"),
+  n_neg = n_neg,
+  n_equal = n_equal,
+  n_pos = n_pos,
+  total = total,
+  proportion_neg = prop
+)
+```
+
+#### Summary of MaAsLin2 associations
+```{r}
+summarise_maaslin = function() {
+    data.frame(
+      subset = c("IND", "IND (neo+)", "IND (neo-)", "MLW"),
+      N_features = c(nrow(ind), nrow(ind_exposed), nrow(ind_unexposed), nrow(mlw)),
+      N_pos = c(sum(ind$maaslin_coef_adjusted>0, na.rm=T), sum(ind_exposed$maaslin_coef_adjusted>0, na.rm=T), 
+                         sum(ind_unexposed$maaslin_coef_adjusted>0, na.rm=T), sum(mlw$maaslin_coef_adjusted>0, na.rm=T)),
+      N_neg = c(sum(ind$maaslin_coef_adjusted<0, na.rm=T), sum(ind_exposed$maaslin_coef_adjusted<0, na.rm=T), 
+                         sum(ind_unexposed$maaslin_coef_adjusted<0, na.rm=T), sum(mlw$maaslin_coef_adjusted<0, na.rm=T)),
+      FDR_q_0.2_unadjusted = c(sum(ind$maaslin_qval<0.2, na.rm=T), sum(ind_exposed$maaslin_qval<0.2, na.rm=T), 
+                               sum(ind_unexposed$maaslin_qval<0.2, na.rm=T), sum(mlw$maaslin_qval<0.2, na.rm=T)),
+      FDR_q_0.2_adjusted = c(sum(ind$maaslin_qval_adjusted_filt<0.2, na.rm=T), sum(ind_exposed$maaslin_qval_adjusted_filt<0.2, na.rm=T), 
+                             sum(ind_unexposed$maaslin_qval_adjusted_filt<0.2, na.rm=T), sum(mlw$maaslin_qval_adjusted_filt<0.2, na.rm=T)),
+      pos_unadjusted = c(sum(ind$maaslin_qval<0.2 & ind$maaslin_coef>0, na.rm=T), sum(ind_exposed$maaslin_qval<0.2 & ind_exposed$maaslin_coef>0, na.rm=T), 
+                         sum(ind_unexposed$maaslin_qval<0.2 & ind_unexposed$maaslin_coef>0, na.rm=T), sum(mlw$maaslin_qval<0.2 & mlw$maaslin_coef>0, na.rm=T)),
+      pos_adjusted = c(sum(ind$maaslin_qval_adjusted_filt<0.2 & ind$maaslin_coef_adjusted>0, na.rm=T), sum(ind_exposed$maaslin_qval_adjusted_filt<0.2 & ind_exposed$maaslin_coef_adjusted>0, na.rm=T), 
+                       sum(ind_unexposed$maaslin_qval_adjusted_filt<0.2 & ind_unexposed$maaslin_coef_adjusted>0, na.rm=T), sum(mlw$maaslin_qval_adjusted_filt<0.2 & mlw$maaslin_coef_adjusted>0, na.rm=T)),
+      neg_unadjusted = c(sum(ind$maaslin_qval<0.2 & ind$maaslin_coef<0, na.rm=T), sum(ind_exposed$maaslin_qval<0.2 & ind_exposed$maaslin_coef<0, na.rm=T), 
+                         sum(ind_unexposed$maaslin_qval<0.2 & ind_unexposed$maaslin_coef<0, na.rm=T), sum(mlw$maaslin_qval<0.2 & mlw$maaslin_coef<0, na.rm=T)),
+      neg_adjusted = c(sum(ind$maaslin_qval_adjusted_filt<0.2 & ind$maaslin_coef_adjusted<0, na.rm=T), sum(ind_exposed$maaslin_qval_adjusted_filt<0.2 & ind_exposed$maaslin_coef_adjusted<0, na.rm=T), 
+                       sum(ind_unexposed$maaslin_qval_adjusted_filt<0.2 & ind_unexposed$maaslin_coef_adjusted<0, na.rm=T), sum(mlw$maaslin_qval_adjusted_filt<0.2 & mlw$maaslin_coef_adjusted<0, na.rm=T))
+      ) %>%
+      mutate(
+        N_features = paste0(N_features," (",N_pos," +/",N_neg," -)"),
+        `FDR p<0.2 unadjusted` = paste0(FDR_q_0.2_unadjusted," (",pos_unadjusted," +/",neg_unadjusted," -)"),
+        `FDR p<0.2 adjusted` = paste0(FDR_q_0.2_adjusted," (",pos_adjusted," +/",neg_adjusted," -)")
+    ) %>%
+      dplyr::select(subset, N_features, `FDR p<0.2 unadjusted`, `FDR p<0.2 adjusted`)
+}
+summarise_maaslin()
+```
+
+#### Spearman's rho matrix of statistical test p values - India
+```{r}
+network = ind[,c("fisher_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "prev_diff", "mean_diff")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$prev_diff = 1 - abs(network$prev_diff)
+network$mean_diff = 1 - abs(network$mean_diff)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Fisher p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. Maaslin coef. (adj)", "Inv. abs. Prev. diff.", "Inv. abs. ean abund. diff.")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+#### Spearman's rho matrix of statistical test p values - India (neo+)
+```{r}
+network = ind_exposed[,c("fisher_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "prev_diff", "mean_diff")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$prev_diff = 1 - abs(network$prev_diff)
+network$mean_diff = 1 - abs(network$mean_diff)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Fisher p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. Maaslin coef. (adj)", "Inv. abs. prev. diff.", "Inv. abs. mean abund. diff.")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+#### Spearman's rho matrix of statistical test p values - India (neo-)
+```{r}
+network = ind_unexposed[,c("fisher_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "prev_diff", "mean_diff")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$prev_diff = 1 - abs(network$prev_diff)
+network$mean_diff = 1 - abs(network$mean_diff)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Fisher p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. Maaslin coef. (adj)", "Inv. abs. prev. diff.", "Inv. abs. mean abund. diff.")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+#### Spearman's rho matrix of statistical test p values - Malawi
+```{r}
+network = mlw[,c("fisher_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "prev_diff", "mean_diff")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$prev_diff = 1 - abs(network$prev_diff)
+network$mean_diff = 1 - abs(network$mean_diff)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Fisher p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. maaslin coef. (adj)", "Inv. abs. prev. diff.", "Inv. abs. mean abund. diff.")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+### RV-IgA
+```{r}
+set.seed(23456)
+# run RF using collate_rf_IgA function
+input_m = data.frame(sample_data(rps))
+if (run_rf_full) { collate_rf_IgA("crossval_collated_IgA.csv") }
+collated_rf = read.csv("RF_outputs/crossval_collated_IgA.csv", row.names=1)
+collated_rf$country = factor(collated_rf$country, levels=c("Malawi", "India (unexposed)", "India (exposed)","India"))
+collated_rf$country = revalue(as.factor(collated_rf$country), c("Malawi" = "MLW", "India" = "IND", "India (exposed)" = "IND (neo+)", "India (unexposed)" = "IND (neo-)"))
+```
+
+#### Summary plot
+```{r, fig.width=4, fig.height=3.5}
+rf_IgA = ggplot(collated_rf, aes(y = median_tst_lm_R2, x = factor(country), colour=factor(country))) + 
+    geom_point(size = 5, alpha=0.8) +
+    geom_errorbar(aes(ymin=q1_tst_lm_R2, ymax=q3_tst_lm_R2), width=0) + 
+    geom_hline(yintercept=0, linetype="dotted") + xlab("") +
+    ylab("CV accuracy") +
+    coord_flip() +
+    scale_y_continuous(limits=c(0, 0.2), oob=rescale_none, breaks=c(0,0.1,0.2)) + 
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col)) +
+    theme_bw() + theme(legend.position = "", strip.background = element_blank()) +
+    ggtitle("Random Forests") + 
+    theme(axis.text = element_text(size = 16), axis.title = element_text(size = 16), 
+          plot.title = element_text(size = 16, hjust = 0.5), strip.text = element_text(size = 16))
+rf_IgA
+```
+
+#### Differential features - p <0.2
+```{r}
+# Import RF results
+ind = read.csv("RF_outputs/crossval_regression_IgA_India.csv", header=T, row.names=1) 
+mlw = read.csv("RF_outputs/crossval_regression_IgA_Malawi.csv", header=T, row.names=1) 
+ind_exposed = read.csv("RF_outputs/crossval_regression_IgA_India (exposed).csv", header=T, row.names=1) 
+ind_unexposed = read.csv("RF_outputs/crossval_regression_IgA_India (unexposed).csv", header=T, row.names=1) 
+
+# collate data
+threshold = 0.2
+collated = data.frame(
+  country = c("MLW", "IND (neo-)", "IND (neo+)", "IND"),
+  n_tested_wilcox = c(sum(!is.na(mlw$wilcox_padj)), sum(!is.na(ind_unexposed$wilcox_padj)), 
+                      sum(!is.na(ind_exposed$wilcox_padj)), sum(!is.na(ind$wilcox_padj))),
+  n_signif_wilcox = c(sum(mlw$wilcox_padj<threshold, na.rm=T), sum(ind_unexposed$wilcox_padj<threshold, na.rm=T), 
+                      sum(ind_exposed$wilcox_padj<threshold, na.rm=T), sum(ind$wilcox_padj<threshold, na.rm=T)),
+  n_nonsignif_wilcox = c(sum(mlw$wilcox_padj>=threshold, na.rm=T), sum(ind_unexposed$wilcox_padj>=threshold, na.rm=T), 
+                         sum(ind_exposed$wilcox_padj>=threshold, na.rm=T), sum(ind$wilcox_padj>=threshold, na.rm=T)),
+  n_tested_lr = c(sum(!is.na(mlw$lr_adjusted_padj)), sum(!is.na(ind_unexposed$lr_adjusted_padj)), 
+                  sum(!is.na(ind_exposed$lr_adjusted_padj)), sum(!is.na(ind$lr_adjusted_padj))),
+  n_signif_lr = c(sum(mlw$lr_adjusted_padj<threshold, na.rm=T), sum(ind_unexposed$lr_adjusted_padj<threshold, na.rm=T), 
+                  sum(ind_exposed$lr_adjusted_padj<threshold, na.rm=T), sum(ind$lr_adjusted_padj<threshold, na.rm=T)),
+  n_nonsignif_lr = c(sum(mlw$lr_adjusted_padj>=threshold, na.rm=T), sum(ind_unexposed$lr_adjusted_padj>=threshold, na.rm=T), 
+                     sum(ind_exposed$lr_adjusted_padj>=threshold, na.rm=T), sum(ind$lr_adjusted_padj>=threshold, na.rm=T)),
+  n_tested_maaslin =  c(nrow(mlw), nrow(ind_unexposed), nrow(ind_exposed), nrow(ind)),
+  n_signif_maaslin = c(sum(mlw$maaslin_qval_adjusted_filt<threshold), sum(ind_unexposed$maaslin_qval_adjusted_filt<threshold), 
+                       sum(ind_exposed$maaslin_qval_adjusted_filt<threshold), sum(ind$maaslin_qval_adjusted_filt<threshold)),
+  n_nonsignif_maaslin = c(sum(mlw$maaslin_qval_adjusted_filt>=threshold), sum(ind_unexposed$maaslin_qval_adjusted_filt>=threshold), 
+                          sum(ind_exposed$maaslin_qval_adjusted_filt>=threshold), sum(ind$maaslin_qval_adjusted_filt>=threshold))
+)
+collated %>% dplyr::select(-c(n_nonsignif_wilcox, n_nonsignif_lr, n_nonsignif_maaslin))
+```
+
+```{r, fig.width=6.5, fig.height=3.5}
+# group results
+collated_grouped = data.frame(
+  country = rep(collated$country, 4),
+  test = c(rep("Prevalence",8), rep("Abundance",8)),
+  status = rep(c(rep("N tested",4), rep("FDR p<0.2",4)),2),
+  n = c(collated$n_nonsignif_wilcox, collated$n_signif_wilcox, collated$n_nonsignif_maaslin, collated$n_signif_maaslin)
+  )
+collated_grouped$country = factor(collated_grouped$country, levels = c("MLW", "IND (neo-)", "IND (neo+)", "IND"))
+collated_grouped$status = factor(collated_grouped$status, levels = c("N tested", "FDR p<0.2"))
+collated_grouped$test = factor(collated_grouped$test, levels = c("Prevalence", "Abundance"))
+collated_grouped$module = module
+
+# generate plot
+differential_IgA = ggplot(collated_grouped, aes(y = n, x = factor(country), fill=factor(status))) + 
+    geom_bar(position="stack", stat = "identity") + 
+    ylab("N features") + xlab("") +
+    coord_flip() +
+    scale_fill_manual(values = c("#d0d1e6", "#08519c")) +
+    theme_bw() + facet_grid(module~test) +
+    ggtitle("Differential features") + 
+    theme(axis.text = element_text(size = 16), axis.title = element_text(size = 16), legend.text = element_text(size = 14), legend.title = element_blank(),
+          plot.title = element_text(size = 16, hjust = 0.5), strip.text = element_text(size = 16), strip.background = element_blank())
+if (grepl("genus", getwd())) { differential_IgA = differential_IgA + scale_y_continuous(breaks=c(0,40,80), limits=c(0,100)) }
+if (grepl("species", getwd())) { differential_IgA = differential_IgA + scale_y_continuous(breaks=c(0,100,200), limits=c(0,300)) }
+if (grepl("pathway", getwd())) { differential_IgA = differential_IgA + scale_y_continuous(breaks=c(0,200,400), limits=c(0,450)) }
+if (grepl("EC", getwd())) { differential_IgA = differential_IgA + scale_y_continuous(breaks=c(0,1000,2000), limits=c(0,2250)) }
+differential_IgA 
+```
+
+#### Summary of GMRs
+```{r, fig.width=8, fig.height=3.5}
+collated_rf = rbind(ind, ind_exposed, ind_unexposed, mlw)
+write.csv(collated_rf, paste0("RF_outputs/crossval_regression_IgA_collated_",module,".csv"))
+collated_rf$country_clean = factor(collated_rf$country_clean, levels = c("IND", "IND (neo+)", "IND (neo-)", "MLW"))
+collated_rf_sub = subset(collated_rf, !is.na(wilcox_p))
+  
+ggplot(collated_rf_sub, aes(x = GMR, y = wilcox_padj, colour=factor(country_clean))) +
+    geom_point(size = 1, alpha = 0.8) +
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col)) +
+    ggtitle("") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + facet_grid(.~country_clean) +
+    scale_x_log10() + scale_y_continuous(trans=reverselog_trans(10)) + 
+    theme_bw() + theme(legend.position = "none") + ylab("FDR P (Wilcoxon)") + 
+    xlab("GMR (present/absent) \n\n<- Enriched with lower RV-IgA / Enriched with higher RV-IgA ->") +
+    theme(strip.background = element_blank()) + 
+    geom_vline(xintercept=1, linetype="dotted") + geom_hline(yintercept=0.2, linetype="dotted") +
+    theme(axis.text = element_text(size=14), strip.text=element_text(size=16), axis.title = element_text(size=14), plot.title = element_text(size=16, hjust=0.5))
+```
+
+#### Proportion of features negatively vs positively correlated with RV-IgA 
+```{r, warning=FALSE}
+n_neg = as.vector(table(collated_rf_sub$GMR<1, collated_rf_sub$country_clean)[2,])
+if (sum(collated_rf_sub$GMR==1)>0) {
+  n_equal = as.vector(table(collated_rf_sub$GMR==1, collated_rf_sub$country_clean)[2,])
+} else {
+  n_equal = 0
+}
+n_pos = as.vector(table(collated_rf_sub$GMR>1, collated_rf_sub$country_clean)[2,])
+total = as.vector(table(collated_rf_sub$country_clean))
+prop = paste0(round(n_neg/total*100,1),"%")
+data.frame(
+  country = c("IND", "IND (neo+)", "IND (neo-)", "MLW"),
+  n_neg = n_neg,
+  n_equal = n_equal,
+  n_pos = n_pos,
+  total = total,
+  proportion_neg = prop
+)
+```
+n = GM ratio <1 (vs >=1).
+<br>
+
+#### P values (Wilcoxon test, mean of difference distribution = 1)
+```{r, warning=FALSE}
+t(data.frame(
+  IND = wilcox.test(ind$GMR[!is.na(ind$wilcox_p)]-1)$p.value,
+  MLW = wilcox.test(mlw$GMR[!is.na(mlw$wilcox_p)]-1)$p.value,
+  IND_exposed = wilcox.test(ind_exposed$GMR[!is.na(ind_exposed$wilcox_p)]-1)$p.value,
+  IND_nonexposed = wilcox.test(ind_unexposed$GMR[!is.na(ind_unexposed$wilcox_p)]-1)$p.value
+))
+```
+
+#### Summary of adundance difference distribution
+```{r, fig.width=8, fig.height=3.5}
+volcano_abund_IgA = ggplot(collated_rf, aes(x = maaslin_coef_adjusted, y = maaslin_qval_adjusted_filt, colour=factor(country_clean))) +
+    geom_point(size = 1, alpha = 0.8) +
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col)) +
+    ggtitle("") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + facet_grid(.~country_clean, scales = "free") +
+    theme_bw() + theme(legend.position = "none") + 
+    scale_y_continuous(trans=reverselog_trans(10)) + ylab("FDR P (MaAsLin2)") + 
+    xlab("Coefficient (MaAsLin2)\n\n<- Enriched with lower RV-IgA / Enriched with higher RV-IgA ->") +
+    theme(strip.background = element_blank()) + 
+    geom_vline(xintercept=0, linetype="dotted") +
+    geom_hline(yintercept=0.2, linetype="dotted") +
+    theme(axis.text = element_text(size=14), strip.text=element_text(size=16), axis.text.x = element_text(angle=45, vjust=1, hjust=1),
+          axis.title = element_text(size=14), plot.title = element_text(size=16, hjust=0.5))
+volcano_abund_IgA
+```
+<br>
+
+#### P values (Wilcoxon test, mean of difference distribution = 0)
+```{r, warning=FALSE}
+t(data.frame(
+  IND = wilcox.test(ind$maaslin_coef_adjusted)$p.value,
+  MLW = wilcox.test(mlw$maaslin_coef_adjusted)$p.value,
+  IND_exposed = wilcox.test(ind_exposed$maaslin_coef_adjusted)$p.value,
+  IND_nonexposed = wilcox.test(ind_unexposed$maaslin_coef_adjusted)$p.value
+))
+```
+
+#### Proportion of features negatively vs positively correlated with RV-IgA 
+```{r, warning=FALSE}
+n_neg = as.vector(table(collated_rf$maaslin_coef_adjusted<0, collated_rf$country_clean)[2,])
+if (sum(collated_rf$maaslin_coef_adjusted==0)>0) {
+  n_equal = as.vector(table(collated_rf$maaslin_coef_adjusted==0, collated_rf$country_clean)[2,])
+} else {
+  n_equal = 0
+}
+n_pos = as.vector(table(collated_rf$maaslin_coef_adjusted>=0, collated_rf$country_clean)[2,])
+total = as.vector(table(collated_rf$country_clean))
+prop = paste0(round(n_neg/total*100,1),"%")
+data.frame(
+  country = c("IND", "IND (neo+)", "IND (neo-)", "MLW"),
+  n_neg = n_neg,
+  n_equal = n_equal,
+  n_pos = n_pos,
+  total = total,
+  proportion_neg = prop
+)
+```
+
+#### Summary of MaAsLin2 associations
+```{r}
+summarise_maaslin()
+```
+
+#### Spearman's rho matrix of statistical test p values - India
+```{r}
+network = ind[,c("spearman_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "GMR")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$GMR = 1 - abs(network$GMR-1)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Spearman p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. maaslin coef. (adj)", "Inv. abs. GMR-1")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+#### Spearman's rho matrix of statistical test p values - India (neo+)
+```{r}
+network = ind_exposed[,c("spearman_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "GMR")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$GMR = 1 - abs(network$GMR-1)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Spearman p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. maaslin coef. (adj)", "Inv. abs. GMR-1")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+#### Spearman's rho matrix of statistical test p values - India (neo-)
+```{r}
+network = ind_unexposed[,c("spearman_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "GMR")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$GMR = 1 - abs(network$GMR-1)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Spearman p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. maaslin coef. (adj)", "Inv. abs. GMR-1")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+#### Spearman's rho matrix of statistical test p values - Malawi
+```{r}
+network = mlw[,c("spearman_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "GMR")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$GMR = 1 - abs(network$GMR-1)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Spearman p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. maaslin coef. (adj)", "Inv. abs. GMR-1")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+### Dose 1 shedding
+```{r}
+set.seed(34567)
+# select outcome, then run RF using collate_rf_binary function
+input_m = data.frame(sample_data(rps))
+outcome = "dose1_shedding"
+if (run_rf_full) { collate_rf_binary("crossval_collated_dose1_shedding.csv") }
+collated_rf = read.csv("RF_outputs/crossval_collated_dose1_shedding.csv", row.names=1)
+collated_rf$country = factor(collated_rf$country, levels=c("Malawi", "India (unexposed)", "India (exposed)","India"))
+collated_rf$country = revalue(as.factor(collated_rf$country), c("Malawi" = "MLW", "India" = "IND", "India (exposed)" = "IND (neo+)", "India (unexposed)" = "IND (neo-)"))
+```
+
+#### Summary plot
+```{r, fig.width=4, fig.height=3.5}
+rf_dose1 = ggplot(collated_rf, aes(y = crossval_median, x = factor(country), colour=factor(country))) + 
+    geom_point(size = 5, alpha=0.8) +
+    geom_errorbar(aes(ymin=crossval_q1, ymax=crossval_q3), width=0) + 
+    geom_hline(yintercept=0.5, linetype="dotted") + xlab("") +
+    ylab("CV accuracy") +
+    coord_flip() +
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col)) +
+    theme_bw() + theme(legend.position = "", strip.background = element_blank()) +
+    ggtitle("Random Forests") + 
+    theme(axis.text = element_text(size = 16), axis.title = element_text(size = 16), 
+          plot.title = element_text(size = 16, hjust = 0.5), strip.text = element_text(size = 16)) +
+   scale_y_continuous(limits = c(0.2,1), breaks = c(0.2,0.4,0.6,0.8,1)) 
+rf_dose1
+```
+
+#### Differential features - FDR p <0.2
+```{r, fig.width=6, fig.height=3.5}
+# Import RF results
+ind = read.csv("RF_outputs/crossval_gini_dose1_shedding_India.csv", header=T, row.names=1)
+mlw = read.csv("RF_outputs/crossval_gini_dose1_shedding_Malawi.csv", header=T, row.names=1)
+ind_exposed = read.csv("RF_outputs/crossval_gini_dose1_shedding_India (exposed).csv", header=T, row.names=1)
+ind_unexposed = read.csv("RF_outputs/crossval_gini_dose1_shedding_India (unexposed).csv", header=T, row.names=1)
+
+# collate data
+threshold = 0.2
+collated = data.frame(
+  country = c("MLW", "IND (neo-)", "IND (neo+)", "IND"),
+  n_tested_fisher = c(sum(!is.na(mlw$fisher_padj)), sum(!is.na(ind_unexposed$fisher_padj)), 
+                      sum(!is.na(ind_exposed$fisher_padj)), sum(!is.na(ind$fisher_padj))),
+  n_signif_fisher = c(sum(mlw$fisher_padj<threshold, na.rm=T), sum(ind_unexposed$fisher_padj<threshold, na.rm=T), 
+                      sum(ind_exposed$fisher_padj<threshold, na.rm=T), sum(ind$fisher_padj<threshold, na.rm=T)),
+  n_nonsignif_fisher = c(sum(mlw$fisher_padj>=threshold, na.rm=T), sum(ind_unexposed$fisher_padj>=threshold, na.rm=T), 
+                         sum(ind_exposed$fisher_padj>=threshold, na.rm=T), sum(ind$fisher_padj>=threshold, na.rm=T)),
+  n_tested_lr = c(sum(!is.na(mlw$lr_adjusted_padj)), sum(!is.na(ind_unexposed$lr_adjusted_padj)),
+                  sum(!is.na(ind_exposed$lr_adjusted_padj)), sum(!is.na(ind$lr_adjusted_padj))),
+  n_signif_lr = c(sum(mlw$lr_adjusted_padj<threshold, na.rm=T), sum(ind_unexposed$lr_adjusted_padj<threshold, na.rm=T), 
+                  sum(ind_exposed$lr_adjusted_padj<threshold, na.rm=T), sum(ind$lr_adjusted_padj<threshold, na.rm=T)),
+  n_nonsignif_lr = c(sum(mlw$lr_adjusted_padj>=threshold, na.rm=T), sum(ind_unexposed$lr_adjusted_padj>=threshold, na.rm=T), 
+                     sum(ind_exposed$lr_adjusted_padj>=threshold, na.rm=T), sum(ind$lr_adjusted_padj>=threshold, na.rm=T)),
+  n_tested_maaslin = c(nrow(mlw), nrow(ind_unexposed), nrow(ind_exposed), nrow(ind)),
+  n_signif_maaslin = c(sum(mlw$maaslin_qval_adjusted_filt<threshold), sum(ind_unexposed$maaslin_qval_adjusted_filt<threshold), 
+                       sum(ind_exposed$maaslin_qval_adjusted_filt<threshold), sum(ind$maaslin_qval_adjusted_filt<threshold)),
+  n_nonsignif_maaslin = c(sum(mlw$maaslin_qval_adjusted_filt>=threshold), sum(ind_unexposed$maaslin_qval_adjusted_filt>=threshold), 
+                          sum(ind_exposed$maaslin_qval_adjusted_filt>=threshold), sum(ind$maaslin_qval_adjusted_filt>=threshold))
+)
+collated %>% dplyr::select(-c(n_nonsignif_fisher, n_nonsignif_lr, n_nonsignif_maaslin))
+```
+
+```{r, fig.width=6.5, fig.height=3.5}
+# group results
+collated_grouped = data.frame(
+  country = rep(collated$country, 4),
+  test = c(rep("Prevalence",8), rep("Abundance",8)),
+  status = rep(c(rep("N tested",4), rep("FDR p<0.2",4)),2),
+  n = c(collated$n_nonsignif_fisher, collated$n_signif_fisher, collated$n_nonsignif_maaslin, collated$n_signif_maaslin)
+  )
+collated_grouped$country = factor(collated_grouped$country, levels = c("MLW", "IND (neo-)", "IND (neo+)", "IND"))
+collated_grouped$status = factor(collated_grouped$status, levels = c("N tested", "FDR p<0.2"))
+collated_grouped$test = factor(collated_grouped$test, levels = c("Prevalence", "Abundance"))
+collated_grouped$module = module
+
+# generate plot
+differential_dose1 = ggplot(collated_grouped, aes(y = n, x = factor(country), fill=factor(status))) + 
+    geom_bar(position="stack", stat = "identity") + 
+    ylab("N features") + xlab("") +
+    coord_flip() +
+    scale_fill_manual(values = c("#d0d1e6", "#08519c")) +
+    theme_bw() + facet_grid(module~test) +
+    ggtitle("Differential features") + 
+    theme(axis.text = element_text(size = 16), axis.title = element_text(size = 16), legend.text = element_text(size = 14), legend.title = element_blank(),
+          plot.title = element_text(size = 16, hjust = 0.5), strip.text = element_text(size = 16), strip.background = element_blank())
+if (grepl("genus", getwd())) { differential_dose1 = differential_dose1 + scale_y_continuous(breaks=c(0,40,80), limits=c(0,100)) }
+if (grepl("species", getwd())) { differential_dose1 = differential_dose1 + scale_y_continuous(breaks=c(0,100,200), limits=c(0,300)) }
+if (grepl("pathway", getwd())) { differential_dose1 = differential_dose1 + scale_y_continuous(breaks=c(0,200,400), limits=c(0,450)) }
+if (grepl("EC", getwd())) { differential_dose1 = differential_dose1 + scale_y_continuous(breaks=c(0,1000,2000), limits=c(0,2250)) }
+differential_dose1
+```
+
+#### Summary of prevalence difference distribution
+```{r, fig.width=8, fig.height=3.5}
+collated_rf = rbind(ind, ind_exposed, ind_unexposed, mlw)
+write.csv(collated_rf, paste0("RF_outputs/crossval_gini_dose1_shedding_collated_",module,".csv"))
+collated_rf$country_clean = factor(collated_rf$country_clean, levels = c("IND", "IND (neo+)", "IND (neo-)", "MLW"))
+collated_rf_sub = subset(collated_rf, !is.na(fisher_p))
+
+ggplot(collated_rf_sub, aes(x = prev_diff, y = fisher_padj, colour=factor(country_clean))) +
+    geom_point(size = 1, alpha = 0.8) +
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col)) +
+    ggtitle("") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + facet_grid(.~country_clean) +
+    scale_y_continuous(trans=reverselog_trans(10)) + 
+    theme_bw() + theme(legend.position = "none") + ylab("P value (Fisher's)") + 
+    xlab("Difference in prevalence (shed+ vs shed-)\n\n<- Enriched in non-shedders / Enriched in shedders ->") +
+    theme(strip.background = element_blank()) + 
+    geom_vline(xintercept=0, linetype="dotted") + geom_hline(yintercept=0.2, linetype="dotted") +
+    theme(axis.text = element_text(size=14), strip.text=element_text(size=16), axis.title = element_text(size=14), plot.title = element_text(size=16, hjust=0.5))
+```
+
+#### Proportion of features more prevalent in non-responders vs responders
+```{r, warning=FALSE}
+n_neg = as.vector(table(collated_rf_sub$prev_diff<0, collated_rf_sub$country_clean)[2,])
+if (sum(collated_rf_sub$prev_diff==0)>0) {
+  n_equal = as.vector(table(collated_rf_sub$prev_diff==0, collated_rf_sub$country_clean)[2,])
+} else {
+  n_equal = 0
+}
+n_pos = as.vector(table(collated_rf_sub$prev_diff>0, collated_rf_sub$country_clean)[2,])
+total = as.vector(table(collated_rf_sub$country_clean))
+prop = paste0(round(n_neg/total*100,1),"%")
+data.frame(
+  country = c("IND", "IND (neo+)", "IND (neo-)", "MLW"),
+  n_neg = n_neg,
+  n_equal = n_equal,
+  n_pos = n_pos,
+  total = total,
+  proportion_neg = prop
+)
+```
+n = prevalence difference <0 (vs >=0).
+<br>
+
+#### P values (Wilcoxon test, mean of difference distribution = 0)
+```{r, warning=FALSE}
+t(data.frame(
+  IND = wilcox.test(ind$prev_diff[!is.na(ind$fisher_p)])$p.value,
+  MLW = wilcox.test(mlw$prev_diff[!is.na(mlw$fisher_p)])$p.value,
+  IND_exposed = wilcox.test(ind_exposed$prev_diff[!is.na(ind_exposed$fisher_p)])$p.value,
+  IND_nonexposed = wilcox.test(ind_unexposed$prev_diff[!is.na(ind_unexposed$fisher_p)])$p.value
+))
+```
+
+#### Summary of adundance difference distribution
+```{r, fig.width=8, fig.height=3.5}
+volcano_abund_dose1 = ggplot(collated_rf, aes(x = maaslin_coef_adjusted, y = maaslin_qval_adjusted_filt, colour=factor(country_clean))) +
+    geom_point(size = 1, alpha = 0.8) +
+    scale_colour_manual(values = c(IND = India_col, "IND (neo+)" = India_col, "IND (neo-)" = India_col, MLW = Malawi_col)) +
+    ggtitle("") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + facet_grid(.~country_clean, scales = "free") +
+    theme_bw() + theme(legend.position = "none") + 
+    scale_y_continuous(trans=reverselog_trans(10)) + ylab("FDR P (MaAsLin2)") + 
+    xlab("Coefficient (MaAsLin2)\n\n<- Enriched in non-shedders / Enriched in shedders ->") +
+    theme(strip.background = element_blank()) + 
+    geom_vline(xintercept=0, linetype="dotted") +
+    geom_hline(yintercept=0.2, linetype="dotted") +
+    theme(axis.text = element_text(size=14), strip.text=element_text(size=16), axis.text.x = element_text(angle=45, vjust=1, hjust=1),
+          axis.title = element_text(size=14), plot.title = element_text(size=16, hjust=0.5))
+volcano_abund_dose1
+```
+<br>
+
+#### P values (Wilcoxon test, mean of difference distribution = 0)
+```{r, warning=FALSE}
+t(data.frame(
+  IND = wilcox.test(ind$maaslin_coef_adjusted)$p.value,
+  MLW = wilcox.test(mlw$maaslin_coef_adjusted)$p.value,
+  IND_exposed = wilcox.test(ind_exposed$maaslin_coef_adjusted)$p.value,
+  IND_nonexposed = wilcox.test(ind_unexposed$maaslin_coef_adjusted)$p.value
+))
+```
+
+#### Proportion of features more abundant in non-responders vs responders
+```{r, warning=FALSE}
+n_neg = as.vector(table(collated_rf$maaslin_coef_adjusted<0, collated_rf$country_clean)[2,])
+if (sum(collated_rf$maaslin_coef_adjusted==0)>0) {
+  n_equal = as.vector(table(collated_rf$maaslin_coef_adjusted==0, collated_rf$country_clean)[2,])
+} else {
+  n_equal = 0
+}
+n_pos = as.vector(table(collated_rf$maaslin_coef_adjusted>=0, collated_rf$country_clean)[2,])
+total = as.vector(table(collated_rf$country_clean))
+prop = paste0(round(n_neg/total*100,1),"%")
+data.frame(
+  country = c("IND", "IND (neo+)", "IND (neo-)", "MLW"),
+  n_neg = n_neg,
+  n_equal = n_equal,
+  n_pos = n_pos,
+  total = total,
+  proportion_neg = prop
+)
+```
+
+#### Summary of MaAsLin2 associations
+```{r}
+summarise_maaslin()
+```
+
+#### Spearman's rho matrix of statistical test p values - India
+```{r}
+network = ind[,c("fisher_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "prev_diff", "mean_diff")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$prev_diff = 1 - abs(network$prev_diff)
+network$mean_diff = 1 - abs(network$mean_diff)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Fisher p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. Maaslin coef. (adj)", "Inv. abs. prev. diff.", "Inv. abs. mean abund. diff.")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+#### Spearman's rho matrix of statistical test p values - India (neo+)
+```{r}
+network = ind_exposed[,c("fisher_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "prev_diff", "mean_diff")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$prev_diff = 1 - abs(network$prev_diff)
+network$mean_diff = 1 - abs(network$mean_diff)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Fisher p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. Maaslin coef. (adj)", "Inv. abs. prev. diff.", "Inv. abs. mean abund. diff.")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+#### Spearman's rho matrix of statistical test p values - India (neo-)
+```{r}
+network = ind_unexposed[,c("fisher_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "prev_diff", "mean_diff")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$prev_diff = 1 - abs(network$prev_diff)
+network$mean_diff = 1 - abs(network$mean_diff)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Fisher p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. Maaslin coef. (adj)", "Inv. abs. prev. diff.", "Inv. abs. mean abund. diff.")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+#### Spearman's rho matrix of statistical test p values - Malawi
+```{r}
+network = mlw[,c("fisher_p", "lr_unadjusted_p", "lr_adjusted_p", "wilcox_p", "maaslin_pval", "maaslin_pval_adjusted", "rf_rank", "maaslin_coef_adjusted", "prev_diff", "mean_diff")]
+network = network[complete.cases(network),]
+network$maaslin_coef_adjusted = 1 - abs(network$maaslin_coef_adjusted)
+network$prev_diff = 1- abs(network$prev_diff)
+network$mean_diff = 1- abs(network$mean_diff)
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Fisher p","LR p","LR (adj) p","Wilcox p","Maaslin p", "Maaslin (adj) p", "RF rank", "Inv. abs. Maaslin coef. (adj)", "Inv. abs. prev. diff.", "Inv. abs. mean abund. diff.")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 0.8, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+
+<br>
+#### Rho values
+```{r}
+m
+```
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+
+
+
+
+Summary plots {.hidden}
+===================================== 
+
+#### Seroconversion
+```{r, fig.width=14, fig.height=3.5}
+plot_grid(sero_fig_A, 
+          rf_sero,
+          differential_sero + theme(axis.text.y=element_blank()), 
+          ncol=3,
+          rel_widths=c(1.5,1,1.5), 
+          align = "h", axis = c("tb")
+          )
+```
+
+#### IgA
+```{r, fig.width=14, fig.height=3.5}
+plot_grid(NULL,
+          rf_IgA, 
+          differential_IgA + theme(axis.text.y=element_blank()), 
+          ncol=3,
+          rel_widths=c(1.5,1,1.5), 
+          align = "h", axis = c("tb")
+          )
+```
+
+#### Dose 1 shedding
+```{r, fig.width=14, fig.height=3.5}
+plot_grid(dose1_fig_A, 
+          rf_dose1,
+          differential_dose1 + theme(axis.text.y=element_blank()), 
+          ncol=3,
+          rel_widths=c(1.5,1,1.5), 
+          align = "h", axis = c("tb")
+          )
+```
+
+
+
+
+
+Session info {.hidden}
+===================================== 
+
+```{r}
+print(sessionInfo())
+```
+.

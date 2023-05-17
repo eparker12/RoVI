@@ -1,0 +1,285 @@
+2023-03-15 14:38:44 INFO::Writing function arguments to log file
+2023-03-15 14:38:44 DEBUG::Function arguments
+2023-03-15 14:38:44 DEBUG::Output folder: maaslin_outputs/seroconv_Malawi_unadjusted
+2023-03-15 14:38:44 DEBUG::Min Abundance: 0.000000
+2023-03-15 14:38:44 DEBUG::Min Prevalence: 0.000000
+2023-03-15 14:38:44 DEBUG::Normalization: NONE
+2023-03-15 14:38:44 DEBUG::Transform: AST
+2023-03-15 14:38:44 DEBUG::Analysis method: LM
+2023-03-15 14:38:44 DEBUG::Max significance: 0.200000
+2023-03-15 14:38:44 DEBUG::Random effects:
+2023-03-15 14:38:44 DEBUG::Fixed effects: seroconv
+2023-03-15 14:38:44 DEBUG::Correction method: BH
+2023-03-15 14:38:44 DEBUG::Standardize: FALSE
+2023-03-15 14:38:44 DEBUG::Cores: 1
+2023-03-15 14:38:44 INFO::Verifying options selected are valid
+2023-03-15 14:38:44 INFO::Determining format of input files
+2023-03-15 14:38:44 INFO::Input format is data samples as rows and metadata samples as rows
+2023-03-15 14:38:44 DEBUG::A total of 56 samples were found in both the data and metadata
+2023-03-15 14:38:44 DEBUG::Reordering data/metadata to use same sample ordering
+2023-03-15 14:38:44 INFO::Formula for fixed effects: expr ~  seroconv
+2023-03-15 14:38:44 INFO::Filter data based on min abundance and min prevalence
+2023-03-15 14:38:44 INFO::Total samples in data: 56
+2023-03-15 14:38:44 INFO::Min samples required with min abundance for a feature not to be filtered: 0.000000
+2023-03-15 14:38:44 INFO::Total filtered features: 0
+2023-03-15 14:38:44 INFO::Filtered feature names from abundance and prevalence filtering:
+2023-03-15 14:38:44 INFO::Total filtered features with variance filtering: 0
+2023-03-15 14:38:44 INFO::Filtered feature names from variance filtering:
+2023-03-15 14:38:44 INFO::Running selected normalization method: NONE
+2023-03-15 14:38:44 INFO::Bypass z-score application to metadata
+2023-03-15 14:38:44 INFO::Running selected transform method: AST
+2023-03-15 14:38:44 INFO::Running selected analysis method: LM
+2023-03-15 14:38:44 INFO::Fitting model to feature number 1, t216816
+2023-03-15 14:38:44 INFO::Fitting model to feature number 2, t562
+2023-03-15 14:38:44 INFO::Fitting model to feature number 3, t1685
+2023-03-15 14:38:44 INFO::Fitting model to feature number 4, t573
+2023-03-15 14:38:44 INFO::Fitting model to feature number 5, t1681
+2023-03-15 14:38:44 INFO::Fitting model to feature number 6, t817
+2023-03-15 14:38:45 INFO::Fitting model to feature number 7, t1316412
+2023-03-15 14:38:45 INFO::Fitting model to feature number 8, t823
+2023-03-15 14:38:45 INFO::Fitting model to feature number 9, t1686
+2023-03-15 14:38:45 INFO::Fitting model to feature number 10, t1316411
+2023-03-15 14:38:45 INFO::Fitting model to feature number 11, t1304
+2023-03-15 14:38:45 INFO::Fitting model to feature number 12, t821
+2023-03-15 14:38:45 INFO::Fitting model to feature number 13, t29466
+2023-03-15 14:38:45 INFO::Fitting model to feature number 14, t1352
+2023-03-15 14:38:45 INFO::Fitting model to feature number 15, t33038
+2023-03-15 14:38:45 INFO::Fitting model to feature number 16, t1351
+2023-03-15 14:38:45 INFO::Fitting model to feature number 17, t1596
+2023-03-15 14:38:45 INFO::Fitting model to feature number 18, t684066
+2023-03-15 14:38:45 INFO::Fitting model to feature number 19, t39777
+2023-03-15 14:38:45 INFO::Fitting model to feature number 20, t2107999
+2023-03-15 14:38:45 INFO::Fitting model to feature number 21, t818
+2023-03-15 14:38:45 INFO::Fitting model to feature number 22, t28026
+2023-03-15 14:38:45 INFO::Fitting model to feature number 23, t239935
+2023-03-15 14:38:45 INFO::Fitting model to feature number 24, t74426
+2023-03-15 14:38:45 INFO::Fitting model to feature number 25, t550
+2023-03-15 14:38:45 INFO::Fitting model to feature number 26, t28116
+2023-03-15 14:38:45 INFO::Fitting model to feature number 27, t371601
+2023-03-15 14:38:45 INFO::Fitting model to feature number 28, t46503
+2023-03-15 14:38:45 INFO::Fitting model to feature number 29, t165179
+2023-03-15 14:38:45 INFO::Fitting model to feature number 30, t47678
+2023-03-15 14:38:45 INFO::Fitting model to feature number 31, t1492
+2023-03-15 14:38:45 INFO::Fitting model to feature number 32, t357276
+2023-03-15 14:38:45 INFO::Fitting model to feature number 33, t2709390
+2023-03-15 14:38:45 INFO::Fitting model to feature number 34, t1613
+2023-03-15 14:38:45 INFO::Fitting model to feature number 35, t2690380
+2023-03-15 14:38:45 INFO::Fitting model to feature number 36, t820
+2023-03-15 14:38:45 INFO::Fitting model to feature number 37, t1624
+2023-03-15 14:38:45 INFO::Fitting model to feature number 38, t1463165
+2023-03-15 14:38:45 INFO::Fitting model to feature number 39, t2025876
+2023-03-15 14:38:45 INFO::Fitting model to feature number 40, t1343
+2023-03-15 14:38:45 INFO::Fitting model to feature number 41, t102684
+2023-03-15 14:38:45 INFO::Fitting model to feature number 42, t39778
+2023-03-15 14:38:45 INFO::Fitting model to feature number 43, t1290
+2023-03-15 14:38:45 INFO::Fitting model to feature number 44, t2682455
+2023-03-15 14:38:45 INFO::Fitting model to feature number 45, t2682456
+2023-03-15 14:38:45 INFO::Fitting model to feature number 46, t1282
+2023-03-15 14:38:45 INFO::Fitting model to feature number 47, t43675
+2023-03-15 14:38:45 INFO::Fitting model to feature number 48, t1308
+2023-03-15 14:38:45 INFO::Fitting model to feature number 49, t28037
+2023-03-15 14:38:45 INFO::Fitting model to feature number 50, t1680
+2023-03-15 14:38:45 INFO::Fitting model to feature number 51, t2162637
+2023-03-15 14:38:45 INFO::Fitting model to feature number 52, t1689
+2023-03-15 14:38:45 INFO::Fitting model to feature number 53, t158836
+2023-03-15 14:38:45 INFO::Fitting model to feature number 54, t437897
+2023-03-15 14:38:46 INFO::Fitting model to feature number 55, t1318
+2023-03-15 14:38:46 INFO::Fitting model to feature number 56, t729
+2023-03-15 14:38:46 INFO::Fitting model to feature number 57, t907
+2023-03-15 14:38:46 INFO::Fitting model to feature number 58, t292800
+2023-03-15 14:38:46 INFO::Fitting model to feature number 59, t2610896
+2023-03-15 14:38:46 INFO::Fitting model to feature number 60, t1316408
+2023-03-15 14:38:46 INFO::Fitting model to feature number 61, t33945
+2023-03-15 14:38:46 INFO::Fitting model to feature number 62, t244366
+2023-03-15 14:38:46 INFO::Fitting model to feature number 63, t853
+2023-03-15 14:38:46 INFO::Fitting model to feature number 64, t197
+2023-03-15 14:38:46 INFO::Fitting model to feature number 65, t1839799
+2023-03-15 14:38:46 INFO::Fitting model to feature number 66, t40545
+2023-03-15 14:38:46 INFO::Fitting model to feature number 67, t1280
+2023-03-15 14:38:46 INFO::Fitting model to feature number 68, t187327
+2023-03-15 14:38:46 INFO::Fitting model to feature number 69, t208479
+2023-03-15 14:38:46 INFO::Fitting model to feature number 70, t1313
+2023-03-15 14:38:46 INFO::Fitting model to feature number 71, t1547
+2023-03-15 14:38:46 INFO::Fitting model to feature number 72, t1550024
+2023-03-15 14:38:46 INFO::Fitting model to feature number 73, t197614
+2023-03-15 14:38:46 INFO::Fitting model to feature number 74, t1502
+2023-03-15 14:38:46 INFO::Fitting model to feature number 75, t1316410
+2023-03-15 14:38:46 INFO::Fitting model to feature number 76, t33039
+2023-03-15 14:38:46 INFO::Fitting model to feature number 77, t33010
+2023-03-15 14:38:46 INFO::Fitting model to feature number 78, t1812935
+2023-03-15 14:38:46 INFO::Fitting model to feature number 79, t47715
+2023-03-15 14:38:46 INFO::Fitting model to feature number 80, t150055
+2023-03-15 14:38:46 INFO::Fitting model to feature number 81, t584
+2023-03-15 14:38:46 INFO::Fitting model to feature number 82, t1358
+2023-03-15 14:38:46 INFO::Fitting model to feature number 83, t227942
+2023-03-15 14:38:46 INFO::Fitting model to feature number 84, t28901
+2023-03-15 14:38:46 INFO::Fitting model to feature number 85, t1335
+2023-03-15 14:38:46 INFO::Fitting model to feature number 86, t202956
+2023-03-15 14:38:46 INFO::Fitting model to feature number 87, t84112
+2023-03-15 14:38:46 INFO::Fitting model to feature number 88, t1496
+2023-03-15 14:38:46 INFO::Fitting model to feature number 89, t624
+2023-03-15 14:38:46 INFO::Fitting model to feature number 90, t1633
+2023-03-15 14:38:46 INFO::Fitting model to feature number 91, t545
+2023-03-15 14:38:46 INFO::Fitting model to feature number 92, t2003188
+2023-03-15 14:38:46 INFO::Fitting model to feature number 93, t1590
+2023-03-15 14:38:46 INFO::Fitting model to feature number 94, t1834196
+2023-03-15 14:38:46 INFO::Fitting model to feature number 95, t571
+2023-03-15 14:38:46 INFO::Fitting model to feature number 96, t1134687
+2023-03-15 14:38:46 INFO::Fitting model to feature number 97, t315405
+2023-03-15 14:38:46 INFO::Fitting model to feature number 98, t582
+2023-03-15 14:38:46 INFO::Fitting model to feature number 99, t621
+2023-03-15 14:38:46 INFO::Fitting model to feature number 100, t2763022
+2023-03-15 14:38:46 INFO::Fitting model to feature number 101, t113107
+2023-03-15 14:38:46 INFO::Fitting model to feature number 102, t2109685
+2023-03-15 14:38:46 INFO::Fitting model to feature number 103, t328813
+2023-03-15 14:38:47 INFO::Fitting model to feature number 104, t1303
+2023-03-15 14:38:47 INFO::Fitting model to feature number 105, t1522
+2023-03-15 14:38:47 INFO::Fitting model to feature number 106, t2785531
+2023-03-15 14:38:47 INFO::Fitting model to feature number 107, t649756
+2023-03-15 14:38:47 INFO::Fitting model to feature number 108, t470
+2023-03-15 14:38:47 INFO::Fitting model to feature number 109, t111015
+2023-03-15 14:38:47 INFO::Fitting model to feature number 110, t623
+2023-03-15 14:38:47 INFO::Fitting model to feature number 111, t1311
+2023-03-15 14:38:47 INFO::Fitting model to feature number 112, t1597
+2023-03-15 14:38:47 INFO::Fitting model to feature number 113, t564
+2023-03-15 14:38:47 INFO::Fitting model to feature number 114, t1871022
+2023-03-15 14:38:47 INFO::Fitting model to feature number 115, t1531
+2023-03-15 14:38:47 INFO::Fitting model to feature number 116, t1623
+2023-03-15 14:38:47 INFO::Fitting model to feature number 117, t1328
+2023-03-15 14:38:47 INFO::Fitting model to feature number 118, t546
+2023-03-15 14:38:47 INFO::Fitting model to feature number 119, t37734
+2023-03-15 14:38:47 INFO::Fitting model to feature number 120, t1736
+2023-03-15 14:38:47 INFO::Fitting model to feature number 121, t248315
+2023-03-15 14:38:47 INFO::Fitting model to feature number 122, t53442
+2023-03-15 14:38:47 INFO::Fitting model to feature number 123, t28118
+2023-03-15 14:38:47 INFO::Fitting model to feature number 124, t548
+2023-03-15 14:38:47 INFO::Fitting model to feature number 125, t2584944
+2023-03-15 14:38:47 INFO::Fitting model to feature number 126, t712623
+2023-03-15 14:38:47 INFO::Fitting model to feature number 127, t1660
+2023-03-15 14:38:47 INFO::Fitting model to feature number 128, t2479767
+2023-03-15 14:38:47 INFO::Fitting model to feature number 129, t1683
+2023-03-15 14:38:47 INFO::Fitting model to feature number 130, t2420313
+2023-03-15 14:38:47 INFO::Fitting model to feature number 131, t1353
+2023-03-15 14:38:47 INFO::Fitting model to feature number 132, t28141
+2023-03-15 14:38:47 INFO::Fitting model to feature number 133, t712633
+2023-03-15 14:38:47 INFO::Fitting model to feature number 134, t2420310
+2023-03-15 14:38:47 INFO::Fitting model to feature number 135, t1156431
+2023-03-15 14:38:47 INFO::Fitting model to feature number 136, t2690837
+2023-03-15 14:38:47 INFO::Fitting model to feature number 137, t2382163
+2023-03-15 14:38:47 INFO::Fitting model to feature number 138, t2079596
+2023-03-15 14:38:47 INFO::Fitting model to feature number 139, t1156433
+2023-03-15 14:38:47 INFO::Fitting model to feature number 140, t1520
+2023-03-15 14:38:47 INFO::Fitting model to feature number 141, t2582419
+2023-03-15 14:38:47 INFO::Fitting model to feature number 142, t2715212
+2023-03-15 14:38:47 INFO::Fitting model to feature number 143, t2823317
+2023-03-15 14:38:47 INFO::Fitting model to feature number 144, t622
+2023-03-15 14:38:47 INFO::Fitting model to feature number 145, t257758
+2023-03-15 14:38:47 INFO::Fitting model to feature number 146, t1491
+2023-03-15 14:38:47 INFO::Fitting model to feature number 147, t2058152
+2023-03-15 14:38:47 INFO::Fitting model to feature number 148, t2161821
+2023-03-15 14:38:47 INFO::Fitting model to feature number 149, t33959
+2023-03-15 14:38:47 INFO::Fitting model to feature number 150, t1379
+2023-03-15 14:38:47 INFO::Fitting model to feature number 151, t756892
+2023-03-15 14:38:47 INFO::Fitting model to feature number 152, t166486
+2023-03-15 14:38:47 INFO::Fitting model to feature number 153, t1382
+2023-03-15 14:38:47 INFO::Fitting model to feature number 154, t28111
+2023-03-15 14:38:47 INFO::Fitting model to feature number 155, t1759399
+2023-03-15 14:38:47 INFO::Fitting model to feature number 156, t208962
+2023-03-15 14:38:47 INFO::Fitting model to feature number 157, t410072
+2023-03-15 14:38:47 INFO::Fitting model to feature number 158, t2650158
+2023-03-15 14:38:47 INFO::Fitting model to feature number 159, t1912897
+2023-03-15 14:38:48 INFO::Fitting model to feature number 160, t1433513
+2023-03-15 14:38:48 INFO::Fitting model to feature number 161, t1314
+2023-03-15 14:38:48 INFO::Fitting model to feature number 162, t2528203
+2023-03-15 14:38:48 INFO::Fitting model to feature number 163, t1584
+2023-03-15 14:38:48 INFO::Fitting model to feature number 164, t47770
+2023-03-15 14:38:48 INFO::Fitting model to feature number 165, t2026240
+2023-03-15 14:38:48 INFO::Fitting model to feature number 166, t2755405
+2023-03-15 14:38:48 INFO::Fitting model to feature number 167, t2093856
+2023-03-15 14:38:48 INFO::Fitting model to feature number 168, t97478
+2023-03-15 14:38:48 INFO::Fitting model to feature number 169, t1260
+2023-03-15 14:38:48 INFO::Fitting model to feature number 170, t328814
+2023-03-15 14:38:48 INFO::Fitting model to feature number 171, t1335613
+2023-03-15 14:38:48 INFO::Fitting model to feature number 172, t28132
+2023-03-15 14:38:48 INFO::Fitting model to feature number 173, t1639133
+2023-03-15 14:38:48 INFO::Fitting model to feature number 174, t1283
+2023-03-15 14:38:48 INFO::Fitting model to feature number 175, t161879
+2023-03-15 14:38:48 INFO::Fitting model to feature number 176, t2015795
+2023-03-15 14:38:48 INFO::Fitting model to feature number 177, t33035
+2023-03-15 14:38:48 INFO::Fitting model to feature number 178, t1796613
+2023-03-15 14:38:48 INFO::Fitting model to feature number 179, t69966
+2023-03-15 14:38:48 INFO::Fitting model to feature number 180, t39488
+2023-03-15 14:38:48 INFO::Fitting model to feature number 181, t1748967
+2023-03-15 14:38:48 INFO::Fitting model to feature number 182, t471189
+2023-03-15 14:38:48 INFO::Fitting model to feature number 183, t40324
+2023-03-15 14:38:48 INFO::Fitting model to feature number 184, t108981
+2023-03-15 14:38:48 INFO::Fitting model to feature number 185, t328812
+2023-03-15 14:38:48 INFO::Fitting model to feature number 186, t2582830
+2023-03-15 14:38:48 INFO::Fitting model to feature number 187, t40520
+2023-03-15 14:38:48 INFO::Fitting model to feature number 188, t70346
+2023-03-15 14:38:48 INFO::Fitting model to feature number 189, t1667168
+2023-03-15 14:38:48 INFO::Fitting model to feature number 190, t626932
+2023-03-15 14:38:48 INFO::Fitting model to feature number 191, t1499973
+2023-03-15 14:38:48 INFO::Fitting model to feature number 192, t2650157
+2023-03-15 14:38:48 INFO::Fitting model to feature number 193, t208224
+2023-03-15 14:38:48 INFO::Fitting model to feature number 194, t116085
+2023-03-15 14:38:48 INFO::Fitting model to feature number 195, t35703
+2023-03-15 14:38:48 INFO::Fitting model to feature number 196, t387090
+2023-03-15 14:38:48 INFO::Fitting model to feature number 197, t39950
+2023-03-15 14:38:48 INFO::Fitting model to feature number 198, t1598
+2023-03-15 14:38:48 INFO::Fitting model to feature number 199, t67827
+2023-03-15 14:38:48 INFO::Fitting model to feature number 200, t34062
+2023-03-15 14:38:48 INFO::Fitting model to feature number 201, t28090
+2023-03-15 14:38:48 INFO::Fitting model to feature number 202, t2698804
+2023-03-15 14:38:48 INFO::Fitting model to feature number 203, t1852377
+2023-03-15 14:38:48 INFO::Fitting model to feature number 204, t287
+2023-03-15 14:38:48 INFO::Fitting model to feature number 205, t54005
+2023-03-15 14:38:48 INFO::Fitting model to feature number 206, t169679
+2023-03-15 14:38:48 INFO::Fitting model to feature number 207, t881260
+2023-03-15 14:38:48 INFO::Fitting model to feature number 208, t61645
+2023-03-15 14:38:48 INFO::Fitting model to feature number 209, t2364787
+2023-03-15 14:38:48 INFO::Fitting model to feature number 210, t727
+2023-03-15 14:38:48 INFO::Fitting model to feature number 211, t901
+2023-03-15 14:38:48 INFO::Fitting model to feature number 212, t28131
+2023-03-15 14:38:48 INFO::Fitting model to feature number 213, t301301
+2023-03-15 14:38:48 INFO::Fitting model to feature number 214, t604330
+2023-03-15 14:38:48 INFO::Fitting model to feature number 215, t1636603
+2023-03-15 14:38:48 INFO::Fitting model to feature number 216, t2722820
+2023-03-15 14:38:48 INFO::Fitting model to feature number 217, t1354
+2023-03-15 14:38:48 INFO::Fitting model to feature number 218, t28025
+2023-03-15 14:38:48 INFO::Fitting model to feature number 219, t40214
+2023-03-15 14:38:49 INFO::Fitting model to feature number 220, t2596949
+2023-03-15 14:38:49 INFO::Fitting model to feature number 221, t1805478
+2023-03-15 14:38:49 INFO::Fitting model to feature number 222, t143361
+2023-03-15 14:38:49 INFO::Fitting model to feature number 223, t2823316
+2023-03-15 14:38:49 INFO::Fitting model to feature number 224, t2684658
+2023-03-15 14:38:49 INFO::Fitting model to feature number 225, t2093857
+2023-03-15 14:38:49 INFO::Fitting model to feature number 226, t2109687
+2023-03-15 14:38:49 INFO::Fitting model to feature number 227, t2545797
+2023-03-15 14:38:49 INFO::Fitting model to feature number 228, t1177574
+2023-03-15 14:38:49 INFO::Fitting model to feature number 229, t223919
+2023-03-15 14:38:49 INFO::Fitting model to feature number 230, t84030
+2023-03-15 14:38:49 INFO::Fitting model to feature number 231, t36745
+2023-03-15 14:38:49 INFO::Fitting model to feature number 232, t641107
+2023-03-15 14:38:49 INFO::Fitting model to feature number 233, t2585118
+2023-03-15 14:38:49 INFO::Fitting model to feature number 234, t1464
+2023-03-15 14:38:49 INFO::Fitting model to feature number 235, t1297617
+2023-03-15 14:38:49 INFO::Fitting model to feature number 236, t1561
+2023-03-15 14:38:49 INFO::Fitting model to feature number 237, t2714355
+2023-03-15 14:38:49 INFO::Fitting model to feature number 238, t195
+2023-03-15 14:38:49 INFO::Fitting model to feature number 239, t83655
+2023-03-15 14:38:49 INFO::Fitting model to feature number 240, t2774055
+2023-03-15 14:38:49 INFO::Fitting model to feature number 241, t43765
+2023-03-15 14:38:49 INFO::Fitting model to feature number 242, t1270
+2023-03-15 14:38:49 INFO::Fitting model to feature number 243, t39485
+2023-03-15 14:38:49 INFO::Fitting model to feature number 244, t28129
+2023-03-15 14:38:49 INFO::Fitting model to feature number 245, t1583
+2023-03-15 14:38:49 INFO::Fitting model to feature number 246, t839
+2023-03-15 14:38:49 INFO::Fitting model to feature number 247, t71999
+2023-03-15 14:38:49 INFO::Fitting model to feature number 248, t282402
+2023-03-15 14:38:49 INFO::Counting total values for each feature
+2023-03-15 14:38:49 INFO::Writing residuals to file maaslin_outputs/seroconv_Malawi_unadjusted/residuals.rds
+2023-03-15 14:38:49 INFO::Writing fitted values to file maaslin_outputs/seroconv_Malawi_unadjusted/fitted.rds
+2023-03-15 14:38:49 INFO::Writing all results to file (ordered by increasing q-values): maaslin_outputs/seroconv_Malawi_unadjusted/all_results.tsv
+2023-03-15 14:38:49 INFO::Writing the significant results (those which are less than or equal to the threshold of 0.200000 ) to file (ordered by increasing q-values): maaslin_outputs/seroconv_Malawi_unadjusted/significant_results.tsv
+2023-03-15 14:38:49 INFO::Writing heatmap of significant results to file: maaslin_outputs/seroconv_Malawi_unadjusted/heatmap.pdf

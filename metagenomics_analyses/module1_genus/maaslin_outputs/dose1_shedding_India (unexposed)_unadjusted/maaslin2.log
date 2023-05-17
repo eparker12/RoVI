@@ -1,0 +1,122 @@
+2023-03-15 14:35:24 INFO::Writing function arguments to log file
+2023-03-15 14:35:24 DEBUG::Function arguments
+2023-03-15 14:35:24 DEBUG::Output folder: maaslin_outputs/dose1_shedding_India (unexposed)_unadjusted
+2023-03-15 14:35:24 DEBUG::Min Abundance: 0.000000
+2023-03-15 14:35:24 DEBUG::Min Prevalence: 0.000000
+2023-03-15 14:35:24 DEBUG::Normalization: NONE
+2023-03-15 14:35:24 DEBUG::Transform: AST
+2023-03-15 14:35:24 DEBUG::Analysis method: LM
+2023-03-15 14:35:24 DEBUG::Max significance: 0.200000
+2023-03-15 14:35:24 DEBUG::Random effects:
+2023-03-15 14:35:24 DEBUG::Fixed effects: dose1_shedding
+2023-03-15 14:35:24 DEBUG::Correction method: BH
+2023-03-15 14:35:24 DEBUG::Standardize: FALSE
+2023-03-15 14:35:24 DEBUG::Cores: 1
+2023-03-15 14:35:24 INFO::Verifying options selected are valid
+2023-03-15 14:35:24 INFO::Determining format of input files
+2023-03-15 14:35:24 INFO::Input format is data samples as rows and metadata samples as rows
+2023-03-15 14:35:24 DEBUG::A total of 132 samples were found in both the data and metadata
+2023-03-15 14:35:24 DEBUG::Reordering data/metadata to use same sample ordering
+2023-03-15 14:35:24 INFO::Formula for fixed effects: expr ~  dose1_shedding
+2023-03-15 14:35:24 INFO::Filter data based on min abundance and min prevalence
+2023-03-15 14:35:24 INFO::Total samples in data: 132
+2023-03-15 14:35:24 INFO::Min samples required with min abundance for a feature not to be filtered: 0.000000
+2023-03-15 14:35:24 INFO::Total filtered features: 0
+2023-03-15 14:35:24 INFO::Filtered feature names from abundance and prevalence filtering:
+2023-03-15 14:35:24 INFO::Total filtered features with variance filtering: 0
+2023-03-15 14:35:24 INFO::Filtered feature names from variance filtering:
+2023-03-15 14:35:24 INFO::Running selected normalization method: NONE
+2023-03-15 14:35:24 INFO::Bypass z-score application to metadata
+2023-03-15 14:35:24 INFO::Running selected transform method: AST
+2023-03-15 14:35:24 INFO::Running selected analysis method: LM
+2023-03-15 14:35:24 INFO::Fitting model to feature number 1, t216816
+2023-03-15 14:35:24 INFO::Fitting model to feature number 2, t562
+2023-03-15 14:35:24 INFO::Fitting model to feature number 3, t573
+2023-03-15 14:35:24 INFO::Fitting model to feature number 4, t817
+2023-03-15 14:35:24 INFO::Fitting model to feature number 5, t1316412
+2023-03-15 14:35:24 INFO::Fitting model to feature number 6, t823
+2023-03-15 14:35:24 INFO::Fitting model to feature number 7, t821
+2023-03-15 14:35:24 INFO::Fitting model to feature number 8, t29466
+2023-03-15 14:35:24 INFO::Fitting model to feature number 9, t33038
+2023-03-15 14:35:24 INFO::Fitting model to feature number 10, t1351
+2023-03-15 14:35:24 INFO::Fitting model to feature number 11, t1596
+2023-03-15 14:35:24 INFO::Fitting model to feature number 12, t239935
+2023-03-15 14:35:24 INFO::Fitting model to feature number 13, t74426
+2023-03-15 14:35:24 INFO::Fitting model to feature number 14, t550
+2023-03-15 14:35:24 INFO::Fitting model to feature number 15, t165179
+2023-03-15 14:35:24 INFO::Fitting model to feature number 16, t1492
+2023-03-15 14:35:24 INFO::Fitting model to feature number 17, t1613
+2023-03-15 14:35:24 INFO::Fitting model to feature number 18, t1624
+2023-03-15 14:35:24 INFO::Fitting model to feature number 19, t1290
+2023-03-15 14:35:24 INFO::Fitting model to feature number 20, t43675
+2023-03-15 14:35:24 INFO::Fitting model to feature number 21, t437897
+2023-03-15 14:35:24 INFO::Fitting model to feature number 22, t729
+2023-03-15 14:35:24 INFO::Fitting model to feature number 23, t907
+2023-03-15 14:35:24 INFO::Fitting model to feature number 24, t292800
+2023-03-15 14:35:24 INFO::Fitting model to feature number 25, t853
+2023-03-15 14:35:24 INFO::Fitting model to feature number 26, t197
+2023-03-15 14:35:24 INFO::Fitting model to feature number 27, t40545
+2023-03-15 14:35:24 INFO::Fitting model to feature number 28, t187327
+2023-03-15 14:35:24 INFO::Fitting model to feature number 29, t208479
+2023-03-15 14:35:24 INFO::Fitting model to feature number 30, t1547
+2023-03-15 14:35:24 INFO::Fitting model to feature number 31, t1550024
+2023-03-15 14:35:24 INFO::Fitting model to feature number 32, t33010
+2023-03-15 14:35:24 INFO::Fitting model to feature number 33, t47715
+2023-03-15 14:35:24 INFO::Fitting model to feature number 34, t584
+2023-03-15 14:35:24 INFO::Fitting model to feature number 35, t1358
+2023-03-15 14:35:24 INFO::Fitting model to feature number 36, t28901
+2023-03-15 14:35:24 INFO::Fitting model to feature number 37, t202956
+2023-03-15 14:35:24 INFO::Fitting model to feature number 38, t84112
+2023-03-15 14:35:24 INFO::Fitting model to feature number 39, t1496
+2023-03-15 14:35:24 INFO::Fitting model to feature number 40, t624
+2023-03-15 14:35:24 INFO::Fitting model to feature number 41, t545
+2023-03-15 14:35:24 INFO::Fitting model to feature number 42, t2003188
+2023-03-15 14:35:24 INFO::Fitting model to feature number 43, t1590
+2023-03-15 14:35:24 INFO::Fitting model to feature number 44, t1834196
+2023-03-15 14:35:24 INFO::Fitting model to feature number 45, t582
+2023-03-15 14:35:24 INFO::Fitting model to feature number 46, t2109685
+2023-03-15 14:35:24 INFO::Fitting model to feature number 47, t328813
+2023-03-15 14:35:24 INFO::Fitting model to feature number 48, t649756
+2023-03-15 14:35:24 INFO::Fitting model to feature number 49, t111015
+2023-03-15 14:35:24 INFO::Fitting model to feature number 50, t1736
+2023-03-15 14:35:24 INFO::Fitting model to feature number 51, t28118
+2023-03-15 14:35:24 INFO::Fitting model to feature number 52, t1660
+2023-03-15 14:35:24 INFO::Fitting model to feature number 53, t2479767
+2023-03-15 14:35:24 INFO::Fitting model to feature number 54, t28141
+2023-03-15 14:35:24 INFO::Fitting model to feature number 55, t2582419
+2023-03-15 14:35:24 INFO::Fitting model to feature number 56, t2823317
+2023-03-15 14:35:24 INFO::Fitting model to feature number 57, t1379
+2023-03-15 14:35:24 INFO::Fitting model to feature number 58, t166486
+2023-03-15 14:35:24 INFO::Fitting model to feature number 59, t1382
+2023-03-15 14:35:24 INFO::Fitting model to feature number 60, t410072
+2023-03-15 14:35:24 INFO::Fitting model to feature number 61, t2093856
+2023-03-15 14:35:24 INFO::Fitting model to feature number 62, t1260
+2023-03-15 14:35:24 INFO::Fitting model to feature number 63, t1335613
+2023-03-15 14:35:24 INFO::Fitting model to feature number 64, t161879
+2023-03-15 14:35:24 INFO::Fitting model to feature number 65, t69966
+2023-03-15 14:35:24 INFO::Fitting model to feature number 66, t39488
+2023-03-15 14:35:24 INFO::Fitting model to feature number 67, t40324
+2023-03-15 14:35:24 INFO::Fitting model to feature number 68, t1667168
+2023-03-15 14:35:25 INFO::Fitting model to feature number 69, t34062
+2023-03-15 14:35:25 INFO::Fitting model to feature number 70, t287
+2023-03-15 14:35:25 INFO::Fitting model to feature number 71, t54005
+2023-03-15 14:35:25 INFO::Fitting model to feature number 72, t604330
+2023-03-15 14:35:25 INFO::Fitting model to feature number 73, t143361
+2023-03-15 14:35:25 INFO::Fitting model to feature number 74, t2823316
+2023-03-15 14:35:25 INFO::Fitting model to feature number 75, t2093857
+2023-03-15 14:35:25 INFO::Fitting model to feature number 76, t84030
+2023-03-15 14:35:25 INFO::Fitting model to feature number 77, t1464
+2023-03-15 14:35:25 INFO::Fitting model to feature number 78, t1297617
+2023-03-15 14:35:25 INFO::Fitting model to feature number 79, t2714355
+2023-03-15 14:35:25 INFO::Fitting model to feature number 80, t83655
+2023-03-15 14:35:25 INFO::Fitting model to feature number 81, t2774055
+2023-03-15 14:35:25 INFO::Fitting model to feature number 82, t1270
+2023-03-15 14:35:25 INFO::Fitting model to feature number 83, t39485
+2023-03-15 14:35:25 INFO::Fitting model to feature number 84, t1583
+2023-03-15 14:35:25 INFO::Fitting model to feature number 85, t71999
+2023-03-15 14:35:25 INFO::Counting total values for each feature
+2023-03-15 14:35:25 INFO::Writing residuals to file maaslin_outputs/dose1_shedding_India (unexposed)_unadjusted/residuals.rds
+2023-03-15 14:35:25 INFO::Writing fitted values to file maaslin_outputs/dose1_shedding_India (unexposed)_unadjusted/fitted.rds
+2023-03-15 14:35:25 INFO::Writing all results to file (ordered by increasing q-values): maaslin_outputs/dose1_shedding_India (unexposed)_unadjusted/all_results.tsv
+2023-03-15 14:35:25 INFO::Writing the significant results (those which are less than or equal to the threshold of 0.200000 ) to file (ordered by increasing q-values): maaslin_outputs/dose1_shedding_India (unexposed)_unadjusted/significant_results.tsv
+2023-03-15 14:35:25 INFO::Writing heatmap of significant results to file: maaslin_outputs/dose1_shedding_India (unexposed)_unadjusted/heatmap.pdf

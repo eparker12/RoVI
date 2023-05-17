@@ -1,0 +1,13 @@
+"","variable","clean_variable","group","class","beta_R2","beta_p","n_samples","alpha_test","alpha_level1","alpha_level2","alpha_mean_sd1","alpha_mean_sd2","alpha_rho","alpha_p","beta_fdr_p","alpha_fdr_p"
+"1","age_mother","maternal age (years)","maternal","integer",0.071,0.005,58,"spearman",NA,NA,NA,NA,0.245,0.06356,0.06,0.38136
+"2","sex_baby","female","infant","factor",0.018,0.355,58,"wilcoxon","male","female","1443.7 (182.2)","1445.8 (191.9)",NA,0.55454,0.5325,0.56165
+"3","age_at_first_dose","age at first ORV dose (days)","infant","integer",0.064,0.04,58,"spearman",NA,NA,NA,NA,0.185,0.16434,0.188,0.4243
+"4","birth_weight","birth weight (kg)","infant","numeric",0.016,0.402,58,"spearman",NA,NA,NA,NA,0.123,0.35803,0.536,0.49541
+"5","HIV_status","HIV-exposed","infant","factor",0.04,0.064,56,"wilcoxon","negative","positive","1425.1 (209.9)","1499.2 (94.2)",NA,0.24751,0.188,0.4243
+"6","antibiotic_exposure","exposed to antibiotics during study","infant","factor",0.034,0.094,58,"wilcoxon","no","yes","1422.2 (202.7)","1509.5 (103.6)",NA,0.12022,0.188,0.4243
+"7","HAZ_6_8w","height-for-age Z score at 6w","infant","numeric",0.012,0.58,58,"spearman",NA,NA,NA,NA,-0.103,0.44295,0.58,0.53154
+"8","A1AT_BS3_Concugml","A1AT at 6w (μg/ml)","infant","numeric",0.036,0.081,56,"spearman",NA,NA,NA,NA,NA,0.226,0.188,0.4243
+"9","MPO_BS3_Concngml","MPO at 6w (ng/ml)","infant","numeric",0.019,0.208,56,"spearman",NA,NA,NA,NA,NA,0.37156,0.35657,0.49541
+"10","AG_Concugml","A1AG at 6w (μg/ml)","infant","numeric",0.015,0.559,46,"spearman",NA,NA,NA,NA,NA,0.56165,0.58,0.56165
+"11","MB1_IgA","maternal RV-IgA (IU/ml)","rotavirus","numeric",0.045,0.048,56,"spearman",NA,NA,NA,NA,NA,0.00885,0.188,0.1062
+"12","BM1_IgA","breastmilk RV-IgA (IU/ml)","rotavirus","numeric",0.017,0.473,40,"spearman",NA,NA,NA,NA,NA,0.24463,0.5676,0.4243

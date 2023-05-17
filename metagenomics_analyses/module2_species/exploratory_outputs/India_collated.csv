@@ -1,0 +1,26 @@
+"","variable","clean_variable","group","class","beta_R2","beta_p","n_samples","alpha_test","alpha_level1","alpha_level2","alpha_mean_sd1","alpha_mean_sd2","alpha_rho","alpha_p","beta_fdr_p","alpha_fdr_p"
+"1","age_mother","maternal age (years)","maternal","integer",0.002,0.887,283,"spearman",NA,NA,NA,NA,0.005,0.92709,0.92396,0.95971
+"2","mother_weight","maternal weight (kg)","maternal","numeric",0.003,0.392,283,"spearman",NA,NA,NA,NA,-0.06,0.31384,0.655,0.72218
+"3","maternal_education","years of education completed by mother","maternal","integer",0.013,0.004,283,"spearman",NA,NA,NA,NA,-0.18,0.00238,0.03333,0.02975
+"4","parity","parity","maternal","integer",0.008,0.025,283,"spearman",NA,NA,NA,NA,0.06,0.31776,0.125,0.72218
+"5","household_income","highest income in household (rupees)","household","integer",0.002,0.848,283,"spearman",NA,NA,NA,NA,-0.028,0.64137,0.92174,0.90417
+"6","type_house","house made of permanent materials","household","factor",0.003,0.511,283,"wilcoxon","kutcha_mixed","pucca","121.4 (31.3)","125.1 (32.7)",NA,0.247,0.75147,0.72218
+"7","water_treat_wami","access to treated water","household","factor",0.001,0.974,266,"wilcoxon","no","yes","124 (32.1)","125.1 (31.8)",NA,0.72334,0.974,0.90417
+"8","kitchen","kitchen in home","household","factor",0.003,0.495,283,"wilcoxon","no","yes","122.4 (30.1)","124.4 (33.3)",NA,0.59585,0.75147,0.90417
+"9","refrigerator","refrigerator in home","household","factor",0.004,0.311,283,"wilcoxon","no","yes","125.9 (32.7)","122.1 (31.9)",NA,0.54346,0.64792,0.90417
+"10","sanitation","access to sanitation facility","household","factor",0.002,0.722,283,"wilcoxon","no","yes","123.4 (32.5)","124.3 (32)",NA,0.88139,0.9,0.95971
+"11","crowding_wami","more than 4 people per room","household","factor",0.002,0.846,283,"wilcoxon","up_to_4","over_4","124.1 (32.1)","123.4 (32.4)",NA,0.95655,0.92174,0.95971
+"12","sex_baby","female","infant","factor",0.008,0.035,283,"wilcoxon","male","female","123.4 (33.7)","124.2 (30.7)",NA,0.56537,0.14583,0.90417
+"13","mode_delivery","delivered by caesarean section","infant","factor",0.012,0.007,283,"wilcoxon","vaginal","caesarean","124.3 (33.1)","121.9 (28.8)",NA,0.55396,0.04375,0.90417
+"14","place_delivery","delivered in tertiary care facility","infant","factor",0.004,0.267,283,"wilcoxon","non_tertiary","tertiary","125.1 (33.5)","122 (30.6)",NA,0.58581,0.60682,0.90417
+"15","breastfed_child","exclusively breastfed","infant","factor",0.025,0.001,283,"wilcoxon","nonexclusive","exclusive","143.9 (24.8)","120.5 (32.1)",NA,0,0.0125,0
+"16","age_at_first_dose","age at first ORV dose (days)","infant","integer",0.007,0.044,283,"spearman",NA,NA,NA,NA,0.099,0.09798,0.15714,0.67025
+"17","birth_weight","birth weight (kg)","infant","numeric",0.004,0.359,283,"spearman",NA,NA,NA,NA,0.065,0.27911,0.655,0.72218
+"18","antibiotic_exposure","exposed to antibiotics during study","infant","factor",0.005,0.178,283,"wilcoxon","no","yes","125.5 (31.9)","119.3 (32.7)",NA,0.13864,0.445,0.6932
+"19","HAZ_6_8w","height-for-age Z score at 6w","infant","numeric",0.004,0.393,282,"spearman",NA,NA,NA,NA,NA,0.67134,0.655,0.90417
+"20","A1AT_BS3_Concugml","A1AT at 6w (μg/ml)","infant","numeric",0.027,0.001,277,"spearman",NA,NA,NA,NA,NA,0.79239,0.0125,0.94332
+"21","MPO_BS3_Concngml","MPO at 6w (ng/ml)","infant","numeric",0.003,0.557,277,"spearman",NA,NA,NA,NA,NA,0.271,0.77361,0.72218
+"22","AG_Concugml","A1AG at 6w (μg/ml)","infant","numeric",0.005,0.14,281,"spearman",NA,NA,NA,NA,NA,0.10724,0.38889,0.67025
+"23","MB1_IgA","maternal RV-IgA (IU/ml)","rotavirus","numeric",0.003,0.63,282,"spearman",NA,NA,NA,NA,NA,0.95971,0.82895,0.95971
+"24","BM1_IgA","breastmilk RV-IgA (IU/ml)","rotavirus","numeric",0.006,0.102,278,"spearman",NA,NA,NA,NA,NA,0.22582,0.31875,0.72218
+"25","pre_exposed","infected with RV neonatally","rotavirus","factor",0.002,0.756,281,"wilcoxon","no","yes","124.8 (34.8)","122.9 (30)",NA,0.70539,0.9,0.90417

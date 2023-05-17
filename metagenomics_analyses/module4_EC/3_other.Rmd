@@ -1,0 +1,292 @@
+---
+title: "Metagenome vs demography, growth and birthmode"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+Sidebar {.sidebar} 
+===================================== 
+[Sample summary]    
+
+[India]    
+
+[Malawi]
+
+[Session info]
+
+
+
+Sample summary {.hidden}
+=====================================
+
+```{r, message=FALSE}
+# variable to define whether to run analyses in full (TRUE) or not (FALSE)
+run_beta_full = TRUE # set as TRUE to run beta diversity analyses in full
+
+# load packages and functions
+source("../packages_functions.R")
+
+# load feature data - rarefied data for genus/species modules; otherwise full data
+if (grepl("genus", getwd())) {
+  load("final_ps_rare.RData")
+  ps = ps_rare
+} else if (grepl("species", getwd())) {
+  load("final_ps_rare.RData")
+  ps = ps_rare
+} else if (grepl("pathway", getwd())) {
+  load("final_ps_full.RData")
+  ps = ps_full
+} else {
+  load("final_ps_full.RData")
+  ps = ps_full
+}
+
+# transform to relative abundances
+rps = transform_sample_counts(ps, function(x) {x/sum(x)})
+
+# load metadata and recodeset factor levels
+a = data.frame(sample_data(rps))
+a$BS1_VP6_cat[!is.na(a$BS1_VP6_cat)] = factor(a$BS1_VP6_cat)[!is.na(a$BS1_VP6_cat)]
+a$sex_baby = factor(a$sex_baby, levels=c("male", "female"))
+a$crowding_wami = factor(a$crowding_wami, levels=c("up_to_4", "over_4"))
+a$kitchen = factor(a$kitchen, levels=c("no", "yes"))
+a$sanitation = factor(a$sanitation, levels=c("no", "yes"))
+a$refrigerator = factor(a$refrigerator, levels=c("no", "yes"))
+a$type_house = factor(a$type_house, levels=c("kutcha_mixed", "pucca"))
+a$antibiotic_exposure = factor(a$antibiotic_exposure, levels=c("no", "yes"))
+a$place_delivery = factor(a$place_delivery, levels=c("non_tertiary", "tertiary"))
+a$mode_delivery = factor(a$mode_delivery, levels=c("vaginal", "caesarean"))
+a$breastfed_child = factor(a$breastfed_child, levels=c("nonexclusive", "exclusive"))
+a$pre_exposed = factor(a$pre_exposed)
+levels(a$pre_exposed) <- c("no", "yes")
+
+# recode 'unknown' as NA for water treatment status and HIV status
+a$water_treat_wami[a$water_treat_wami=="unknown"] = NA
+a$water_treat_wami = factor(a$water_treat_wami, levels=c("no", "yes"))
+a$HIV_status[a$HIV_status=="unknown"] = NA
+a$HIV_status = factor(a$HIV_status, levels=c("negative", "positive"))
+sample_data(rps) = a
+```
+
+#### Input data: infant stools (BS3) 
+* n samples = `r nsamples(rps)`    
+* n taxa: genera = `r ntaxa(rps)`
+* mean read count: `r round(mean(sample_sums(ps)),0)`, s.d. = `r round(sd(sample_sums(ps)),0)`    
+<br><br>
+
+
+
+
+
+India {.hidden}
+=====================================
+
+#### Beta diversity - unweighted Bray-Curtis distances
+```{r, fig.width=8, fig.height=8}
+system("mkdir exploratory_outputs")
+
+### run beta diversity analyses
+beta_vars = read.csv("../beta_variables_reduced.csv", stringsAsFactors = FALSE)
+beta_vars = subset(beta_vars, IND==1)
+
+if (run_beta_full) {
+  rps_t = subset_samples(rps, country=="India")
+  t = data.frame(sample_data(rps_t))
+  ncomp = nrow(beta_vars)
+  collated = data.frame(
+    variable = beta_vars$BS3, 
+    clean_variable = beta_vars$clean_name,
+    group = beta_vars$group, 
+    class = NA,
+    beta_R2 = NA, 
+    beta_p = NA, 
+    n_samples = NA,
+    alpha_test = NA,
+    alpha_level1 = NA,
+    alpha_level2 = NA,
+    alpha_mean_sd1 = NA,
+    alpha_mean_sd2 = NA,
+    alpha_rho = NA,
+    alpha_p = NA
+  )
+  for (i in 1:nrow(collated)) {
+    if (!is.na(collated$variable[i])) {
+      t$outcome = t[,as.character(collated$variable[i])]
+      sample_list = as.character(t$sample_ID[!is.na(t$outcome)])
+      rps_sub = prune_samples(sample_list, rps_t) %>% prune_taxa(taxa_sums(.) > 0, .)
+      beta = data.frame(sample_data(rps_sub))
+      beta$outcome = beta[,as.character(collated$variable[i])]
+      collated$n_samples[i] = length(sample_list)
+      if (class(t$outcome)=="character") {
+        t$outcome = factor(t$outcome)
+      }
+      collated$class[i] = class(t$outcome)
+    
+      # unweighted adonis
+      bray_dist_u = phyloseq::distance(rps_sub, method = "bray", binary = TRUE)
+      adon = adonis(unname(bray_dist_u) ~ outcome, data = beta, permutations = 999)
+      collated$beta_R2[i] = round(adon$aov.tab$R2[1],3)
+      collated$beta_p[i] = round(adon$aov.tab$`Pr(>F)`[1],5)
+      
+      # Spearman's or wilcox test for alpha 
+      if (class(t$outcome)=="integer" | class(t$outcome)=="numeric") {
+        collated$alpha_test[i] = "spearman"
+        collated$alpha_rho[i] = round(cor(t$outcome, t$Observed, method="spearman"),3)
+        collated$alpha_p[i] = round(cor.test(t$outcome, t$Observed, method="spearman")$p.value,5)
+      }
+      if (class(t$outcome)=="factor") {
+        collated$alpha_test[i] = "wilcoxon"
+        collated$alpha_p[i] = round(wilcox.test(t$Observed ~ t$outcome)$p.value,5)
+        alpha_summary = aggregate(Observed ~ outcome, t, function(x) c(mean = mean(x), sd = sd(x)))
+        collated$alpha_level1[i] = as.character(alpha_summary[1,1])
+        collated$alpha_level2[i] = as.character(alpha_summary[2,1])
+        collated$alpha_mean_sd1[i] = paste0(round(alpha_summary[2][1,][1],1)," (",round(alpha_summary[2][1,][2],1),")")
+        collated$alpha_mean_sd2[i] = paste0(round(alpha_summary[2][2,][1],1)," (",round(alpha_summary[2][2,][2],1),")")
+      }
+    }
+  }
+  collated$beta_fdr_p = round(p.adjust(collated$beta_p, method="fdr"),5)
+  collated$alpha_fdr_p = round(p.adjust(collated$alpha_p, method="fdr"),5)
+  write.csv(collated, "exploratory_outputs/India_collated.csv")
+} else { collated = read.csv("exploratory_outputs/India_collated.csv") }
+
+collated$clean_variable = factor(collated$clean_variable, levels = beta_vars$clean_name)
+collated$clean_variable = revalue(collated$clean_variable, c("A1AT at 6w (μg/ml)"="α1AT at 6w (μg/ml)","A1AG at 6w (μg/ml)"="α1AG at 6w (μg/ml)"))
+collated$group = factor(collated$group, levels = c("maternal", "household", "infant", "rotavirus"))
+collated$group = as.character(collated$group)
+
+### beta plot
+ggplot(collated, aes(y = beta_R2*100, x=clean_variable, fill = group)) + 
+  geom_bar(stat = "identity") + 
+  scale_x_discrete(limits = rev(levels(collated$clean_variable))) + xlab("") + 
+  ylab("R2 (%)") + scale_y_continuous(limits = c(0,8), breaks=c(0,4,8)) + 
+  coord_flip() + theme(legend.position="none") +
+ scale_fill_manual(values=c(household = "#CC79A7", infant = "#009E73", maternal = "#56B4E9", rotavirus = "#661100")) + ggtitle("PERMANOVA,\nunweighted Bray-Curtis") + 
+  theme(axis.text.y = element_text(size=17), axis.text.x = element_text(size=18), axis.title = element_text(size=18), 
+        legend.text = element_text(size=18), legend.title = element_text(size=18), plot.title = element_text(size=18)) 
+```
+
+##### Significant assocations - Bray-Curtis (FDR p <0.2)
+```{r}
+subset(collated, beta_fdr_p<0.2)[,c("clean_variable", "beta_R2", "beta_p", "beta_fdr_p", "n_samples")]
+```
+
+##### Significant assocations - Richness (FDR p <0.2)
+```{r}
+subset(collated, alpha_fdr_p<0.2)[,c("clean_variable", "alpha_test", "alpha_level1", "alpha_level2", "alpha_mean_sd1", "alpha_mean_sd2", "alpha_rho", "alpha_p", "alpha_fdr_p", "n_samples")]
+```
+
+
+
+
+Malawi {.hidden}
+=====================================
+
+#### Beta diversity - unweighted Bray-Curtis distances
+```{r, fig.width=7, fig.height=5}
+### run beta diversity analyses
+beta_vars = read.csv("../beta_variables_reduced.csv", stringsAsFactors = FALSE)
+beta_vars = subset(beta_vars, MLW==1)
+
+if (run_beta_full) {
+  rps_t = subset_samples(rps, country=="Malawi")
+  t = data.frame(sample_data(rps_t))
+  ncomp = nrow(beta_vars)
+  collated = data.frame(
+    variable = beta_vars$BS3, 
+    clean_variable = beta_vars$clean_name,
+    group = beta_vars$group, 
+    class = NA,
+    beta_R2 = NA, 
+    beta_p = NA, 
+    n_samples = NA,
+    alpha_test = NA,
+    alpha_level1 = NA,
+    alpha_level2 = NA,
+    alpha_mean_sd1 = NA,
+    alpha_mean_sd2 = NA,
+    alpha_rho = NA,
+    alpha_p = NA
+  )
+  for (i in 1:nrow(collated)) {
+    if (!is.na(collated$variable[i])) {
+      t$outcome = t[,as.character(collated$variable[i])]
+      sample_list = as.character(t$sample_ID[!is.na(t$outcome)])
+      rps_sub = prune_samples(sample_list, rps_t) %>% prune_taxa(taxa_sums(.) > 0, .)
+      beta = data.frame(sample_data(rps_sub))
+      beta$outcome = beta[,as.character(collated$variable[i])]
+      collated$n_samples[i] = length(sample_list)
+      if (class(t$outcome)=="character") {
+        t$outcome = factor(t$outcome)
+      }
+      collated$class[i] = class(t$outcome)
+    
+      # unweighted adonis
+      bray_dist_u = phyloseq::distance(rps_sub, method = "bray", binary = TRUE)
+      adon = adonis(unname(bray_dist_u) ~ outcome, data = beta, permutations = 999)
+      collated$beta_R2[i] = round(adon$aov.tab$R2[1],3)
+      collated$beta_p[i] = round(adon$aov.tab$`Pr(>F)`[1],5)
+      
+      # Spearman's or wilcox test for alpha 
+      if (class(t$outcome)=="integer" | class(t$outcome)=="numeric") {
+        collated$alpha_test[i] = "spearman"
+        collated$alpha_rho[i] = round(cor(t$outcome, t$Observed, method="spearman"),3)
+        collated$alpha_p[i] = round(cor.test(t$outcome, t$Observed, method="spearman")$p.value,5)
+      }
+      if (class(t$outcome)=="factor") {
+        collated$alpha_test[i] = "wilcoxon"
+        collated$alpha_p[i] = round(wilcox.test(t$Observed ~ t$outcome)$p.value,5)
+        alpha_summary = aggregate(Observed ~ outcome, t, function(x) c(mean = mean(x), sd = sd(x)))
+        collated$alpha_level1[i] = as.character(alpha_summary[1,1])
+        collated$alpha_level2[i] = as.character(alpha_summary[2,1])
+        collated$alpha_mean_sd1[i] = paste0(round(alpha_summary[2][1,][1],1)," (",round(alpha_summary[2][1,][2],1),")")
+        collated$alpha_mean_sd2[i] = paste0(round(alpha_summary[2][2,][1],1)," (",round(alpha_summary[2][2,][2],1),")")
+      }
+    }
+  }
+  collated$beta_fdr_p = round(p.adjust(collated$beta_p, method="fdr"),5)
+  collated$alpha_fdr_p = round(p.adjust(collated$alpha_p, method="fdr"),5)
+  write.csv(collated, "exploratory_outputs/Malawi_collated.csv")
+} else { collated = read.csv("exploratory_outputs/Malawi_collated.csv") }
+
+collated$clean_variable = factor(collated$clean_variable, levels = beta_vars$clean_name)
+collated$clean_variable = revalue(collated$clean_variable, c("A1AT at 6w (μg/ml)"="α1AT at 6w (μg/ml)","A1AG at 6w (μg/ml)"="α1AG at 6w (μg/ml)"))
+collated$group = factor(collated$group, levels = c("maternal", "household", "infant", "rotavirus"))
+collated$group = as.character(collated$group)
+
+### beta plot
+ggplot(collated, aes(y = beta_R2*100, x=clean_variable, fill = group)) + 
+  geom_bar(stat = "identity") + 
+  scale_x_discrete(limits = rev(levels(collated$clean_variable))) + xlab("") + 
+  ylab("R2 (%)") + scale_y_continuous(limits = c(0,8), breaks=c(0,4,8)) + 
+  coord_flip() + theme(legend.position="none") +
+ scale_fill_manual(values=c(household = "#CC79A7", infant = "#009E73", maternal = "#56B4E9", rotavirus = "#661100")) + ggtitle("PERMANOVA,\nunweighted Bray-Curtis") + 
+  theme(axis.text.y = element_text(size=17), axis.text.x = element_text(size=18), axis.title = element_text(size=18), 
+        legend.text = element_text(size=18), legend.title = element_text(size=18), plot.title = element_text(size=18)) 
+```
+
+##### Significant assocations - Bray-Curtis (FDR p <0.2)
+```{r}
+subset(collated, beta_fdr_p<0.2)[,c("clean_variable", "beta_R2", "beta_p", "beta_fdr_p", "n_samples")]
+```
+
+##### Significant assocations - Richness (FDR p <0.2)
+```{r}
+subset(collated, alpha_fdr_p<0.2)[,c("clean_variable", "alpha_test", "alpha_level1", "alpha_level2", "alpha_mean_sd1", "alpha_mean_sd2", "alpha_rho", "alpha_p", "alpha_fdr_p", "n_samples")]
+```
+
+
+
+
+
+Session info {.hidden}
+===================================== 
+
+```{r}
+print(sessionInfo())
+```
+.

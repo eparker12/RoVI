@@ -1,0 +1,437 @@
+---
+title: "Preprocessing - taxonomy data"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+Sidebar {.sidebar} 
+===================================== 
+[Sample summary]    
+
+[Filtering]   
+
+[Unsupervised clustering]
+
+[Session info]     
+
+
+
+
+
+Sample summary {.hidden}
+=====================================
+
+```{r, message=FALSE}
+run_full = FALSE
+
+# load packages and functions
+source("../packages_functions.R")
+library(biomformat)
+
+# read in metadata
+metadata = read.csv("inputs_taxonomy/kraken_metadata.csv", header=T)
+rownames(metadata) = metadata$sample_ID
+metadata = subset(metadata, !is.na(kraken_count))
+```
+
+#### Basic statistics    
+Number of runs: 1      
+Number of samples (input count >0 for kraken data): `r nrow(metadata)`      
+Number of controls: 0
+
+#### Sample type by country (includes replicates)    
+```{r, fig.width=12, fig.height=3}
+table(metadata$sample_type, metadata$country)
+```
+
+#### Minimum, median, and maximum output counts by country
+```{r, fig.width=4, fig.height=3}
+t = aggregate(kraken_count ~ country, metadata, function(x) c(n = length(x), min = min(x), med = median(x), max = max(x)))
+names(t) = c("country", "")
+t
+```
+
+
+
+
+Filtering {.hidden}
+===================================== 
+
+#### Step 1: load unfiltered feature table - ps1
+```{r}
+if (run_full) {
+  system("mkdir outputs_taxonomy")
+
+  # import phyloseq table and taxonomy, then merge
+  #otu_biom = biomformat::read_biom("inputs_taxonomy/RoVI_2023.biom")
+  #otu_df <- as.data.frame(as.matrix(biom_data(otu_biom)))
+  #write.csv(otu_df, "inputs_taxonomy/kraken_biom.csv")
+  #taxa_df = observation_metadata(otu_biom)
+  #write.csv(taxa_df, "inputs_taxonomy/kraken_taxonomy.csv")
+
+  otu_biom = read.csv("inputs_taxonomy/kraken_biom.csv", header=T, row.names = 1)
+  otu_biom = otu_biom[order(-rowSums(otu_biom)),] # reorder biom feature abundance (total raw count)
+  taxa = read.csv("inputs_taxonomy/kraken_taxonomy.csv", header=T, row.names = 1) # import silva taxonomic assignments
+
+  # check matching counts and labels for taxa and samples, then create ps1
+  if (all(rownames(taxa) %in% rownames(otu_biom)) & nrow(taxa)==nrow(otu_biom) & 
+      all(rownames(metadata) %in% colnames(otu_biom)) & nrow(metadata)==ncol(otu_biom)) {
+    ps1 = phyloseq(otu_table(as.matrix(otu_biom), taxa_are_rows=T), tax_table(as.matrix(taxa)), sample_data(metadata)) 
+  }
+
+  # update taxonomy table to include new labels
+  t = data.frame(as(tax_table(ps1), "matrix"))
+  
+  # add highest assigned taxonomic level to unassigned genera
+  t$Genus = as.character(t$Genus)
+  t$Genus[is.na(t$Genus) & !is.na(t$Family)] = paste0("unassigned_", t$Family)[is.na(t$Genus) & !is.na(t$Family)]
+  t$Genus[is.na(t$Genus) & is.na(t$Family) & !is.na(t$Order)] = paste0("unassigned_", t$Order)[is.na(t$Genus) & is.na(t$Family) & !is.na(t$Order)] 
+  t$Genus[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & !is.na(t$Class)] = 
+    paste0("unassigned_", t$Class)[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & !is.na(t$Class)]
+  t$Genus[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & is.na(t$Class) & !is.na(t$Phylum)] = 
+    paste0("unassigned_", t$Phylum)[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & is.na(t$Class) & !is.na(t$Phylum)]
+  t$Genus[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & is.na(t$Class) & is.na(t$Phylum) & !is.na(t$Kingdom)] = 
+    paste0("unassigned_", t$Kingdom)[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & is.na(t$Class) & is.na(t$Phylum) & !is.na(t$Kingdom)]
+  t$Genus[is.na(t$Genus) & is.na(t$Family) & is.na(t$Order) & is.na(t$Class) & is.na(t$Phylum) & is.na(t$Kingdom)] = "unassigned"
+
+  # add phylum to unassigned classes
+  t$Class = as.character(t$Class)
+  t$Class[is.na(t$Class) & !is.na(t$Phylum)] = paste0("unassigned_", t$Phylum)[is.na(t$Class) & !is.na(t$Phylum)]
+  t$Class[is.na(t$Class) & is.na(t$Phylum) & !is.na(t$Kingdom)] = paste0("unassigned_", t$Kingdom)[is.na(t$Class) & is.na(t$Phylum) & !is.na(t$Kingdom)]
+  t$Class[is.na(t$Class) & is.na(t$Phylum) & is.na(t$Kingdom)] = "unassigned"
+  write.csv(t,"outputs_taxonomy/clean_taxa.csv")
+
+  # append data to phyloseq object
+  t1 = tax_table(t)
+  rownames(t1) = rownames(t)
+  colnames(t1) = names(t)
+  tax_table(ps1) = t1
+  
+  # prune samples with 0 counts, then add read counts
+  ps1 = prune_samples(sample_sums(ps1) > 0, ps1)
+  sample_data(ps1)$count_ps1 = sample_sums(ps1)
+  
+  # save phyloseq object
+  save(ps1, file="outputs_taxonomy/ps1.RData")
+  rm(t, t1, taxa, otu_biom)
+} else { 
+  load("outputs_taxonomy/ps1.RData")
+}
+```
+* n samples: `r nsamples(ps1)`     
+* n features: `r ntaxa(ps1)`
+* total reads (million): `r sum(sample_sums(ps1))/1e6`
+
+#### Step 2: filter non-bacterial sequences - ps3
+```{r}
+if (run_full) {
+  # select non-bacterial taxa, prune ps2 to exclude these, then add read counts
+  taxa = data.frame(as(tax_table(ps1),"matrix"))
+  taxa_nonbac = subset(taxa, Kingdom!="Bacteria")
+  taxa_keep = rownames(taxa)[!rownames(taxa) %in% rownames(taxa_nonbac)]
+  ps2_t = prune_taxa(taxa_keep, ps1) %>% prune_samples(sample_sums(.) > 0, .)
+  sample_data(ps2_t)$count_ps2 = sample_sums(ps2_t)
+  
+  # save phyloseq object
+  save(ps2_t, file="outputs_taxonomy/ps2_t.RData")
+  rm(taxa, taxa_nonbac, taxa_keep)
+} else {
+  load("outputs_taxonomy/ps2_t.RData")
+}
+```
+* n samples: `r nsamples(ps2_t)`     
+* n features: `r ntaxa(ps2_t)`
+* total reads (million): `r sum(sample_sums(ps2_t))/1e6`
+
+#### Step 3: filter taxa not present with abundance of ≥0.1% in at least 2 samples - ps4
+```{r}
+if (run_full) {
+  # convert ps3 to relative abundances
+  rps2_t = transform_sample_counts(ps2_t, function(x) {x/sum(x)})
+  
+  # select present with abundance of 0.1% in at least 2 samples, prune ps3 to include these, then add read counts
+  rps3_t_pr = filter_taxa(rps2_t, function(x) { sum(x >= 0.001) >= 2 }, TRUE)
+  ps3_t_pr = prune_taxa(taxa_names(rps3_t_pr), ps2_t) %>% prune_samples(sample_sums(.) > 0, .)
+  sample_data(ps3_t_pr)$count_ps3 = sample_sums(ps3_t_pr)
+  
+  # save phyloseq object
+  save(ps3_t_pr, file="outputs_taxonomy/ps3_t_pr.RData")
+  rm(rps2_t,rps3_t_pr)
+} else {
+  load("outputs_taxonomy/ps3_t_pr.RData")
+}
+```
+* n samples: `r nsamples(ps3_t_pr)`     
+* n features: `r ntaxa(ps3_t_pr)`
+* total reads (million): `r sum(sample_sums(ps3_t_pr))/1e6`
+
+#### Select rarefaction depth
+```{r, fig.width=4, fig.height=4}
+t = data.frame(sample_data(ps3_t_pr))
+t$filtered_count = sample_sums(ps3_t_pr)
+
+ggplot(t, aes(x=country, y=filtered_count, color=sample_type)) + geom_jitter(alpha = 0.5, width=0.2) + geom_violin(alpha = 0.5) +
+  scale_y_continuous(trans='log10') + labs(color = "sample group", y = "count", x = "") + 
+  geom_hline(yintercept=1e6, linetype="dotted") +
+  geom_hline(yintercept=3e6, linetype="dotted") +
+  scale_color_brewer(palette="Paired") + theme(legend.position = "none")
+```
+Line displays depth of 1M and 3M sequences.
+
+```{r}
+# create table of samples meeting different depth thresholds
+data.frame(n = table(t$country, t$filtered_count>=0)[,1], 
+      d1M = table(t$country, t$filtered_count>=1e6)[,2],
+      d3M = table(t$country, t$filtered_count>=3e6)[,2],
+      d5M = table(t$country, t$filtered_count>=5e6)[,2])
+# select rarefaction depth
+depth = 1e6 
+```
+
+Rarefaction depth of `r depth` sequences per sample retains `r round(sum(t$country=="India" & t$filtered_count>=depth)/sum(t$country=="India")*100,1)`% of Indian samples and `r round(sum(t$country=="Malawi" & t$filtered_count>=depth)/sum(t$country=="Malawi")*100,1)`% of Malawian samples.
+
+#### Step 4: remove samples with <1M sequences - ps4
+```{r}
+if (run_full) {
+  # select samples with ≥1M sequences, then add sample counts
+  ps4_t_pr_1m = prune_samples(sample_sums(ps3_t_pr)>=depth, ps3_t_pr) %>% prune_taxa(taxa_sums(.) > 0, .)
+  sample_data(ps4_t_pr_1m)$count_ps4 = sample_sums(ps4_t_pr_1m)
+  save(ps4_t_pr_1m, file="outputs_taxonomy/ps4_t_pr_1m.RData")
+  
+  # create then save genus-level ps4
+  ps4_genus = tax_glom(ps4_t_pr_1m, "Genus", NArm = TRUE)
+  save(ps4_genus, file="outputs_taxonomy/ps4_genus.RData")
+  rm(ps4_genus)
+} else { 
+  load("outputs_taxonomy/ps4_t_pr_1m.RData")
+}
+```
+* n samples: `r nsamples(ps4_t_pr_1m)`     
+* n features: `r ntaxa(ps4_t_pr_1m)`
+* total reads (million): `r sum(sample_sums(ps4_t_pr_1m))/1e6`   
+* excluded samples: `r sample_names(ps3_t_pr)[!sample_names(ps3_t_pr) %in% sample_names(ps4_t_pr_1m)]`
+
+#### Step 5: rarefy to 1M sequences - ps5
+```{r}
+if (run_full) {
+  # create rarefied otu table (absolute and relative)
+  ps5_t_pr_1m_rarefied = rarefy_even_depth(ps4_t_pr_1m, sample.size = depth, rngseed = 12345, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+  sample_data(ps5_t_pr_1m_rarefied)$count_ps5 = sample_sums(ps5_t_pr_1m_rarefied)
+  save(ps5_t_pr_1m_rarefied, file="outputs_taxonomy/ps5_t_pr_1m_rarefied.RData")
+  
+  # create phylum, class, and genus-level ps5
+  ps5_genus = tax_glom(ps5_t_pr_1m_rarefied, "Genus", NArm = TRUE)
+  save(ps5_genus, file="outputs_taxonomy/ps5_genus.RData")
+
+  #otus = t(otu_table(ps5_t_pr_1m_rarefied))
+  #colnames(otus) = tax_table(ps5_t_pr_1m_rarefied)[,"Species"]
+  #write.csv(otus, "outputs_taxonomy/species.csv")
+  #otus = t(otu_table(ps5_genus))
+  #colnames(otus) = tax_table(ps5_genus)[,"Genus"]
+  #write.csv(otus, "outputs_taxonomy/genus.csv")
+} else { 
+  load("outputs_taxonomy/ps5_t_pr_1m_rarefied.RData")
+}  
+```
+* n samples: `r nsamples(ps5_t_pr_1m_rarefied)`     
+* n features: `r ntaxa(ps5_t_pr_1m_rarefied)`
+* total reads (million): `r sum(sample_sums(ps5_t_pr_1m_rarefied))/1e6`
+
+#### Filtering statistics
+```{r}
+# reload ps1, ps2 and ps3
+load("outputs_taxonomy/ps1.RData")
+load("outputs_taxonomy/ps2_t.RData")
+load("outputs_taxonomy/ps3_t_pr.RData")
+
+# create dataframe summarising filtering
+filtering_summary = data.frame(rbind(
+  filtering_stats(ps1), filtering_stats(ps2_t), filtering_stats(ps3_t_pr), 
+  filtering_stats(ps4_t_pr_1m), filtering_stats(ps5_t_pr_1m_rarefied)))
+
+names(filtering_summary) = c("n_samples", "n_taxa", "total_count", "min", "mean", "sd")
+rownames(filtering_summary) = c("ps1 (unfiltered)", "ps2 (taxonomy)", "ps3 (≥0.1% in >1)", "ps4 (samples with ≥1M)", "ps5 (rarefied to 1M)")
+filtering_summary
+```
+
+#### Boxplots of filtering statistics by country
+```{r, fig.width=8, fig.height=4}
+# plot % retention distribution plot for each sample type at various stages in filtering
+t = data.frame(sample_data(ps5_t_pr_1m_rarefied))
+t$ps2_perc = t$count_ps2/t$count_ps1
+t$ps3_perc = t$count_ps3/t$count_ps1
+t$ps4_perc = t$count_ps4/t$count_ps1
+t$ps5_perc = t$count_ps5/t$count_ps1
+
+p1 = ggplot(t, aes(country, ps2_perc, colour=country)) + 
+  geom_jitter(size = 0.5, alpha = 0.1, width=0.2) + geom_boxplot(alpha = 0.5, outlier.shape=NA) + 
+  theme_bw() + ylab("% retained") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + 
+  ylim(0.8,1.025) + scale_color_manual(values = brewer.pal(8, "Paired")[c(2,6,8)]) + ggtitle("ps2 (length)") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+p2 = ggplot(t, aes(country, ps3_perc, colour=country)) + 
+  geom_jitter(size = 0.5, alpha = 0.1, width=0.2) + geom_boxplot(alpha = 0.5, outlier.shape=NA) + 
+  theme_bw() + ylab(" ") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + 
+  ylim(0.8,1.025) + scale_color_manual(values = brewer.pal(8, "Paired")[c(2,6,8)]) + ggtitle("ps3 (taxonomy)") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+p3 = ggplot(t, aes(country, ps4_perc, colour=country)) + 
+  geom_jitter(size = 0.5, alpha = 0.1, width=0.2) + geom_boxplot(alpha = 0.5, outlier.shape=NA) + 
+  theme_bw() + ylab(" ") + xlab("") + theme(legend.position = "none", strip.background = element_blank()) + 
+  ylim(0.8,1.025) + scale_color_manual(values = brewer.pal(8, "Paired")[c(2,6,8)]) + ggtitle("ps4 (≥0.1% in >1)") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+grid.arrange(p1,p2,p3,ncol=3)
+rm(p1,p2,p3,p4)
+```
+
+Unsupervised clustering {.hidden}
+===================================== 
+
+#### Clustering of samples (columns) and taxa (rows) - presence/absence at genus level    
+```{r, fig.width=8, fig.height=4}
+load("outputs_taxonomy/ps5_genus.RData")
+ps5 = subset_samples(ps5_genus, (!is.na(dose1_shedding) | !is.na(seroconv))) %>% prune_taxa(taxa_sums(.) > 0, .)
+rps5 = transform_sample_counts(ps5, function(x) {x/sum(x)})
+
+# convert into dataframe, then append genus names
+h = data.frame(t(otu_table(rps5)))
+if (all(colnames(h)==rownames(tax_table(rps5)))) { colnames(h) = as(tax_table(rps5), "matrix")[,"Genus"] } else { print("error: rownames do not match")}
+
+# transform to presence/absence
+h_prev = h
+h_prev[h_prev>0] = 1
+
+# append country and sample timing data
+if (all(rownames(h_prev)==sample_names(rps5))) { 
+  annotation_col = data.frame(country = as.factor(paste0(sample_data(rps5)$country)))
+  rownames(annotation_col) = sample_names(rps5)
+} else { print("error: rownames do not match")}
+
+# recode sample type
+annotation_col$country = revalue(annotation_col$country, c("Malawi"="MLW", "India"="IND"))
+
+# set annotation colours
+country_cols = c(India_col, Malawi_col)
+names(country_cols) = levels(annotation_col$country)
+ann_colors = list(country = country_cols)
+
+# draw heatmap
+pheatmap(t(h_prev), cluster_cols = T, 
+         clustering_method = "ward.D", color = c('#f1eef6','#3182bd'), breaks = c(0,0.99,2), annotation_names_col=F, legend=F,
+         annotation_col = annotation_col, annotation_colors = ann_colors, show_rownames=FALSE, show_colnames=FALSE, fontsize=13)
+```
+    
+Number of features: `r ncol(h_prev)`    
+Number of samples include: `r nrow(h_prev)`
+
+
+#### Clustering of samples (columns) and taxa (rows) - presence/absence at species level    
+```{r, fig.width=8, fig.height=6}
+load("outputs_taxonomy/ps5_t_pr_1m_rarefied.RData")
+ps5 = subset_samples(ps5_t_pr_1m_rarefied, (!is.na(dose1_shedding) | !is.na(seroconv))) %>% prune_taxa(taxa_sums(.) > 0, .)
+rps5 = transform_sample_counts(ps5, function(x) {x/sum(x)})
+
+# convert into dataframe, then append genus names
+h = data.frame(t(otu_table(rps5)))
+if (all(colnames(h)==rownames(tax_table(rps5)))) { colnames(h) = as(tax_table(rps5), "matrix")[,"Genus"] } else { print("error: rownames do not match")}
+
+# transform to presence/absence
+h_prev = h
+h_prev[h_prev>0] = 1
+
+# append country and sample timing data
+if (all(rownames(h_prev)==sample_names(rps5))) { 
+  annotation_col = data.frame(country = as.factor(paste0(sample_data(rps5)$country)))
+  rownames(annotation_col) = sample_names(rps5)
+} else { print("error: rownames do not match")}
+
+# recode sample type
+annotation_col$country = revalue(annotation_col$country, c("Malawi"="MLW", "India"="IND"))
+
+# set annotation colours
+country_cols = c(India_col, Malawi_col)
+names(country_cols) = levels(annotation_col$country)
+ann_colors = list(country = country_cols)
+
+# draw heatmap
+pheatmap(t(h_prev), cluster_cols = T, 
+         clustering_method = "ward.D", color = c('#f1eef6','#3182bd'), breaks = c(0,0.99,2), annotation_names_col=F, legend=F,
+         annotation_col = annotation_col, annotation_colors = ann_colors, show_rownames=FALSE, show_colnames=FALSE, fontsize=13)
+```
+    
+Number of features: `r ncol(h_prev)`    
+Number of samples include: `r nrow(h_prev)`
+
+
+```{r}
+### Save outputs for downstream modules
+
+# genus
+system("mkdir outputs_genus")
+load("outputs_taxonomy/ps4_genus.RData")
+load("outputs_taxonomy/ps5_genus.RData")
+ps_full = ps4_genus
+ps_rare = ps5_genus
+t = data.frame(sample_data(ps_rare))
+t$Shannon = as.numeric(unlist(estimate_richness(ps_rare, measures = c("Shannon"))))
+t$Observed = colSums(otu_table(ps_rare)>0)
+sample_data(ps_full) = sample_data(ps_rare) = t
+
+# append feature ID - full
+t = data.frame(as(tax_table(ps_full), "matrix"))
+t$Feature = t$Genus
+t1 = tax_table(t)
+rownames(t1) = rownames(t)
+colnames(t1) = names(t)
+tax_table(ps_full) = t1
+save(ps_full, file="outputs_genus/final_ps_full.RData")
+
+# append feature ID - rarefied
+t = data.frame(as(tax_table(ps_rare), "matrix"))
+t$Feature = t$Genus
+t1 = tax_table(t)
+rownames(t1) = rownames(t)
+colnames(t1) = names(t)
+tax_table(ps_rare) = t1
+save(ps_rare, file="outputs_genus/final_ps_rare.RData")
+  
+# species
+system("mkdir outputs_species")
+load("outputs_taxonomy/ps4_t_pr_1m.RData")
+load("outputs_taxonomy/ps5_t_pr_1m_rarefied.RData")
+ps_full = ps4_t_pr_1m
+ps_rare = ps5_t_pr_1m_rarefied
+t = data.frame(sample_data(ps_rare))
+t$Shannon = as.numeric(unlist(estimate_richness(ps_rare, measures = c("Shannon"))))
+t$Observed = colSums(otu_table(ps_rare)>0)
+sample_data(ps_full) = sample_data(ps_rare) = t
+
+# Append feature ID - full
+t = data.frame(as(tax_table(ps_full), "matrix"))
+t$Feature = t$Species
+t1 = tax_table(t)
+rownames(t1) = rownames(t)
+colnames(t1) = names(t)
+tax_table(ps_full) = t1
+save(ps_full, file="outputs_species/final_ps_full.RData")
+
+# Append feature ID - rarefied
+t = data.frame(as(tax_table(ps_rare), "matrix"))
+t$Feature = t$Species
+t1 = tax_table(t)
+rownames(t1) = rownames(t)
+colnames(t1) = names(t)
+tax_table(ps_rare) = t1
+save(ps_rare, file="outputs_species/final_ps_rare.RData")
+```
+
+
+Session info {.hidden}
+===================================== 
+
+```{r}
+print(sessionInfo())
+```
+.

@@ -39,5 +39,9 @@ Additional information is contained in the annotations of each **Rmd** file.
 
 The folder **breastmilk_analyses** was added on 31 October 2022. This contains an adaptation of analysis modules 1, 3, 4, and 6 above for breastmilk 16S microbiota composition.
 
+## Shotgun metagenoics analyses
+
+The folder **metagenemics_analyses** was added on 17 May 2023. This contains an extension of the analyses to incorporate metagenomic sequencing data, as described in a preprint on [*medRxiv*](https://www.medrxiv.org/content/10.1101/2023.03.24.23287614v1). Parallel analyses are run for four separate modules of input data: genus-level relative abundances (**module1_genus**); species-level relative abundances (**module2_species**); relative pathway abundances (**module3_pathway**); and relative enzyme commission abundances (**module4_EC**).
+
 ## Contact
 edward.parker@lshtm.ac.uk

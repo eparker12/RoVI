@@ -1,0 +1,368 @@
+---
+title: "Collate Supplementary Files"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+#### Supplementary File 1 - Country
+```{r, message=FALSE}
+library(dplyr)
+library(xlsx)
+library(readxl)
+system("mkdir Supplementary_Files")
+system("mkdir Supplementary_Files/Supplementary_File_4_input")
+
+collate_RF = function(filepath, module) {
+  
+  input = read.csv(paste0(filepath,"/RF_outputs/crossval_collated_country.csv"), row.names=1) %>%
+    select(-c(Feature, lr_p, wilcox_p, lr_padj, wilcox_padj, enriched_India, rf_top20,
+              maaslin_N, maaslin_N.not.zero, maaslin_qval))
+  
+  # Add normalised differences
+  input$normalised_diff = input$prev_diff
+  input$normalised_diff[input$prev_diff<0] = input$prev_diff[input$prev_diff<0]*(-1)
+  
+  # Add difference rank
+  input = input %>% arrange(-normalised_diff)
+  input$diff_rank = 1:nrow(input)
+  
+  if(module=="Genus") {
+    input = input %>% select(-Species)
+  }
+  
+  if(module=="Pathway" | module=="EC") {
+    input = input %>% 
+      select(-feature_full) %>%
+      rename(`Feature` = feature,
+             `Description` = feature_description)
+
+  }
+
+  input = input %>%
+    rename(
+      `Feature_ID` = feature_id,
+      `RF_importance_mean` = mean, 
+      `RF_importance_sd` = sd, 
+      `India_present` = India_present, 
+      `India_N` = India_n,
+      `India_prevalence` = India_prev,
+      `India_mean_abundance` = India_mean,
+      `India_sd_abundance` = India_sd,
+      `Malawi_present` = Malawi_present, 
+      `Malawi_N` = Malawi_n,
+      `Malawi_prevalence` = Malawi_prev,
+      `Malawi_mean_abundance` = Malawi_mean,
+      `Malawi_sd_abundance` = Malawi_sd,
+      `Fisher_P` = fisher_p,
+      `Fisher_FDR_P` = fisher_padj,
+      `Mean_abundance_difference` = mean_diff,
+      `Prevalence_difference` = prev_diff,
+      `RF_importance_rank` = rf_rank,
+      `RF_N_per_group` = rf_n,
+      `RF_accuracy_median` = crossval_median,
+      `RF_accuracy_Q1` = crossval_quartile_1,
+      `RF_accuracy_Q3` = crossval_quartile_3,
+      `Maaslin_level` = maaslin_value,
+      `Maaslin_coefficient` = maaslin_coef,
+      `Maaslin_se` = maaslin_stderr,
+      `Maaslin_P` = maaslin_pval,
+      `Maaslin_FDR_P` = maaslin_qval_filt,
+      `Normalised_prevalence_difference` = normalised_diff,
+      `Normalised_prevalence_difference_rank` = diff_rank
+    )
+  
+  order = c("Feature_ID", 
+            "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species", "Feature", "Description",
+            "India_present", "India_N", "India_prevalence", "India_mean_abundance", "India_sd_abundance", 
+            "Malawi_present", "Malawi_N", "Malawi_prevalence", "Malawi_mean_abundance", "Malawi_sd_abundance", 
+            "Fisher_P", "Fisher_FDR_P", 
+            "Mean_abundance_difference", "Prevalence_difference", 
+            "Normalised_prevalence_difference", "Normalised_prevalence_difference_rank",
+            "RF_importance_mean", "RF_importance_sd", "RF_importance_rank", "RF_N_per_group", 
+            "RF_accuracy_median", "RF_accuracy_Q1", "RF_accuracy_Q3", 
+            "Maaslin_level", "Maaslin_coefficient", "Maaslin_se", "Maaslin_P", "Maaslin_FDR_P")
+ 
+  order = order[order %in% names(input)]
+  input = input[,order] %>% 
+    arrange(Normalised_prevalence_difference_rank)
+  
+  input
+}
+
+# Collate results
+write.xlsx(collate_RF("module1_genus", "Genus"), file="Supplementary_Files/Supplementary_File_1_country.xlsx", sheetName="(A) Genus", row.names=FALSE)
+write.xlsx(collate_RF("module2_species", "Species"), file="Supplementary_Files/Supplementary_File_1_country.xlsx", sheetName="(B) Species", append=TRUE, row.names=FALSE)
+write.xlsx(collate_RF("module3_pathway", "Pathway"), file="Supplementary_Files/Supplementary_File_1_country.xlsx", sheetName="(C) Pathway", append=TRUE, row.names=FALSE)
+write.xlsx(collate_RF("module4_EC", "EC"), file="Supplementary_Files/Supplementary_File_1_country.xlsx", sheetName="(D) EC", append=TRUE, row.names=FALSE)
+```
+
+#### Supplementary File 2 - beta diversity
+```{r, message=FALSE}
+beta_collated = rbind(
+  read.csv("module1_genus/exploratory_outputs/India_collated.csv", row.names=1) %>% mutate(Module = "Genus", Country="India"),
+  read.csv("module1_genus/exploratory_outputs/Malawi_collated.csv", row.names=1) %>% mutate(Module = "Genus", Country="Malawi"),
+  read.csv("module2_species/exploratory_outputs/India_collated.csv", row.names=1) %>% mutate(Module = "Species", Country="India"),
+  read.csv("module2_species/exploratory_outputs/Malawi_collated.csv", row.names=1) %>% mutate(Module = "Species", Country="Malawi"),
+  read.csv("module3_pathway/exploratory_outputs/India_collated.csv", row.names=1) %>% mutate(Module = "Pathway", Country="India"),
+  read.csv("module3_pathway/exploratory_outputs/Malawi_collated.csv", row.names=1) %>% mutate(Module = "Pathway", Country="Malawi"),
+  read.csv("module4_EC/exploratory_outputs/India_collated.csv", row.names=1) %>% mutate(Module = "EC", Country="India"),
+  read.csv("module4_EC/exploratory_outputs/Malawi_collated.csv", row.names=1) %>% mutate(Module = "EC", Country="Malawi")
+) %>% select(-variable)
+
+beta_collated = beta_collated %>%
+  rename(
+    Variable = clean_variable,
+    Group = group, 
+    Class = class,
+    Beta_R_squared = beta_R2,
+    Beta_P = beta_p,
+    Beta_FDR_P = beta_fdr_p,
+    N_samples = n_samples,
+    Alpha_method = alpha_test,
+    Alpha_level_1 = alpha_level1,
+    Alpha_level_2 = alpha_level2,
+    Alpha_mean_sd_level_1 = alpha_mean_sd1,
+    Alpha_mean_sd_level_2 = alpha_mean_sd2,
+    Alpha_rho = alpha_rho,
+    Alpha_P = alpha_p,
+    Alpha_FDR_P = alpha_fdr_p
+  )
+beta_collated = beta_collated[,c("Module", "Country", "Variable", "Group", "Class", "Beta_R_squared", "Beta_P", "Beta_FDR_P",
+                                 "N_samples", "Alpha_method", "Alpha_level_1", "Alpha_level_2", "Alpha_mean_sd_level_1",
+                                 "Alpha_mean_sd_level_2", "Alpha_rho", "Alpha_P", "Alpha_FDR_P")]
+write.xlsx(beta_collated, file="Supplementary_Files/Supplementary_File_2_cofactors.xlsx", row.names=FALSE)
+```
+
+#### Supplementary Files 3 (seroconversion) and 5 (dose 1 shedding)
+```{r, message=FALSE}
+collate_RF = function(filepath, outcome_csv, module) {
+  
+  input = read.csv(paste0(filepath,"/RF_outputs/",outcome_csv), row.names=1) %>%
+    select(-starts_with(c("lr_","wilcox_","enriched_"))) %>%
+    select(-c(Feature, rf_top20, maaslin_N, maaslin_N.not.zero, country_clean, maaslin_name, maaslin_qval, maaslin_qval_adjusted))
+  
+  # Add normalised differences
+  input$normalised_diff = input$prev_diff
+  input$normalised_diff[input$prev_diff<0] = input$prev_diff[input$prev_diff<0]*(-1)
+  
+  # Add difference rank
+  input = input %>% arrange(-normalised_diff)
+  input$diff_rank = NA
+  input$diff_rank[input$country=="India"] = 1:sum(input$country=="India")
+  input$diff_rank[input$country=="India (exposed)"] = 1:sum(input$country=="India (exposed)")
+  input$diff_rank[input$country=="India (unexposed)"] = 1:sum(input$country=="India (unexposed)")
+  input$diff_rank[input$country=="Malawi"] = 1:sum(input$country=="Malawi")
+  
+  if(module=="Genus") {
+    input = input %>% select(-Species)
+  }
+  
+  if(module=="Pathway" | module=="EC") {
+    input = input %>% 
+      select(-feature_full) %>%
+      rename(`Feature` = feature,
+             `Description` = feature_description)
+  }
+
+  input = input %>%
+    rename(
+      Feature_ID = feature_id,
+      RF_importance_mean = mean, 
+      RF_importance_sd = sd, 
+      Nonresponder_present = nonresponder_present, 
+      Nonresponder_N = nonresponder_n,
+      Nonresponder_prevalence = nonresponder_prev,
+      Nonresponder_mean_abundance = nonresponder_mean,
+      Nonresponder_sd_abundance = nonresponder_sd,
+      Responder_present = responder_present, 
+      Responder_N = responder_n,
+      Responder_prevalence = responder_prev,
+      Responder_mean_abundance = responder_mean,
+      Responder_sd_abundance = responder_sd,
+      Fisher_P = fisher_p,
+      Fisher_FDR_P = fisher_padj,
+      Mean_abundance_difference = mean_diff,
+      Prevalence_difference = prev_diff,
+      RF_importance_rank = rf_rank,
+      RF_N_per_group = rf_n,
+      RF_accuracy_median = crossval_median,
+      RF_accuracy_Q1 = crossval_quartile_1,
+      RF_accuracy_Q3 = crossval_quartile_3,
+      Maaslin_coefficient = maaslin_coef,
+      Maaslin_se = maaslin_stderr,
+      Maaslin_P = maaslin_pval,
+      Maaslin_FDR_P = maaslin_qval_filt,
+      Maaslin_adjusted_coefficient = maaslin_coef_adjusted,
+      Maaslin_adjusted_se = maaslin_stderr_adjusted,
+      Maaslin_adjusted_P = maaslin_pval_adjusted,
+      Maaslin_adjusted_FDR_P = maaslin_qval_adjusted_filt,
+      Country = country,
+      Module = module,
+      Normalised_prevalence_difference = normalised_diff,
+      Normalised_prevalence_difference_rank = diff_rank
+    )
+  
+  order = c("Module", "Country", "Feature_ID", 
+            "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species", "Feature", "Description",
+            "Nonresponder_present", "Nonresponder_N", "Nonresponder_prevalence", 
+            "Non-responder_mean_abundance", "Nonresponder_sd_abundance", 
+            "Responder_present", "Responder_N", "Responder_prevalence", 
+            "Responder_mean_abundance", "Respondersd_abundance", 
+            "Fisher_P", "Fisher_FDR_P", 
+            "Mean_abundance_difference", "Prevalence_difference", 
+            "Normalised_prevalence_difference", "Normalised_prevalence_difference_rank",
+            "RF_importance_mean", "RF_importance_sd", "RF_importance_rank", "RF_N_per_group", 
+            "RF_accuracy_median", "RF_accuracy_Q1", "RF_accuracy_Q3", 
+            "Maaslin_coefficient", "Maaslin_se", "Maaslin_P", "Maaslin_FDR_P", 
+            "Maaslin_adjusted_coefficient", "Maaslin_adjusted_se", "Maaslin_adjusted_P", "Maaslin_adjusted_FDR_P" )
+
+  order = order[order %in% names(input)]
+  input = input[,order] %>% 
+    arrange(Country, Normalised_prevalence_difference_rank)
+  input
+}
+
+# Collate results - seroconversion
+write.xlsx(collate_RF(filepath="module1_genus",outcome_csv="crossval_gini_seroconv_collated_Genus.csv",module="Genus"), file="Supplementary_Files/Supplementary_File_3_seroconversion.xlsx", sheetName="(A) Genus", row.names=FALSE)
+write.xlsx(collate_RF(filepath="module2_species",outcome_csv="crossval_gini_seroconv_collated_Species.csv",module="Species"), file="Supplementary_Files/Supplementary_File_3_seroconversion.xlsx", sheetName="(B) Species", append = TRUE, row.names=FALSE)
+write.xlsx(collate_RF(filepath="module3_pathway",outcome_csv="crossval_gini_seroconv_collated_Pathway.csv",module="Pathway"), file="Supplementary_Files/Supplementary_File_3_seroconversion.xlsx", sheetName="(C) Pathway", append = TRUE, row.names=FALSE)
+write.xlsx(collate_RF(filepath="module4_EC",outcome_csv="crossval_gini_seroconv_collated_EC.csv",module="EC"), file="Supplementary_Files/Supplementary_File_3_seroconversion.xlsx", sheetName="(D) EC", append = TRUE, row.names=FALSE)
+
+# Collate results - dose 1 shedding
+write.xlsx(collate_RF(filepath="module1_genus",outcome_csv="crossval_gini_dose1_shedding_collated_Genus.csv",module="Genus"), file="Supplementary_Files/Supplementary_File_5_shedding.xlsx", sheetName="(A) Genus", row.names=FALSE)
+write.xlsx(collate_RF(filepath="module2_species",outcome_csv="crossval_gini_dose1_shedding_collated_Species.csv",module="Species"), file="Supplementary_Files/Supplementary_File_5_shedding.xlsx", sheetName="(B) Species", append = TRUE, row.names=FALSE)
+write.xlsx(collate_RF(filepath="module3_pathway",outcome_csv="crossval_gini_dose1_shedding_collated_Pathway.csv",module="Pathway"), file="Supplementary_Files/Supplementary_File_5_shedding.xlsx", sheetName="(C) Pathway", append = TRUE, row.names=FALSE)
+write.xlsx(collate_RF(filepath="module4_EC",outcome_csv="crossval_gini_dose1_shedding_collated_EC.csv",module="EC"), file="Supplementary_Files/Supplementary_File_5_shedding.xlsx", sheetName="(D) EC", append = TRUE, row.names=FALSE)
+```
+
+#### Supplementary File 6 (IgA)
+```{r, message=FALSE}
+collate_RF = function(filepath, outcome_csv, module) {
+  
+  input = read.csv(paste0(filepath,"/RF_outputs/",outcome_csv), row.names=1) %>%
+    select(-starts_with(c("X", "lr_"))) %>%
+    select(-c(Feature, rho, spearman_p, spearman_padj, rf_top20, maaslin_name, maaslin_N, maaslin_N.not.zero, maaslin_qval, maaslin_qval_adjusted, country_clean))
+  
+  # Add normalised GMR
+  input$normalised_GMR = input$GMR
+  input$normalised_GMR[input$GMR<1 & !is.na(input$GMR)] = 1/(input$GMR[input$GMR<1 & !is.na(input$GMR)])
+  
+  # Add difference rank
+  input = input %>% arrange(-normalised_GMR)
+  input$diff_rank = NA
+  input$diff_rank[input$country=="India"] = 1:sum(input$country=="India")
+  input$diff_rank[input$country=="India (exposed)"] = 1:sum(input$country=="India (exposed)")
+  input$diff_rank[input$country=="India (unexposed)"] = 1:sum(input$country=="India (unexposed)")
+  input$diff_rank[input$country=="Malawi"] = 1:sum(input$country=="Malawi")
+  
+  if(module=="Genus") {
+    input = input %>% select(-Species)
+  }
+  
+  if(module=="Pathway" | module=="EC") {
+    input = input %>% 
+      select(-feature_full) %>%
+      rename(`Feature` = feature,
+             `Description` = feature_description)
+  }
+
+  input = input %>%
+    rename(
+      Feature_ID = feature_id,
+      RF_importance_mean = IncMSE_means, 
+      RF_importance_sd = IncMSE_sds, 
+      Present = present, 
+      N = n,
+      Prevalence = prev,
+      Mean_abundance = mean,
+      Wilcoxon_P = wilcox_p,
+      IgA_GM_when_present = mean_IgA_present,
+      IgA_CI_when_present = CI_IgA_present,
+      IgA_when_absent = mean_IgA_absent,
+      IgA_CI_when_absent = CI_IgA_absent,
+      Wilcoxon_FDR_P = wilcox_padj,
+      RF_importance_rank = rf_rank,
+      Maaslin_coefficient = maaslin_coef,
+      Maaslin_se = maaslin_stderr,
+      Maaslin_P = maaslin_pval,
+      Maaslin_FDR_P = maaslin_qval_filt,
+      Maaslin_adjusted_coefficient = maaslin_coef_adjusted,
+      Maaslin_adjusted_se = maaslin_stderr_adjusted,
+      Maaslin_adjusted_P = maaslin_pval_adjusted,
+      Maaslin_adjusted_FDR_P = maaslin_qval_adjusted_filt,
+      Country = country,
+      Module = module,
+      Normalised_GMR = normalised_GMR,
+      Normalised_GMR_rank = diff_rank
+    )
+  
+  order = c("Module", "Country", "Feature_ID", 
+            "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species", "Feature", "Description",
+            "Present", "N", "Prevalence", "Mean_abundance", 
+            "Wilcoxon_P", "Wilcoxon_FDR_P", 
+            "IgA_GM_when_present", "IgA_CI_when_present", "IgA_GM_when_absent", "IgA_CI_when_absent",
+            "GMR", "Normalised_GMR", "Normalised_GMR_rank",
+            "RF_importance_mean", "RF_importance_sd", "RF_importance_rank", 
+            "Maaslin_coefficient", "Maaslin_se", "Maaslin_P", "Maaslin_FDR_P", 
+            "Maaslin_adjusted_coefficient", "Maaslin_adjusted_se", "Maaslin_adjusted_P", "Maaslin_adjusted_FDR_P" )
+  order = order[order %in% names(input)]
+  input = input[,order] %>% 
+    arrange(Country, Normalised_GMR_rank)
+  input
+}
+
+# Collate results - IgA
+write.xlsx(collate_RF(filepath="module1_genus",outcome_csv="crossval_regression_IgA_collated_Genus.csv",module="Genus"), file="Supplementary_Files/Supplementary_File_6_IgA.xlsx", sheetName="(A) Genus", row.names=FALSE)
+write.xlsx(collate_RF(filepath="module2_species",outcome_csv="crossval_regression_IgA_collated_Species.csv",module="Species"), file="Supplementary_Files/Supplementary_File_6_IgA.xlsx", sheetName="(B) Species", append = TRUE, row.names=FALSE)
+write.xlsx(collate_RF(filepath="module3_pathway",outcome_csv="crossval_regression_IgA_collated_Pathway.csv",module="Pathway"), file="Supplementary_Files/Supplementary_File_6_IgA.xlsx", sheetName="(C) Pathway", append = TRUE, row.names=FALSE)
+write.xlsx(collate_RF(filepath="module4_EC",outcome_csv="crossval_regression_IgA_collated_EC.csv",module="EC"), file="Supplementary_Files/Supplementary_File_6_IgA.xlsx", sheetName="(D) EC", append = TRUE, row.names=FALSE)
+```
+
+#### Supplementary File 4 - cross-comparison of India (unexposed) vs Malawi
+```{r}
+process_matches = function(input, IgA=FALSE, nfeatures) {
+  input = input %>% filter((Country=="India (unexposed)" | Country=="Malawi"))
+  
+  if (IgA == TRUE) {
+    input = input %>% filter(Normalised_GMR_rank<=nfeatures)
+  } else {
+    input = input %>% filter(Normalised_prevalence_difference_rank<=nfeatures)
+  }
+  
+  input$N_times = NA
+  for (i in 1:nrow(input)) {
+    feature = input$Feature_ID[i]
+    input$N_times[i] = sum(input$Feature_ID==feature)
+  }
+
+  input %>% filter(N_times==2) %>% select(-N_times)
+}
+
+# Generate outputs in loop over 4 modules
+for (i in 1:4) {
+  if (i == 1) { Module="Genus"; nf=10}
+  if (i == 2) { Module="Species"; nf=20}
+  if (i == 3) { Module="Pathway"; nf=25}
+  if (i == 4) { Module="EC"; nf=125}
+  
+  # Seroconversion
+  sero = read_excel("Supplementary_Files/Supplementary_File_3_seroconversion.xlsx", sheet=i)
+  sero = process_matches(sero, IgA=FALSE, nfeatures=nf)
+  write.csv(sero, paste0("Supplementary_Files/Supplementary_File_4_input/Supplementary_File_4_",Module,"_seroconvesion.csv"), row.names=FALSE)
+
+  # Dose 1 shedding
+  dose1= read_excel("Supplementary_Files/Supplementary_File_5_shedding.xlsx", sheet=i)
+  dose1 = process_matches(dose1, IgA=FALSE, nfeatures=nf)
+  write.csv(dose1, paste0("Supplementary_Files/Supplementary_File_4_input/Supplementary_File_4_",Module,"_shedding.csv"), row.names=FALSE)
+  
+  # IgA
+  iga= read_excel("Supplementary_Files/Supplementary_File_6_IgA.xlsx", sheet=i)
+  iga = process_matches(iga, IgA=TRUE, nfeatures=nf)
+  write.csv(iga, paste0("Supplementary_Files/Supplementary_File_4_input/Supplementary_File_4_",Module,"_IgA.csv"), row.names=FALSE)
+}
+```
+.

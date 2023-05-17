@@ -1,0 +1,5 @@
+"","country","nonresponders","responders","crossval_median","crossval_q1","crossval_q3"
+"1","India","nonresponders","responders",0.45,0.35,0.5
+"2","India (exposed)","nonresponders","responders",0.6,0.4,0.6
+"3","India (unexposed)","nonresponders","responders",0.45,0.4,0.526315789473684
+"4","Malawi","nonresponders","responders",0.5,0.375,0.625

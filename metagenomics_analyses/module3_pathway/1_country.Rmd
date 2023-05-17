@@ -1,0 +1,671 @@
+---
+title: "Metagenome vs country"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+Sidebar {.sidebar} 
+===================================== 
+[Sample summary]    
+
+[Feature abundance profile]    
+
+[Major features by country]    
+
+[Alpha diversity]    
+
+[Beta diversity]    
+
+[Random Forests/MaAsLin2]     
+
+[Session info]
+
+
+
+
+
+Sample summary {.hidden}
+=====================================
+
+```{r, message=FALSE}
+# variable to define whether to run analyses in full (TRUE) or not (FALSE)
+run_rf_full = FALSE # set as TRUE to run Random Forests in full
+iter = 20 # number of cross-validation iterations to run
+adonis_iter = 999
+
+# load packages and functions
+source("../packages_functions.R")
+
+# load feature data - rarefied data for genus/species modules; otherwise full data
+if (grepl("genus", getwd())) {
+  load("final_ps_rare.RData")
+  ps = ps_rare
+  ymin = 0
+  ymax = 90
+  ypos = 80
+  alpha_sig = "***"
+  module = "Genus"
+} else if (grepl("species", getwd())) {
+  load("final_ps_rare.RData")
+  ps = ps_rare
+  ymin = 0
+  ymax = 250
+  ypos = 225
+  alpha_sig = "***"
+  module = "Species"
+} else if (grepl("pathway", getwd())) {
+  load("final_ps_full.RData")
+  ps = ps_full
+  ymin = 100
+  ymax = 450
+  ypos = 400
+  alpha_sig = "n.s."
+  module = "Pathway"
+} else {
+  load("final_ps_full.RData")
+  ps = ps_full
+  ymin = 500
+  ymax = 2000
+  ypos = 1750
+  alpha_sig = "n.s."
+  module = "EC"
+}
+
+# transform to relative abundances
+rps = transform_sample_counts(ps, function(x) {x/sum(x)})
+```
+
+#### Input data: infant stools
+* n samples = `r nsamples(ps)`    
+* n features: `r ntaxa(ps)`
+* mean read count: `r round(mean(sample_sums(ps)),0)`, s.d. = `r round(sd(sample_sums(ps)),0)`    
+<br><br>
+
+#### Distribution of outcomes
+
+##### Seroconversion
+```{r}
+t = data.frame(sample_data(rps))
+table(t$country_exposure, t$seroconv)
+```
+
+##### Dose 1 shedding
+```{r}
+table(t$country_exposure, t$dose1_shedding)
+```
+
+##### RV-IgA
+```{r, fig.width=8, fig.height=3.5}
+ggplot(subset(t, !is.na(country_exposure)), aes(x=BB2_IgA)) + geom_histogram() + xlab("RV-IgA") + facet_grid(.~country_exposure) +
+  scale_x_log10() + geom_vline(xintercept = 20, linetype = "dotted") +
+  theme(strip.background = element_blank())
+```
+
+
+
+Feature abundance profile {.hidden}
+=====================================
+
+#### India
+```{r, fig.width=4, fig.height=4}
+# for each sample subset, create prevalence vs abundance plot using taxon_abundance_function 
+p = feature_abundance_function(rps, input_country="India", input_colour=India_col, yannotation=0.8)
+ggMarginal(p, type = "density", fill=India_col, alpha=0.5, colour=NA, size=8) 
+```
+<br>N: `r nrow(subset(sample_data(rps), country=="India"))`
+<br><br>
+
+#### Malawi
+```{r, fig.width=4, fig.height=4}
+p = feature_abundance_function(rps, input_country="Malawi", input_colour=Malawi_col)
+ggMarginal(p, type = "density", fill=Malawi_col, alpha=0.5, colour=NA, size=8)
+```
+<br>N: `r nrow(subset(sample_data(rps), country=="Malawi"))`
+<br><br>
+
+#### Abundance distribution after AST transformation
+```{r, fig.width=15, fig.height=4}
+a = data.frame(t(otu_table(rps)))
+tax = data.frame(tax_table(rps))
+
+ind_list = sample(1:ntaxa(rps),20)
+ind_list = ind_list[order(ind_list)]
+generate_hist = function(i, transform=c("AST", "LOG")) {
+  feature_name = tax$Feature[i]
+  if (transform == "AST") {
+    a$feature = asin(sqrt(a[,i]))
+  } else {
+    a$feature = a[,i]
+    a$feature <- replace(a$feature, a$feature == 0, min(a$feature[a$feature>0]) / 2)
+    a$feature = log2(a$feature)
+  }
+  ggplot(a, aes(x=feature)) + geom_histogram() + ggtitle(feature_name) + xlab("Abundance") +
+    theme(axis.text = element_blank(), axis.title = element_blank(), title=element_text(size=8))
+}
+
+grid.arrange(generate_hist(ind_list[1],"AST"), generate_hist(ind_list[2],"AST"), generate_hist(ind_list[3],"AST"), generate_hist(ind_list[4],"AST"), generate_hist(ind_list[5],"AST"), 
+             generate_hist(ind_list[6],"AST"), generate_hist(ind_list[7],"AST"), generate_hist(ind_list[8],"AST"),generate_hist(ind_list[9],"AST"), generate_hist(ind_list[10],"AST"), 
+             generate_hist(ind_list[11],"AST"), generate_hist(ind_list[12],"AST"), generate_hist(ind_list[13],"AST"), generate_hist(ind_list[14],"AST"), generate_hist(ind_list[15],"AST"), 
+             generate_hist(ind_list[16],"AST"), generate_hist(ind_list[17],"AST"), generate_hist(ind_list[18],"AST"), generate_hist(ind_list[19],"AST"), generate_hist(ind_list[20],"AST"), 
+             ncol=10)
+```
+
+#### Abundance distribution fter LOG2 transformation
+```{r, fig.width=15, fig.height=4}
+grid.arrange(generate_hist(ind_list[1],"LOG"), generate_hist(ind_list[2],"LOG"), generate_hist(ind_list[3],"LOG"), generate_hist(ind_list[4],"LOG"), generate_hist(ind_list[5],"LOG"), 
+             generate_hist(ind_list[6],"LOG"), generate_hist(ind_list[7],"LOG"), generate_hist(ind_list[8],"LOG"),generate_hist(ind_list[9],"LOG"), generate_hist(ind_list[10],"LOG"), 
+             generate_hist(ind_list[11],"LOG"), generate_hist(ind_list[12],"LOG"), generate_hist(ind_list[13],"LOG"), generate_hist(ind_list[14],"LOG"), generate_hist(ind_list[15],"LOG"), 
+             generate_hist(ind_list[16],"LOG"), generate_hist(ind_list[17],"LOG"), generate_hist(ind_list[18],"LOG"), generate_hist(ind_list[19],"LOG"), generate_hist(ind_list[20],"LOG"), 
+             ncol=10)
+```
+
+#### Significance testing for normal distribution - Shapiro test
+```{r}
+collated = data.frame(feature_id = taxa_names(rps), data.frame(tax_table(rps))$Feature,
+                      p_AST = NA, p_LOG = NA, AST_favoured = NA)
+for (i in 1:ncol(a)) {
+  # Shapiro test (AST)
+  feature_AST = asin(sqrt(a[,i]))
+  collated$p_AST[i] = shapiro.test(feature_AST)$p.value
+
+  # Shapiro test (LOG)
+  feature_LOG = a[,i]
+  feature_LOG = replace(feature_LOG, feature_LOG==0, min(feature_LOG[feature_LOG>0])/2)
+  collated$p_LOG[i] = shapiro.test(feature_LOG)$p.value
+  
+  collated$AST_favoured[i] = collated$p_AST[i]>collated$p_LOG[i]
+}
+write.csv(collated, "transformation_distribution_testing.csv")
+```
+* `r sum(collated$p_AST<0.05)`/`r nrow(collated)` features had p value of <0.05 after AST transformation     
+* `r sum(collated$p_LOG<0.05)`/`r nrow(collated)` features had p value of <0.05 after LOG transformation
+* `r sum(collated$AST_favoured)`/`r nrow(collated)` features had a higher p value after AST than LOG transformatiomn
+
+
+
+
+
+Major features by country {.hidden}
+===================================== 
+
+#### Top 20 features by mean abundance
+```{r, fig.width=5, fig.height=4}
+g = data.frame(t(otu_table(rps))) 
+features = data.frame(tax_table(rps))
+features$feature_id = rownames(features)
+
+# add metadata for sample type and country
+if (all(rownames(g)==sample_names(rps))) { 
+  g$country =  as.factor(sample_data(rps)$country)
+} else { print("error: rownames do not match")}
+
+# all data
+g_all = g %>% dplyr::select(-country)
+feature_summary = data.frame(
+  feature_id = features$feature_id,
+  feature = features$Feature,
+  mean = round(colMeans(g_all)*100,6),
+  sd = round(colSds(as.matrix(g_all))*100,6),
+  prev = round(colSums(g_all>0)/nrow(g_all)*100,1)
+)
+
+# India-specific data
+g_I = subset(g, country=="India") %>% dplyr::select(-country)
+feature_summary_I = data.frame(
+  feature_id = features$feature_id,
+  feature = features$Feature,
+  mean_IND = round(colMeans(g_I)*100,6),
+  sd_IND = round(colSds(as.matrix(g_I))*100,6),
+  prev_IND = round(colSums(g_I>0)/nrow(g_I)*100,1)
+)
+
+# Malawi-specific data
+g_M = subset(g, country=="Malawi") %>% dplyr::select(-country)
+feature_summary_M = data.frame(
+  feature_id = features$feature_id,
+  feature = features$Feature,
+  mean_MLW = round(colMeans(g_M)*100,6),
+  sd_MLW = round(colSds(as.matrix(g_M))*100,6),
+  prev_MLW = round(colSums(g_M>0)/nrow(g_M)*100,1)
+)
+
+# Merge
+feature_all = merge(feature_summary, feature_summary_I %>% dplyr::select(-feature), by = "feature_id")
+feature_all = merge(feature_all, feature_summary_M %>% dplyr::select(-feature), by = "feature_id")
+feature_all = merge(features, feature_all %>% dplyr::select(-feature), by = "feature_id")
+feature_all = feature_all[order(-feature_all$mean),]
+write.csv(feature_all, paste0("feature_abund_prev_",module,".csv"))
+feature_sub = feature_all %>% dplyr::select(feature_id, Feature, mean, sd, prev, mean_IND,
+                                            sd_IND, prev_IND, mean_MLW, sd_MLW, prev_MLW)
+names(feature_sub) = c("feature_id", "feature", "mean, all (%)", "sd, all (%)", "prev, all (%)", 
+                       "mean, IND (%)",  "sd, IND (%)", "prev, IND (%)",  
+                       "mean, MLW (%)",  "sd, MLW (%)","prev, MLW (%)")
+gt::gt(feature_sub[1:20,])
+```
+
+#### Mean / s.d. for mapped reads
+```{r}
+if (grepl("genus", getwd()) | grepl("species", getwd())) {
+  print("Not applicable to taxonomic data")
+} else if (grepl("pathway", getwd())) { 
+  sum_unmapped_I = 1 - (g_I$p1 + g_I$p2)
+  sum_unmapped_M = 1 - (g_M$p1 + g_M$p2)
+  data.frame(
+    feature = c("IND", "MLW"),
+    mean = c(round(mean(sum_unmapped_I)*100,3),round(mean(sum_unmapped_M)*100,3)),
+    sd = c(round(sd(sum_unmapped_I)*100,3),round(sd(sum_unmapped_M)*100,3))
+  )
+} else { 
+  sum_unmapped_I = 1 - (g_I$g1 + g_I$g2)
+  sum_unmapped_M = 1 -(g_M$g1 + g_M$g2)
+  data.frame(
+    feature = c("IND", "MLW"),
+    mean = c(round(mean(sum_unmapped_I)*100,3),round(mean(sum_unmapped_M)*100,3)),
+    sd = c(round(sd(sum_unmapped_I)*100,3),round(sd(sum_unmapped_M)*100,3))
+  )
+}
+```
+
+#### N by timepoint
+```{r}
+table(sample_data(rps)$sample_type, sample_data(rps)$country)
+```
+.
+
+
+
+
+Alpha diversity {.hidden}
+=====================================
+Column {.tabset .tabset-fade}
+-------------------------------------
+
+#### India vs Malawi - richness
+```{r, fig.width=2, fig.height=3}
+# updated coding for week
+t = data.frame(sample_data(rps))
+
+# updated coding for country
+t$country[t$country=="India"] = "IND"
+t$country[t$country=="Malawi"] = "MLW"
+
+g1 = ggplot(t, aes(x = factor(country), y = Observed, colour=factor(country))) + ylab("Richness") + 
+  ylim(ymin,ymax) +
+  geom_jitter(size = 1, alpha = 0.2, width=0.25) +
+  geom_boxplot(alpha = 0.5, outlier.shape=NA) + 
+  scale_color_manual("country", values = c(India_col, Malawi_col, UK_col)) +
+  xlab("") + theme(legend.position = "none") + ggtitle(module) + theme(strip.background = element_blank()) +
+  theme(axis.text = element_text(size = 13), strip.text = element_text(size = 13), axis.title = element_text(size = 13), 
+        plot.title = element_text(hjust = 0.5))
+
+if (alpha_sig=="***") {
+  g1 + geom_signif(comparisons = list(c("IND", "MLW")), annotations=alpha_sig, y_position = ypos, tip_length=0, vjust=0.5, size = 0.3, textsize=6, color=Malawi_col)
+} else {
+  g1 + geom_signif(comparisons = list(c("IND", "MLW")), annotations="n.s.", y_position = ypos, tip_length=0, vjust=0, size = 0.3, textsize=4, color="grey")
+}
+```
+<br>P value (Wilcoxon test of richness) = `r round(wilcox.test(t$Observed ~ t$country)$p.value,4)`    
+<br><br>
+
+#### Mean and sd
+```{r}
+aggregate(Observed ~ country, t, function(x) c(mean = round(mean(x),1), sd = round(sd(x),1)))
+```
+
+#### N by timepoint
+```{r}
+table(t$sample_type, t$country)
+```
+
+
+
+
+
+Beta diversity {.hidden}
+=====================================
+
+#### PERMANOVA - unweighted Bray-Curtis distances
+```{r}
+t = data.frame(sample_data(rps))
+beta_dist = phyloseq::distance(rps, method = "bray", binary=TRUE) 
+adon = adonis(unname(beta_dist) ~ country, data = t, permutations = adonis_iter)$aov.tab
+adon
+```
+
+
+
+
+
+Random Forests/MaAsLin2 {.hidden}
+=====================================
+
+```{r}
+if (run_rf_full) {
+  set.seed(12345)
+  input_rps = rps
+  prev_threshold = 0.05
+  folds = 5
+
+  # determine taxa present above threshold in at least one country subset
+  ps1list = sample_names(input_rps)[sample_data(input_rps)$country=="India"]
+  ps1 = prune_samples(ps1list, input_rps)
+  ps1 = filter_taxa(ps1, function(x) { sum(x > 0) > prev_threshold*nsamples(ps1) }, TRUE)
+  ps2list = sample_names(input_rps)[sample_data(input_rps)$country=="Malawi"]
+  ps2 = prune_samples(ps2list, input_rps)
+  ps2 = filter_taxa(ps2, function(x) { sum(x > 0) > prev_threshold*nsamples(ps2) }, TRUE)
+  taxlist = unique(c(rownames(tax_table(ps1)),rownames(tax_table(ps2))))
+  
+  # if <50 in either country subset, amend n_per_group to match minimum group size
+  mingroup = min(c(length(ps1list), length(ps2list)))
+  if (mingroup < 50) { n_per_group = mingroup } else { n_per_group = 50 }
+  
+  # create RF input
+  rf_reference_rps = prune_taxa(taxlist, input_rps)
+  rf_input = data.frame(t(otu_table(rf_reference_rps))) 
+
+  # create country-specific subsets
+  rf_input$country = factor(sample_data(rf_reference_rps)$country)
+  rf_input_1 = subset(rf_input, country=="India")
+  rf_input_2 = subset(rf_input, country=="Malawi")
+  
+  # perform crossval on whole dataset
+  crossval_stats = list()
+  crossval_importance = list()
+  
+  for (i in 1:iter) {
+    # random draw for each iteration
+    rf_s = rbind(rf_input_1[sample(nrow(rf_input_1),n_per_group),],rf_input_2[sample(nrow(rf_input_2),n_per_group),])
+    # perform crossval for iteration above
+    cv.rf = crossval_update(predfun, X=rf_s[,!grepl("country", names(rf_s))], Y=factor(rf_s$country), K=folds, B=1, verbose=FALSE)
+    # write outputs
+    crossval_stats[[i]] = cv.rf$stat.cv
+    crossval_importance[[i]] = cv.rf$Gini_importance_output
+  }
+
+  # collate cross-validation statistics
+  stat.cv = as.data.frame(crossval_stats[[1]])
+  for (i in 2:iter) { stat.cv = rbind(stat.cv, as.data.frame(crossval_stats[[i]])) }
+  stat.cv$accuracy = (stat.cv$TP+stat.cv$TN)/(stat.cv$TP+stat.cv$TN+stat.cv$FP+stat.cv$FN)
+      
+  # collate cross-validation statistics - stats
+  gini.cv = as.data.frame(crossval_importance)
+  gini.cv$mean = rowMeans(gini.cv[,1:(iter*folds)])
+  gini.cv$sd = rowSds(as.matrix(gini.cv[,1:(iter*folds)]))
+  gini.cv = gini.cv[,(ncol(gini.cv)-1):ncol(gini.cv)]
+  gini.cv$feature_id = rownames(gini.cv) 
+  
+  # append clean feature names
+  features = data.frame(as(tax_table(rf_reference_rps), "matrix"))
+  features$feature_id = rownames(features)
+  gini.cv = merge(features, gini.cv, by = "feature_id")
+  gini.cv <- gini.cv[order(-gini.cv$mean),]
+  rownames(gini.cv) = gini.cv$feature_id
+  
+  # append prevalence, abundance data and Fisher's test p values for presence/absence
+  for (i in 1:nrow(gini.cv)) {
+    feature = gini.cv$feature_id[i]
+    gini.cv$India_present[i] = sum(rf_input_1[,feature]>0)
+    gini.cv$India_n[i] = nrow(rf_input_1)
+    gini.cv$India_prev[i] = round(sum(rf_input_1[,feature]>0)/nrow(rf_input_1)*100,1)
+    gini.cv$India_mean[i] = mean(rf_input_1[,feature])*100
+    gini.cv$India_sd[i] = sd(rf_input_1[,feature])*100
+    
+    gini.cv$Malawi_present[i] = sum(rf_input_2[,feature]>0)
+    gini.cv$Malawi_n[i] = nrow(rf_input_2)
+    gini.cv$Malawi_prev[i] = round(sum(rf_input_2[,feature]>0)/nrow(rf_input_2)*100,1)
+    gini.cv$Malawi_mean[i] = mean(rf_input_2[,feature])*100
+    gini.cv$Malawi_sd[i] = sd(rf_input_2[,feature])*100
+    if (gini.cv$India_prev[i]>95 & gini.cv$Malawi_prev[i]>95) {
+      gini.cv$fisher_p[i] = NA
+      gini.cv$lr_p[i] = NA
+    } else {
+      gini.cv$fisher_p[i] = fisher.test(matrix(c(sum(rf_input_1[,feature]>0), sum(rf_input_1[,feature]==0),
+                                             sum(rf_input_2[,feature]>0), sum(rf_input_2[,feature]==0)),nrow=2))$p.value
+      rf_input$feature_present = as.numeric(rf_input[,feature]>0)
+      gini.cv$lr_p[i] = summary(glm(feature_present ~ country, data = rf_input, family = 'binomial'))$coefficients[2,4]
+    }
+
+    gini.cv$wilcox_p[i] = wilcox.test(rf_input[,feature] ~ rf_input$country)$p.value
+  }
+
+  # calculate fdr-adjusted p values - presence or absence
+  gini.cv$fisher_padj = NA
+  gini.cv$fisher_padj[!is.na(gini.cv$fisher_p)] = p.adjust(gini.cv$fisher_p[!is.na(gini.cv$fisher_p)], method="BH")
+  gini.cv$lr_padj = NA
+  gini.cv$lr_padj[!is.na(gini.cv$lr_p)] = p.adjust(gini.cv$lr_p[!is.na(gini.cv$lr_p)], method="BH")
+  gini.cv$wilcox_padj = NA
+  gini.cv$wilcox_padj = p.adjust(gini.cv$wilcox_p, method="BH")
+
+  # calculate prevalence differences
+  gini.cv$mean_diff = gini.cv$India_mean-gini.cv$Malawi_mean
+  gini.cv$prev_diff = gini.cv$India_prev-gini.cv$Malawi_prev
+  gini.cv$enriched_India = gini.cv$mean_diff>0
+
+  # calculate RF rank and top 20 features by importance score
+  gini.cv$rf_rank = 1:nrow(gini.cv)
+  gini.cv$rf_top20 = as.numeric(gini.cv$rf_rank<=20)
+  gini.cv$rf_n = n_per_group
+
+  # add cross-val median + IQR
+  gini.cv$crossval_median = median(stat.cv$accuracy)
+  gini.cv$crossval_quartile_1 = quantile(stat.cv$accuracy)[2]
+  gini.cv$crossval_quartile_3 = quantile(stat.cv$accuracy)[4]
+
+  # add maaslin2 analyses
+  sample_data(rf_reference_rps)$country = factor(sample_data(rf_reference_rps)$country)
+  maaslin_features = data.frame(t(otu_table(rf_reference_rps)))
+  maaslin_metadata = data.frame(sample_data(rf_reference_rps))
+
+  # run unadjusted analysis
+  system("mkdir maaslin_outputs")
+  system("mkdir RF_outputs")
+  fit_data = Maaslin2(
+      input_data = maaslin_features, 
+      input_metadata = maaslin_metadata, 
+      output = "maaslin_outputs/country",
+      fixed_effects = "country", 
+      standardize = FALSE, normalization = "NONE", transform = "AST",
+      min_prevalence = 0,    
+      max_significance = 0.2,
+      plot_scatter= FALSE
+  )
+  results_collated = fit_data$results %>% dplyr::select(-c(metadata, name))
+  names(results_collated)[2:ncol(results_collated)] = paste0("maaslin_",names(results_collated)[2:ncol(results_collated)])
+
+  # merge with RF results
+  names(results_collated)[1] = "feature_id"
+  if (all(results_collated$feature_id %in% gini.cv$feature_id)) { gini.cv = merge(gini.cv, results_collated, by = "feature_id") }
+  
+  # reapply FDR adjustment to maaslin2 after filtering
+  gini.cv$maaslin_qval_filt = p.adjust(gini.cv$maaslin_pval, method="BH")
+  
+  # save RF results
+  write.csv(gini.cv,"RF_outputs/crossval_collated_country.csv")
+}
+gini.cv = read.csv("RF_outputs/crossval_collated_country.csv", header=T)
+```
+#### Summary of Random Forests results
+* N features in RF models: `r nrow(gini.cv)`    
+* Model accuracy: `r paste0(gini.cv$crossval_median[1])` (`r paste0(gini.cv$crossval_quartile_1[1])`-`r paste0(gini.cv$crossval_quartile_3[1])`) (median [IQR])
+<br><br>
+
+#### Summary of MaAsLin2 results
+* N features = `r nrow(gini.cv)`    
+* FDR p <0.2 = `r sum(gini.cv$maaslin_qval_filt<0.2, na.rm=T)` (of which `r sum(gini.cv$maaslin_qval_filt<0.2 & gini.cv$maaslin_coef>0, na.rm=T)` enriched in Malawi and `r sum(gini.cv$maaslin_qval_filt<0.2 & gini.cv$maaslin_coef<0, na.rm=T)` enriched in India)
+<br><br>
+
+#### Summary of Fisher's results
+* N features = `r sum(!is.na(gini.cv$fisher_padj))`    
+* FDR p <0.2 = `r sum(gini.cv$fisher_padj<0.2, na.rm=T)` (of which `r sum(gini.cv$fisher_padj<0.2 & gini.cv$enriched_India==FALSE, na.rm=T)` enriched in Malawi and `r sum(gini.cv$fisher_padj<0.2 & gini.cv$enriched_India==TRUE, na.rm=T)` enriched in India)    
+<br><br>
+
+#### Summary of logistic regression results
+* N features = `r sum(!is.na(gini.cv$lr_padj))`    
+* FDR p <0.2 = `r sum(gini.cv$lr_padj<0.2, na.rm=T)` (of which `r sum(gini.cv$lr_padj<0.2 & gini.cv$enriched_India==FALSE, na.rm=T)` enriched in Malawi and `r sum(gini.cv$lr_padj<0.2 & gini.cv$enriched_India==TRUE, na.rm=T)` enriched in India)    
+<br><br>
+
+#### Cross-tabulation of significant results (MaAsLin2 = rows; Fisher's = columns)
+```{r}
+table(gini.cv$maaslin_qval_filt<0.2, gini.cv$fisher_padj<0.2)
+```
+<br><br>
+
+#### Spearman's rho matrix of statistical test p values - India
+```{r}
+network = gini.cv[,c("fisher_p", "lr_p", "wilcox_p", "maaslin_pval", "rf_rank")]
+network = network[complete.cases(network),]
+p.mat = cor.mtest(network, method="spearman")
+m = cor(network, method="spearman")
+colnames(m) = rownames(m) = c("Fisher","LR","Wilcox","MaAsLin2", "RF rank")
+col2 <- colorRampPalette(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061"))
+corrplot(m, method="color", type = "upper", order = "original", tl.col="black", col=col2(200),
+         p.mat = p.mat[[1]], insig = "label_sig", tl.cex = 1.2, cl.cex = 1.1, pch.cex = 1.5, diag = FALSE,
+         cl.length = 5, addgrid.col = "white", 
+         sig.level = c(.0005, .005, .05),  pch.col = "black")
+```
+
+#### Raw Spearman's values
+```{r}
+m
+```
+
+<br>N features with full data across tests: `r nrow(network)`
+<br><br>
+
+#### Summary of prevalence difference distribution
+```{r, fig.width=4, fig.height=3.5}
+gini.cv$plot_col = gini.cv$prev_diff<0
+ggplot(gini.cv, aes(x = prev_diff, y = fisher_padj, colour=plot_col)) +
+    geom_point(size = 1, alpha = 0.8) +
+    scale_colour_manual(values = c(`FALSE` = India_col,`TRUE` = Malawi_col)) +
+    ggtitle("") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+    scale_y_continuous(trans=reverselog_trans(10)) + ggtitle(module) +
+    theme_bw() + theme(legend.position = "none") + ylab("FDR P (Fisher's)") + 
+    xlab("Prevalence difference\n\n<- Enriched MLW / Enriched IND ->") +
+    theme(strip.background = element_blank()) + 
+    geom_vline(xintercept=0, linetype="dotted") +
+    geom_hline(yintercept=0.2, linetype="dotted") +
+    theme(axis.text = element_text(size=14), strip.text=element_text(size=16), axis.title = element_text(size=14), plot.title = element_text(size=16, hjust=0.5))
+```
+
+#### Proportion of features more prevalent in Malawi
+```{r, warning=FALSE}
+gini.cv_sub = subset(gini.cv, !is.na(fisher_p))
+n = sum(gini.cv_sub$prev_diff<0)
+n_inv = sum(gini.cv_sub$prev_diff>=0)
+total = nrow(gini.cv_sub)
+prop = paste0(round(n/total*100,1),"%")
+data.frame(
+  n = n,
+  n_inv = n_inv,
+  total = total,
+  proportion = prop
+)
+```
+
+#### P values (Wilcoxon test, mean of difference distribution = 0)
+```{r, warning=FALSE}
+wilcox.test(gini.cv_sub$prev_diff)$p.value
+```
+
+#### Summary of adundance difference distribution
+```{r, fig.width=4, fig.height=3.5}
+gini.cv$plot_col = -gini.cv$maaslin_coef<0
+g1 = ggplot(gini.cv, aes(x = -maaslin_coef, y = maaslin_qval, colour=plot_col)) +
+    geom_point(size = 1, alpha = 0.8) +
+    scale_colour_manual(values = c(`FALSE` = India_col,`TRUE` = Malawi_col)) +
+    ggtitle("") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+    scale_y_continuous(trans=reverselog_trans(10)) + 
+    theme_bw() + theme(legend.position = "none") + ylab("FDR P (MaAsLin2)") + 
+    ggtitle(module) +
+    xlab("Coefficient (MaAsLin2)\n\n<- Enriched MLW / Enriched IND ->") +
+    theme(strip.background = element_blank()) + 
+    geom_vline(xintercept=0, linetype="dotted") +
+    geom_hline(yintercept=0.2, linetype="dotted") +
+    theme(axis.text = element_text(size=14), strip.text=element_text(size=16), axis.title = element_text(size=14), plot.title = element_text(size=16, hjust=0.5))
+if (grepl("genus", getwd()) | grepl("species", getwd())) {
+   g1 + scale_x_continuous(limits=c(-0.1,0.1), breaks=c(-0.1,0,0.1))
+} else {
+   g1 + scale_x_continuous(limits=c(-0.01,0.01), breaks=c(-0.01,0,0.01))
+}
+```
+
+#### Proportion of features more abundant in Malawi
+```{r, warning=FALSE}
+n = sum(-gini.cv$maaslin_coef<0)
+n_inv = sum(-gini.cv$maaslin_coef>=0)
+total = nrow(gini.cv)
+prop = paste0(round(n/total*100,1),"%")
+data.frame(
+  n = n,
+  n_inv = n_inv,
+  total = total,
+  proportion = prop
+)
+```
+
+#### P values (Wilcoxon test, mean of difference distribution = 0)
+```{r, warning=FALSE}
+wilcox.test(gini.cv$maaslin_coef)$p.value
+```
+
+
+
+#### Top features based on Random Forests
+```{r, fig.width=12, fig.height=4}
+gini.cv = gini.cv[order(gini.cv$rf_rank),]
+input_top = gini.cv[1:10,]
+
+if (grepl("species", getwd())) {
+  input_top$Feature = stringr::str_replace_all(input_top$Feature, "\\.", "\\ ")
+  input_top$Feature = stringr::str_replace_all(input_top$Feature, "\\ \\ ", "\\.\\ ")
+} else {
+  input_top$Feature = stringr::str_replace_all(input_top$Feature, "_", " ")
+}
+input_top$Feature <- factor(input_top$Feature, levels = input_top$Feature)
+
+g1 = ggplot(input_top, aes(x = Feature, y = mean, fill=enriched_India)) +
+      scale_x_discrete(limits = rev(levels(input_top$Feature))) +
+      xlab("") + ylab("Importance (Gini)") +
+      geom_bar(position="dodge", stat = "identity") + coord_flip() + theme_bw() +
+      theme(legend.position = "none") + scale_fill_manual(values=c(Malawi_col,India_col)) +
+      theme(axis.text.y = element_text(size=12), axis.title = element_text(size=16), 
+            plot.title = element_text(size=21), strip.text = element_text(size=16), 
+            axis.text.x = element_text(size=16))
+
+g2 = ggplot(input_top, aes(x = Feature, y = India_prev)) +
+    scale_x_discrete(limits = rev(levels(input_top$Feature))) +
+    xlab("") + ylab("Prevalence (%)") +
+    geom_point(aes(colour = India_col, size=India_mean), stat = "identity", alpha=0.6) +
+    geom_point(aes(y = Malawi_prev, colour = Malawi_col, size=Malawi_mean), stat = "identity", alpha=0.6) +
+    coord_flip() + theme_bw() + scale_y_continuous(limits = c(0,105), breaks=c(0,50,100)) +
+    theme(axis.text.y = element_blank(), legend.position = "right") + labs(colour = "Enriched group", size = "Mean \nabundance (%)") +
+    scale_colour_manual(values=c(India_col,Malawi_col), labels=c("India", "Malawi")) + #scale_size(range=c(3,10), breaks=c(0,20,40)) +
+    guides(colour = guide_legend(order=1), size = guide_legend(order=2)) +
+    theme(axis.text = element_text(size=16), axis.title = element_text(size=16), 
+          plot.title = element_text(size=21), strip.text = element_text(size=16),
+          legend.text = element_text(size=16), legend.title = element_text(size=16), axis.text.x = element_text(size=16))
+
+if (grepl("EC", getwd())) {
+  grid.arrange(g1, g2, ncol=2, widths=c(1.5,1))
+} else {
+  grid.arrange(g1, g2, ncol=2, widths=c(1,1))
+}
+```
+
+#### Importance score only
+```{r, fig.width=4, fig.height=6}
+
+```
+
+Session info {.hidden}
+===================================== 
+
+```{r}
+print(sessionInfo())
+```
+.

@@ -1,0 +1,226 @@
+---
+title: "Preprocessing - pathway data"
+author: "RoVI study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+    self_contained: yes
+    theme: flatly 
+---
+
+Sidebar {.sidebar} 
+===================================== 
+[Sample summary]    
+
+[Unsupervised clustering]
+
+[Session info]     
+
+
+
+
+
+Sample summary {.hidden}
+=====================================
+
+```{r, message=FALSE}
+##############################
+## Scripts with slight modifications can be run for EC and pathway modules
+##############################
+
+# load packages and functions
+source("../packages_functions.R")
+
+# set number of clusters in heatmap
+nclusters = 3 ## can update depending on input module
+
+# read in metadata
+metadata = read.csv("inputs_pathway/metadata.csv", header=T)
+rownames(metadata) = metadata$sample_ID
+exclusions = c("M001BS3", "M077BS3", "M104BS3")
+metadata = subset(metadata, !is.na(metacyc_count) & !(sample_ID %in% exclusions))
+```
+
+#### Basic statistics    
+Number of runs: 1      
+Number of samples (input count >0): `r nrow(metadata)`      
+Number of controls: 0
+3 samples with <1M reads after quality filtering in taxonomy module excluded (M001BS3, M077BS3, and M104BS3)
+
+#### Sample type by country (includes replicates)    
+```{r, fig.width=12, fig.height=3}
+table(metadata$sample_type, metadata$country)
+```
+
+#### Minimum, median, and maximum output counts by country
+```{r, fig.width=4, fig.height=3}
+t = aggregate(metacyc_count ~ country, metadata, function(x) c(n = length(x), min = min(x), med = median(x), max = max(x)))
+names(t) = c("country", "")
+t
+```
+
+#### Summary of input biom - ps1
+```{r}
+system("mkdir outputs_pathway")
+
+# import phyloseq table and taxonomy, then merge
+otu_biom = read.csv("inputs_pathway/biom.csv", header=T, row.names = 1)
+otu_biom = otu_biom[order(-rowSums(otu_biom)),] # reorder biom feature abundance (total raw count)
+otu_biom = otu_biom[,rownames(metadata)] # limit to samples included in metadata
+taxa = read.csv("inputs_pathway/taxonomy.csv", header=T, row.names = 1) 
+
+# check matching counts and labels for taxa and samples, then create ps1
+if (all(rownames(taxa) %in% rownames(otu_biom)) & nrow(taxa)==nrow(otu_biom) & 
+    all(rownames(metadata) %in% colnames(otu_biom)) & nrow(metadata)==ncol(otu_biom)) {
+    ps_full = phyloseq(otu_table(as.matrix(otu_biom), taxa_are_rows=T), tax_table(as.matrix(taxa)), sample_data(metadata)) 
+}
+
+# prune samples with 0 counts, then add read counts
+ps_full = prune_samples(sample_sums(ps_full) > 0, ps_full)
+sample_data(ps_full)$count_ps_full = sample_sums(ps_full)
+
+# add alpha diversity
+t = data.frame(sample_data(ps_full))
+t$Shannon = as.numeric(unlist(estimate_richness(ps_full, measures = c("Shannon"))))
+t$Observed = colSums(otu_table(ps_full)>0)
+sample_data(ps_full) = t
+
+# convert to relative abundances
+rps_full = transform_sample_counts(ps_full, function(x) {x/sum(x)})
+
+# convert biom into dataframe, then append feature names
+h = data.frame(t(otu_table(rps_full)))
+if (all(colnames(h)==rownames(tax_table(rps_full)))) { colnames(h) = data.frame(tax_table(rps_full))$feature } else { print("error: rownames do not match")}
+```
+* n samples: `r nsamples(ps_full)`     
+* n features: `r ntaxa(ps_full)`
+* total reads (million): `r round(sum(sample_sums(ps_full))/1e6,1)`
+* mean % reads unmapped: `r round(mean(h$UNMAPPED)*100,1)`
+* mean % reads unintegrated: `r round(mean(h$UNINTEGRATED)*100,1)`
+* mean % reads mapped: `r round(mean(1-(h$UNINTEGRATED+h$UNMAPPED))*100,1)`
+
+No additional filtering required given that normalised pathway data (copies per million) serves as input.
+
+
+
+
+
+Unsupervised clustering {.hidden}
+===================================== 
+
+#### Clustering of samples (columns) and pathways (rows) - presence/absence 
+```{r, fig.width=8, fig.height=6}
+# transform to presence/absence
+h_prev = h
+h_prev[h_prev>0] = 1
+
+# append country and sample timing data
+if (all(rownames(h_prev)==sample_names(rps_full))) { 
+  annotation_col = data.frame(country = as.factor(paste0(sample_data(rps_full)$country)))
+  rownames(annotation_col) = sample_names(rps_full)
+} else { print("error: rownames do not match")}
+
+# recode sample type
+annotation_col$country = revalue(annotation_col$country, c("Malawi"="MLW", "India"="IND"))
+
+# set annotation colours
+country_cols = c(India_col, Malawi_col)
+names(country_cols) = levels(annotation_col$country)
+ann_colors = list(country = country_cols)
+
+# draw heatmap
+pheatmap(t(h_prev), cluster_cols = T, 
+         clustering_method = "ward.D", color = c('#f1eef6','#3182bd'), breaks = c(0,0.99,2), annotation_names_col=F, legend=F,
+         annotation_col = annotation_col, annotation_colors = ann_colors, show_rownames=FALSE, show_colnames=FALSE, fontsize=13)
+```
+
+#### Clustering of samples (columns) and pathways (rows) - scaled asin-sqrt transformed relative abundances  
+```{r, fig.width=8, fig.height=6}
+# transform and scale
+h_scale <- asin(sqrt(h))
+h_scale <- data.frame(scale(h_scale))
+h_scale[h_scale>=3] = 3
+h_scale[h_scale<=(-3)] = -3
+
+# append country and sample timing data
+if (all(rownames(h_scale)==sample_names(rps_full))) { 
+  annotation_col = data.frame(country = as.factor(paste0(sample_data(rps_full)$country)))
+  rownames(annotation_col) = sample_names(rps_full)
+} else { print("error: rownames do not match")}
+
+# recode sample type
+annotation_col$country = revalue(annotation_col$country, c("Malawi"="MLW", "India"="IND"))
+
+# set annotation colours
+country_cols = c(India_col, Malawi_col)
+names(country_cols) = levels(annotation_col$country)
+ann_colors = list(country = country_cols)
+
+# draw heatmap
+out = pheatmap(t(h_scale), cluster_cols = T, 
+         clustering_method = "ward.D", annotation_names_col=F, legend=T,
+         annotation_col = annotation_col, annotation_colors = ann_colors, show_rownames=FALSE, show_colnames=FALSE, fontsize=13)
+out
+
+# assign clusters to rps_full/ps_full
+cluster = data.frame(cluster = cutree(out$tree_col, k=nclusters))
+cluster$sample_ID = rownames(cluster)
+t = data.frame(sample_data(rps_full))
+t = merge(t, cluster, by = "sample_ID")
+rownames(t) = t$sample_ID
+sample_data(rps_full) = sample_data(ps_full) = t
+
+# append feature ID - full
+t = data.frame(as(tax_table(ps_full), "matrix"))
+t$Feature = t$feature
+t1 = tax_table(t)
+rownames(t1) = rownames(t)
+colnames(t1) = names(t)
+tax_table(ps_full) = t1
+
+### Save outputs for downstream modules
+system("mkdir outputs_pathway")
+save(ps_full, file="outputs_pathway/final_ps_full.RData")
+```
+
+#### Heatmap with cluster assignments
+```{r, fig.width=8, fig.height=6}
+# append country and sample timing data
+if (all(rownames(h_scale)==sample_names(rps_full))) { 
+  annotation_col = data.frame(country = as.factor(paste0(sample_data(rps_full)$country)),
+                              cluster = as.factor(paste0(sample_data(rps_full)$cluster)))
+  rownames(annotation_col) = sample_names(rps_full)
+} else { print("error: rownames do not match")}
+
+# recode sample type
+annotation_col$country = revalue(annotation_col$country, c("Malawi"="MLW", "India"="IND"))
+
+# set annotation colours
+country_cols = c(India_col, Malawi_col)
+names(country_cols) = levels(annotation_col$country)
+ann_colors = list(country = country_cols)
+
+# draw heatmap
+out = pheatmap(t(h_scale), cluster_cols = T, 
+         clustering_method = "ward.D", annotation_names_col=F, legend=T,
+         annotation_col = annotation_col, annotation_colors = ann_colors, show_rownames=FALSE, show_colnames=FALSE, fontsize=13)
+```
+
+#### Correlation structure of scaled asin-sqrt transformed relative abundances (Spearman's rank)
+```{r}
+M<-cor(h, use="pairwise.complete.obs", method=c("pearson"))
+rownames(M) = rep("",length(rownames(M)))
+colnames(M) = rep("",length(colnames(M)))
+corrplot(M, method="color",  na.label = "square", na.label.col = "white", tl.col="black", order="hclust")
+```
+
+Number of features: `r ncol(h_prev)`    
+Number of samples included: `r nrow(h_prev)`
+
+Session info {.hidden}
+===================================== 
+
+```{r}
+print(sessionInfo())
+```
+.
